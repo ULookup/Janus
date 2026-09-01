@@ -1553,27 +1553,31 @@ Network Gameplay
 
 主题：
 
-> Engine Fundamentals
+> Engine Foundation
 
 目标：
 
 ```text
-Application
+Application / MainLoop
 
-Window
+SDL3 Window
 
-Rendering
+OpenGL Context
 
-Texture
+Logging / Assertion
 
-Sprite
+Timer
 
-Camera
+Basic Event / Keyboard Input
+
+FileSystem Utility
+
+Unit Test Framework
 ```
 
 验收：
 
-> 可以运行一个简单 2D Scene。
+> Sandbox 通过 Engine Application API 稳定运行空窗口，并支持关闭、缩放和键盘输入。
 
 ---
 
@@ -1581,25 +1585,25 @@ Camera
 
 主题：
 
-> Game World
+> Renderer2D
 
 增加：
 
 ```text
-ECS
+RenderDevice / OpenGLRenderDevice
 
-Scene
+Buffer / Shader / Texture / Framebuffer
 
-Hierarchy
+Orthographic Camera
 
-Serialization
+Sprite Renderer / Render Queue / Batch Renderer
 
-Asset
+Renderer Statistics
 ```
 
 验收：
 
-> 可以保存并重新打开一个 2D Scene。
+> Sandbox 可以渲染多纹理、透明 Sprite，并记录 1K/10K Sprite Benchmark；客户端不暴露 OpenGL 类型或调用。
 
 ---
 
@@ -1607,25 +1611,25 @@ Asset
 
 主题：
 
-> Gameplay Runtime
+> ECS + Scene
 
 增加：
 
 ```text
-Lua
+Entity / SparseSet / ComponentPool / Registry / View
 
-Animation
+Scene / Hierarchy
 
-Input Mapping
+TransformComponent
 
-Basic Physics
+SpriteRendererComponent
 
-Basic Audio
+CameraComponent
 ```
 
 验收：
 
-> 可以制作简单可玩的 2D Demo。
+> Renderer 从 Scene 自动获取 Sprite，Sandbox 不再手动提交全部渲染数据。
 
 ---
 
@@ -1633,27 +1637,21 @@ Basic Audio
 
 主题：
 
-> Editor
+> Asset + Serialization
 
 增加：
 
 ```text
-Hierarchy
+UUID / AssetHandle / AssetMetadata / AssetRegistry
 
-Inspector
+Texture Loader / Shader Loader / Asset Cache
 
-Scene View
-
-Game View
-
-Asset Browser
-
-Console
+Scene Serialization / Deserialization
 ```
 
 验收：
 
-> 可以基本脱离源码创建游戏场景。
+> Scene 可以可靠保存并重新打开，资源引用不依赖绝对路径。
 
 ---
 
@@ -1661,29 +1659,23 @@ Console
 
 主题：
 
-> Agent Foundation
+> Lua Gameplay Runtime
 
 增加：
 
 ```text
-Command System
+Lua VM / ScriptEngine / Lua Binding
 
-Reflection
+LuaScriptComponent / ScriptInstance
 
-Undo / Redo
+OnCreate / OnUpdate / OnDestroy
 
-MCP stdio
-
-Project Resource
-
-Scene Resource
-
-Scene Tools
+Basic Hot Reload
 ```
 
 验收：
 
-> Agent 可以创建并修改 Scene。
+> Gameplay 移动逻辑可以完全由 Lua 实现，无需重新编译 C++ Engine。
 
 ---
 
@@ -1691,27 +1683,25 @@ Scene Tools
 
 主题：
 
-> Agent Development Loop
+> Editor Foundation
 
 增加：
 
 ```text
-Runtime Tools
+Editor Application
 
-Log Resources
+Hierarchy / Inspector
 
-Profiler
+Scene View / Game View
 
-Test Runner
+Console / Asset Browser
 
-Transactions
-
-Audit
+Play Mode Scene Isolation
 ```
 
 验收：
 
-> Agent 可以完成修改 → 运行 → 验证闭环。
+> 不修改 C++ 代码即可创建 Entity、添加基础 Component、设置 Sprite、保存并运行 Scene。
 
 ---
 
@@ -1719,33 +1709,37 @@ Audit
 
 主题：
 
-> Production Validation
+> Reflection + Command
 
-使用 Janus 开发正式 Demo Game。
-
-目标：
-
-验证：
+增加：
 
 ```text
-Renderer
+Type / Property / Component Metadata
 
-ECS
+Inspector / Serialization Reflection Integration
 
-Asset
+CommandBus / Command History
 
-Lua
+Create / Delete / Add / Remove / SetProperty Command
 
-UI
-
-Animation
-
-Editor
-
-MCP
+Undo / Redo
 ```
 
-在真实游戏中的稳定性。
+验收：
+
+> Editor 修改统一进入 CommandBus，属性修改可以 Undo / Redo。
+
+后续版本边界统一为：
+
+```text
+v0.8  MCP Agent Foundation
+v0.9  Agent Development Loop
+v0.10 Game Systems
+v0.11 Production Demo
+v1.0  Core Product Loop Complete
+```
+
+本节只提供产品级摘要。所有版本的详细范围、Benchmark 和完成条件均以《Janus Engine 版本路线图》为唯一来源；PRD 不再维护另一套独立版本边界。
 
 ---
 
