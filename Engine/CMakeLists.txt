@@ -16,6 +16,7 @@ target_sources(
         Core/Log/Log.cpp
         Core/FileSystem/FileSystem.cpp
         Core/Time/FrameClock.cpp
+        Core/Input/InputState.cpp
 
         Platform/SDL/SDLPlatform.cpp
 
@@ -36,6 +37,9 @@ target_sources(
 
         Core/Time/FrameClock.h
         Core/Time/TimeStep.h
+
+        Core/Event/Event.h
+        Core/Input/InputState.h
 
         Platform/Platform.h
         Platform/Window/WindowConfig.h
