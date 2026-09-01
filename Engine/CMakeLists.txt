@@ -20,6 +20,7 @@ target_sources(
 
         Platform/SDL/SDLPlatform.cpp
 
+        Platform/Window/WindowConfig.cpp
         Platform/SDL/SDLWindow.cpp
 
     PUBLIC

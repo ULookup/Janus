@@ -6,12 +6,47 @@
 #include <SDL3/SDL_events.h>
 #include <SDL3/SDL_video.h>
 
-#include <limits>
 #include <memory>
+#include <optional>
 #include <string>
 
 namespace Janus
 {
+
+    namespace
+    {
+
+        // SDL scancodes must terminate here so public window events remain platform-neutral.
+        [[nodiscard]] std::optional<KeyCode> TranslateKey(SDL_Scancode key) noexcept
+        {
+            switch (key)
+            {
+            case SDL_SCANCODE_ESCAPE: return KeyCode::Escape;
+            case SDL_SCANCODE_SPACE: return KeyCode::Space;
+            case SDL_SCANCODE_RETURN: return KeyCode::Enter;
+            case SDL_SCANCODE_UP: return KeyCode::ArrowUp;
+            case SDL_SCANCODE_DOWN: return KeyCode::ArrowDown;
+            case SDL_SCANCODE_LEFT: return KeyCode::ArrowLeft;
+            case SDL_SCANCODE_RIGHT: return KeyCode::ArrowRight;
+            case SDL_SCANCODE_W: return KeyCode::W;
+            case SDL_SCANCODE_A: return KeyCode::A;
+            case SDL_SCANCODE_S: return KeyCode::S;
+            case SDL_SCANCODE_D: return KeyCode::D;
+            case SDL_SCANCODE_0: return KeyCode::Digit0;
+            case SDL_SCANCODE_1: return KeyCode::Digit1;
+            case SDL_SCANCODE_2: return KeyCode::Digit2;
+            case SDL_SCANCODE_3: return KeyCode::Digit3;
+            case SDL_SCANCODE_4: return KeyCode::Digit4;
+            case SDL_SCANCODE_5: return KeyCode::Digit5;
+            case SDL_SCANCODE_6: return KeyCode::Digit6;
+            case SDL_SCANCODE_7: return KeyCode::Digit7;
+            case SDL_SCANCODE_8: return KeyCode::Digit8;
+            case SDL_SCANCODE_9: return KeyCode::Digit9;
+            default: return std::nullopt;
+            }
+        }
+
+    } // namespace
 
     // ============================================================
     // Window Factory
@@ -20,22 +55,12 @@ namespace Janus
     Result<std::unique_ptr<Window>>
         Window::Create(const WindowConfig& config)
     {
-        if (config.width == 0 || config.height == 0)
+        const auto validationResult = ValidateWindowConfig(config);
+
+        if (!validationResult)
         {
             return Result<std::unique_ptr<Window>>::Failure(
-                ErrorCode::InvalidArgument,
-                "Window width and height must be greater than zero.");
-        }
-
-        constexpr auto maxSDLDimension =
-            static_cast<u32>(std::numeric_limits<int>::max());
-
-        if (config.width > maxSDLDimension ||
-            config.height > maxSDLDimension)
-        {
-            return Result<std::unique_ptr<Window>>::Failure(
-                ErrorCode::InvalidArgument,
-                "Window dimensions exceed SDL supported integer range.");
+                validationResult.GetError());
         }
 
         SDL_WindowFlags flags = 0;
@@ -119,7 +144,7 @@ namespace Janus
     // Events
     // ============================================================
 
-    void SDLWindow::PollEvents()
+    void SDLWindow::PollEvents(const EventCallback& callback)
     {
         SDL_Event event{};
 
@@ -130,6 +155,7 @@ namespace Janus
             case SDL_EVENT_QUIT:
             {
                 RequestClose();
+                callback(WindowCloseEvent{});
                 break;
             }
 
@@ -141,6 +167,7 @@ namespace Janus
                 if (eventWindow == m_Window)
                 {
                     RequestClose();
+                    callback(WindowCloseEvent{});
                 }
 
                 break;
@@ -158,6 +185,44 @@ namespace Janus
 
                     m_Height =
                         static_cast<u32>(event.window.data2);
+
+                    callback(WindowResizeEvent{m_Width, m_Height});
+                }
+
+                break;
+            }
+
+            case SDL_EVENT_KEY_DOWN:
+            {
+                SDL_Window* eventWindow =
+                    SDL_GetWindowFromEvent(&event);
+
+                if (eventWindow == m_Window)
+                {
+                    const auto key = TranslateKey(event.key.scancode);
+
+                    if (key.has_value())
+                    {
+                        callback(KeyPressedEvent{*key, event.key.repeat});
+                    }
+                }
+
+                break;
+            }
+
+            case SDL_EVENT_KEY_UP:
+            {
+                SDL_Window* eventWindow =
+                    SDL_GetWindowFromEvent(&event);
+
+                if (eventWindow == m_Window)
+                {
+                    const auto key = TranslateKey(event.key.scancode);
+
+                    if (key.has_value())
+                    {
+                        callback(KeyReleasedEvent{*key});
+                    }
                 }
 
                 break;

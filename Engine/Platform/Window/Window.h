@@ -1,9 +1,11 @@
 #pragma once
 
 #include "Core/Error/Result.h"
+#include "Core/Event/Event.h"
 #include "Core/Types.h"
 #include "Platform/Window/WindowConfig.h"
 
+#include <functional>
 #include <memory>
 #include <string_view>
 
@@ -13,6 +15,8 @@ namespace Janus
     class Window
     {
     public:
+        using EventCallback = std::function<void(const Event&)>;
+
         Window() = default;
 
         virtual ~Window() = default;
@@ -34,7 +38,7 @@ namespace Janus
         // Event Pump
         // --------------------------------------------------------
 
-        virtual void PollEvents() = 0;
+        virtual void PollEvents(const EventCallback& callback) = 0;
 
         // --------------------------------------------------------
         // Window State

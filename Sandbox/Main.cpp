@@ -56,7 +56,10 @@ int main()
 
     while (!window->ShouldClose())
     {
-        window->PollEvents();
+        window->PollEvents(
+            [](const Janus::Event&)
+            {
+            });
 
         std::this_thread::sleep_for(
             std::chrono::milliseconds(1));
