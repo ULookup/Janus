@@ -3,6 +3,7 @@ add_executable(
 
     Core/ResultTests.cpp
     Core/TimeTests.cpp
+    Core/FileSystemTests.cpp
 )
 
 

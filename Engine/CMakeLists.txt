@@ -14,6 +14,7 @@ target_sources(
     PRIVATE
 
         Core/Log/Log.cpp
+        Core/FileSystem/FileSystem.cpp
         Core/Time/FrameClock.cpp
 
         Platform/SDL/SDLPlatform.cpp
@@ -30,6 +31,8 @@ target_sources(
         Core/Error/Result.h
 
         Core/Log/Log.h
+
+        Core/FileSystem/FileSystem.h
 
         Core/Time/FrameClock.h
         Core/Time/TimeStep.h
