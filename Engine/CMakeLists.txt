@@ -25,6 +25,9 @@ target_sources(
         Platform/Window/WindowConfig.cpp
         Platform/SDL/SDLWindow.cpp
 
+        Application/Application.cpp
+        Application/Detail/ApplicationDependencies.h
+
     PUBLIC
 
         Core/Base.h
@@ -49,6 +52,10 @@ target_sources(
         Platform/Window/WindowConfig.h
         Platform/Window/Window.h
         Platform/SDL/SDLWindow.h
+
+        Application/ApplicationConfig.h
+        Application/ApplicationClient.h
+        Application/Application.h
 )
 
 

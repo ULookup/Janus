@@ -1,76 +1,51 @@
+#include "Application/Application.h"
+#include "Application/ApplicationClient.h"
+
+#include "Core/Event/Event.h"
 #include "Core/Log/Log.h"
+#include "Core/Time/TimeStep.h"
 
-#include "Platform/Platform.h"
-#include "Platform/Window/Window.h"
-
-#include <chrono>
+#include <cstdio>
 #include <cstdlib>
-#include <memory>
-#include <thread>
-#include <utility>
+#include <variant>
+
+class SandboxClient final : public Janus::ApplicationClient
+{
+public:
+    void OnEvent(const Janus::Event& event, Janus::Application&) override
+    {
+        if (const auto* resize = std::get_if<Janus::WindowResizeEvent>(&event))
+        {
+            JANUS_INFO("Window resized to {}x{}.", resize->width, resize->height);
+        }
+    }
+
+    void OnUpdate(Janus::TimeStep, Janus::Application& application) override
+    {
+        if (application.GetInput().WasKeyPressed(Janus::KeyCode::Escape))
+        {
+            application.RequestExit();
+        }
+    }
+};
 
 int main()
 {
-    Janus::Log::Initialize();
+    Janus::ApplicationConfig config;
+    config.window.title = "Janus Sandbox";
+    config.window.width = 1280;
+    config.window.height = 720;
+    config.window.resizable = true;
 
-    JANUS_CORE_INFO(
-        "Janus Engine starting.");
+    Janus::Application application(config);
+    SandboxClient client;
+    const auto result = application.Run(client);
 
-    const auto platformResult =
-        Janus::Platform::Initialize();
-
-    if (!platformResult)
+    if (!result)
     {
-        JANUS_CORE_CRITICAL(
-            "Platform initialization failed: {}",
-            platformResult.GetError().message);
-
-        Janus::Log::Shutdown();
-
+        std::fprintf(stderr, "Janus failed: %s\n", result.GetError().message.c_str());
         return EXIT_FAILURE;
     }
-
-    Janus::WindowConfig config;
-
-    config.title = "Janus Sandbox";
-    config.width = 1280;
-    config.height = 720;
-    config.resizable = true;
-
-    auto windowResult =
-        Janus::Window::Create(config);
-
-    if (!windowResult)
-    {
-        JANUS_CORE_CRITICAL(
-            "Window creation failed: {}",
-            windowResult.GetError().message);
-
-        Janus::Platform::Shutdown();
-        Janus::Log::Shutdown();
-
-        return EXIT_FAILURE;
-    }
-
-    auto window = std::move(windowResult).Value();
-
-    while (!window->ShouldClose())
-    {
-        window->PollEvents(
-            [](const Janus::Event&)
-            {
-            });
-
-        std::this_thread::sleep_for(
-            std::chrono::milliseconds(1));
-    }
-
-    // Window must be destroyed before SDL shuts down.
-    window.reset();
-
-    Janus::Platform::Shutdown();
-
-    Janus::Log::Shutdown();
 
     return EXIT_SUCCESS;
 }

@@ -7,6 +7,7 @@ add_executable(
     Core/EventInputTests.cpp
     Core/LogTests.cpp
     Platform/WindowConfigTests.cpp
+    Application/ApplicationTests.cpp
 )
 
 

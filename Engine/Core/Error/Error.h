@@ -12,6 +12,7 @@ enum class ErrorCode
 	None = 0,
 
 	InvalidArgument,
+	InvalidState,
 
 	FileNotFound,
 	FileReadFailed,
