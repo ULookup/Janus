@@ -63,7 +63,20 @@ namespace Janus
                 validationResult.GetError());
         }
 
-        SDL_WindowFlags flags = 0;
+        if (!SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4) ||
+            !SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 5) ||
+            !SDL_GL_SetAttribute(
+                SDL_GL_CONTEXT_PROFILE_MASK,
+                SDL_GL_CONTEXT_PROFILE_CORE) ||
+            !SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1))
+        {
+            return Result<std::unique_ptr<Window>>::Failure(
+                ErrorCode::WindowCreateFailed,
+                std::string("Failed to configure OpenGL window: ")
+                + SDL_GetError());
+        }
+
+        SDL_WindowFlags flags = SDL_WINDOW_OPENGL;
 
         if (config.resizable)
         {

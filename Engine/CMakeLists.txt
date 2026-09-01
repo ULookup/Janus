@@ -19,6 +19,8 @@ target_sources(
         Core/Input/InputState.cpp
 
         Platform/SDL/SDLPlatform.cpp
+        Platform/SDL/SDLOpenGLContext.cpp
+        Platform/SDL/SDLOpenGLContext.h
 
         Platform/Window/WindowConfig.cpp
         Platform/SDL/SDLWindow.cpp
@@ -43,6 +45,7 @@ target_sources(
         Core/Input/InputState.h
 
         Platform/Platform.h
+        Platform/Graphics/GraphicsContext.h
         Platform/Window/WindowConfig.h
         Platform/Window/Window.h
         Platform/SDL/SDLWindow.h

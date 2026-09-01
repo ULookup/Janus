@@ -19,6 +19,9 @@ enum class ErrorCode
 
 	PlatformInitFailed,
 	WindowCreateFailed,
+	GraphicsContextCreateFailed,
+	GraphicsContextMakeCurrentFailed,
+	SwapIntervalFailed,
 
 	Unknown
 };
