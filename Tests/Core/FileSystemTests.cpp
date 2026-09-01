@@ -72,3 +72,16 @@ TEST_CASE("FileSystem reports missing reads and invalid writes", "[core][filesys
     REQUIRE_FALSE(invalid);
     REQUIRE(invalid.GetError().code == Janus::ErrorCode::FileWriteFailed);
 }
+
+TEST_CASE("FileSystem round trips empty text and binary", "[core][filesystem]")
+{
+    TempDirectory temp;
+    const auto textPath = temp.Path() / "empty.txt";
+    const auto binaryPath = temp.Path() / "empty.bin";
+    const std::array<Janus::u8, 0> bytes{};
+
+    REQUIRE(Janus::FileSystem::WriteText(textPath, ""));
+    REQUIRE(Janus::FileSystem::WriteBinary(binaryPath, bytes));
+    REQUIRE(Janus::FileSystem::ReadText(textPath).Value().empty());
+    REQUIRE(Janus::FileSystem::ReadBinary(binaryPath).Value().empty());
+}

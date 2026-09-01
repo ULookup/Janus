@@ -34,16 +34,26 @@ Result<std::vector<u8>> ReadBytes(const std::filesystem::path& path)
     }
 
     const auto end = stream.tellg();
-    if (end < std::streampos{ 0 }
-        || static_cast<std::uintmax_t>(end)
-            > static_cast<std::uintmax_t>(std::numeric_limits<std::streamsize>::max()))
+    if (end < std::streampos{ 0 })
     {
         return Result<std::vector<u8>>::Failure(
             ErrorCode::FileReadFailed,
             "Failed to determine size of file '" + path.string() + "'.");
     }
 
-    std::vector<u8> contents(static_cast<std::size_t>(end));
+    const auto size = static_cast<std::uintmax_t>(end);
+    const auto maxStreamSize =
+        static_cast<std::uintmax_t>(std::numeric_limits<std::streamsize>::max());
+    const auto maxSize = static_cast<std::uintmax_t>(std::numeric_limits<std::size_t>::max());
+    const auto maxVectorSize = static_cast<std::uintmax_t>(std::vector<u8>{}.max_size());
+    if (size > maxStreamSize || size > maxSize || size > maxVectorSize)
+    {
+        return Result<std::vector<u8>>::Failure(
+            ErrorCode::FileReadFailed,
+            "Failed to determine size of file '" + path.string() + "'.");
+    }
+
+    std::vector<u8> contents(static_cast<std::size_t>(size));
     stream.seekg(0);
     if (!stream)
     {
@@ -90,6 +100,11 @@ Result<std::string> ReadText(const std::filesystem::path& path)
     }
 
     const auto& value = bytes.Value();
+    if (value.empty())
+    {
+        return Result<std::string>::Success(std::string{});
+    }
+
     return Result<std::string>::Success(
         std::string(reinterpret_cast<const char*>(value.data()), value.size()));
 }
@@ -98,6 +113,14 @@ Result<void> WriteBinary(
     const std::filesystem::path& path,
     std::span<const u8> contents)
 {
+    if (contents.size()
+        > static_cast<std::size_t>(std::numeric_limits<std::streamsize>::max()))
+    {
+        return Result<void>::Failure(
+            ErrorCode::FileWriteFailed,
+            "Failed to write file '" + path.string() + "': contents are too large.");
+    }
+
     std::ofstream stream(path, std::ios::binary | std::ios::trunc);
     if (!stream)
     {
@@ -106,9 +129,12 @@ Result<void> WriteBinary(
             "Failed to open file for writing '" + path.string() + "'.");
     }
 
-    stream.write(
-        reinterpret_cast<const char*>(contents.data()),
-        static_cast<std::streamsize>(contents.size()));
+    if (!contents.empty())
+    {
+        stream.write(
+            reinterpret_cast<const char*>(contents.data()),
+            static_cast<std::streamsize>(contents.size()));
+    }
     stream.flush();
 
     if (!stream)
