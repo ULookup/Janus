@@ -1,0 +1,49 @@
+{
+  "version": 5,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 24,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "windows-msvc-debug",
+      "displayName": "Windows MSVC Debug",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "JANUS_BUILD_SANDBOX": "ON",
+        "JANUS_BUILD_TESTS": "OFF"
+      }
+    },
+    {
+      "name": "windows-msvc-debug-tests",
+      "displayName": "Windows MSVC Debug with Tests",
+      "inherits": "windows-msvc-debug",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "cacheVariables": {
+        "JANUS_BUILD_TESTS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "windows-msvc-debug",
+      "configurePreset": "windows-msvc-debug"
+    },
+    {
+      "name": "windows-msvc-debug-tests",
+      "configurePreset": "windows-msvc-debug-tests"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "windows-msvc-debug-tests",
+      "configurePreset": "windows-msvc-debug-tests",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}
