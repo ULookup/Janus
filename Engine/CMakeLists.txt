@@ -17,6 +17,8 @@ target_sources(
 
         Platform/SDL/SDLPlatform.cpp
 
+        Platform/SDL/SDLWindow.cpp
+
     PUBLIC
 
         Core/Base.h
@@ -30,7 +32,9 @@ target_sources(
 
         Platform/Platform.h
         Platform/Window/WindowConfig.h
- "Platform/Window/Window.h" "Platform/SDL/SDLWindow.h" "Platform/SDL/SDLWindow.cpp")
+        Platform/Window/Window.h
+        Platform/SDL/SDLWindow.h
+)
 
 
 # ============================================================
