@@ -2,6 +2,7 @@ add_executable(
     JanusTests
 
     Core/ResultTests.cpp
+    Core/TimeTests.cpp
 )
 
 
