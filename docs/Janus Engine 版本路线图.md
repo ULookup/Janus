@@ -82,6 +82,8 @@ Janus Engine
 
 # 3. v0.1 — Engine Foundation
 
+状态：已完成
+
 ## 目标
 
 建立稳定、可测试、可持续扩展的 C++ Engine Skeleton。
@@ -159,6 +161,8 @@ Platform Abstraction
 ---
 
 # 4. v0.2 — Renderer2D
+
+状态：下一里程碑
 
 ## 目标
 
