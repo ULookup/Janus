@@ -1,0 +1,64 @@
+#pragma once
+
+#include "Core/Error/Result.h"
+#include "Core/Types.h"
+#include "Platform/Window/WindowConfig.h"
+
+#include <memory>
+#include <string_view>
+
+namespace Janus
+{
+
+    class Window
+    {
+    public:
+        Window() = default;
+
+        virtual ~Window() = default;
+
+        Window(const Window&) = delete;
+        Window& operator=(const Window&) = delete;
+
+        Window(Window&&) = delete;
+        Window& operator=(Window&&) = delete;
+
+        // --------------------------------------------------------
+        // Factory
+        // --------------------------------------------------------
+
+        [[nodiscard]]
+        static Result<std::unique_ptr<Window>> Create(const WindowConfig& config);
+
+        // --------------------------------------------------------
+        // Event Pump
+        // --------------------------------------------------------
+
+        virtual void PollEvents() = 0;
+
+        // --------------------------------------------------------
+        // Window State
+        // --------------------------------------------------------
+
+        virtual void SetTitle(std::string_view title) = 0;
+
+        [[nodiscard]]
+        virtual u32 GetWidth() const noexcept = 0;
+
+        [[nodiscard]]
+        virtual u32 GetHeight() const noexcept = 0;
+
+        [[nodiscard]]
+        virtual bool ShouldClose() const noexcept = 0;
+
+        virtual void RequestClose() noexcept = 0;
+
+        // --------------------------------------------------------
+        // Backend Escape Hatch
+        // --------------------------------------------------------
+
+        [[nodiscard]]
+        virtual void* GetNativeHandle() const noexcept = 0;
+    };
+
+} // namespace Janus

@@ -1,0 +1,30 @@
+# CMake and build output
+/out/
+/build/
+CMakeUserPresets.json
+compile_commands.json
+
+# Visual Studio
+/.vs/
+*.sln
+*.vcxproj*
+*.user
+
+# Compilers and debuggers
+*.obj
+*.o
+*.lib
+*.dll
+*.exe
+*.pdb
+*.ilk
+
+# Runtime output
+*.log
+logs/
+
+# OS and editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
