@@ -75,3 +75,17 @@ TEST_CASE("KeyCode count is the exclusive bitset upper bound", "[core][input]")
 {
     REQUIRE(static_cast<Janus::usize>(Janus::KeyCode::Count) == 21);
 }
+
+TEST_CASE("InputState ignores invalid key codes", "[core][input]")
+{
+    Janus::InputState input;
+    const auto count = Janus::KeyCode::Count;
+    const auto outOfRange = static_cast<Janus::KeyCode>(0xffffu);
+
+    input.Apply(Janus::KeyPressedEvent{count, false});
+    input.Apply(Janus::KeyReleasedEvent{outOfRange});
+
+    REQUIRE_FALSE(input.IsKeyDown(count));
+    REQUIRE_FALSE(input.WasKeyPressed(outOfRange));
+    REQUIRE_FALSE(input.WasKeyReleased(count));
+}
