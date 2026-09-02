@@ -12,6 +12,7 @@ namespace Janus
 
 class Window;
 class GraphicsContext;
+class Renderer2D;
 
 namespace Detail
 {
@@ -22,6 +23,7 @@ struct ApplicationDependencies
     std::function<void()> shutdownPlatform;
     std::function<Result<std::unique_ptr<Window>>(const WindowConfig&)> createWindow;
     std::function<Result<std::unique_ptr<GraphicsContext>>(Window&)> createGraphicsContext;
+    std::function<Result<std::unique_ptr<Renderer2D>>()> createRenderer2D;
     std::function<FrameClock::TimePoint()> now;
 };
 
