@@ -9,4 +9,4 @@ namespace Janus::Platform
 
 	void Shutdown() noexcept;
 
-} // namespace Janus::Platf
+} // namespace Janus::Platform
