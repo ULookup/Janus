@@ -7,6 +7,7 @@
 #include "Platform/Platform.h"
 #include "Platform/Window/Window.h"
 #include "Renderer/Renderer2D.h"
+#include "Scene/Scene.h"
 
 #include <memory>
 #include <utility>
@@ -42,6 +43,11 @@ ApplicationDependencies CreateDefaultApplicationDependencies()
     dependencies.createRenderer2D = []
     {
         return Renderer2D::Create();
+    };
+
+    dependencies.createScene = []
+    {
+        return std::make_unique<Scene>();
     };
 
     dependencies.now = []
@@ -148,6 +154,8 @@ Result<void> Application::Run(ApplicationClient& client)
 
     m_Renderer2D = std::move(rendererResult).Value();
 
+    m_Scene = m_Dependencies.createScene();
+
     auto initializeResult = client.OnInitialize(*this);
     if (!initializeResult)
     {
@@ -179,10 +187,23 @@ Result<void> Application::Run(ApplicationClient& client)
             m_FrameClock.Tick(m_Dependencies.now())
                 .ClampedTo(m_Config.maximumFrameTime);
 
-        m_Renderer2D->SetViewport(
-            Viewport{m_Window->GetWidth(), m_Window->GetHeight()});
-
         client.OnUpdate(timeStep, *this);
+
+        const Viewport viewport{
+            m_Window->GetWidth(),
+            m_Window->GetHeight()};
+
+        const auto renderResult =
+            m_Scene->Render(*m_Renderer2D, viewport);
+
+        if (!renderResult)
+        {
+            JANUS_CORE_ERROR(
+                "Scene render failed: {}",
+                renderResult.GetError().message);
+            RequestExit();
+        }
+
         m_GraphicsContext->Present();
     }
 
@@ -206,6 +227,11 @@ Renderer2D& Application::GetRenderer2D() noexcept
     return *m_Renderer2D;
 }
 
+Scene& Application::GetScene() noexcept
+{
+    return *m_Scene;
+}
+
 void Application::Cleanup(
     ApplicationClient* client,
     bool callClientShutdown)
@@ -218,6 +244,7 @@ void Application::Cleanup(
 
     // The OpenGL context references the native window, so their destruction
     // order is a correctness requirement rather than a stylistic preference.
+    m_Scene.reset();
     m_Renderer2D.reset();
     m_GraphicsContext.reset();
     m_Window.reset();
