@@ -63,8 +63,8 @@ public:
 
         Janus::OrthographicCamera camera;
         camera.position = Janus::Vector2{
-            std::sin(m_ElapsedSeconds) * 200.0f,
-            std::cos(m_ElapsedSeconds) * 80.0f};
+            static_cast<Janus::f32>(std::sin(m_ElapsedSeconds)) * 200.0f,
+            static_cast<Janus::f32>(std::cos(m_ElapsedSeconds)) * 80.0f};
 
         auto& renderer = application.GetRenderer2D();
         renderer.BeginFrame(camera);
@@ -84,7 +84,8 @@ public:
         transparentSprite.texture = m_TransparentTexture;
         transparentSprite.position = Janus::Vector2{120.0f, 60.0f};
         transparentSprite.size = Janus::Vector2{128.0f, 128.0f};
-        transparentSprite.rotationRadians = m_ElapsedSeconds;
+        transparentSprite.rotationRadians =
+            static_cast<Janus::f32>(m_ElapsedSeconds);
         transparentSprite.color.a = 0.55f;
 
         renderer.SubmitSprite(transparentSprite);
@@ -134,7 +135,7 @@ private:
 
     Janus::TextureHandle m_CheckerTexture;
     Janus::TextureHandle m_TransparentTexture;
-    float m_ElapsedSeconds = 0.0f;
+    Janus::f64 m_ElapsedSeconds = 0.0;
 };
 
 int main()

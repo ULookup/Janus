@@ -33,7 +33,8 @@ public:
     }
 
     Result<VertexArrayHandle> CreateVertexArray(
-        const VertexLayout&) override
+        const VertexLayout&,
+        VertexBufferHandle) override
     {
         return Result<VertexArrayHandle>::Success(
             VertexArrayHandle{Next()});
@@ -79,6 +80,14 @@ public:
     void SetViewport(Viewport viewport) override
     {
         lastViewport = viewport;
+    }
+
+    void SetViewProjection(const Mat4&) override
+    {
+    }
+
+    void UseShader(ShaderHandle) override
+    {
     }
 
     void Clear(Color color) override

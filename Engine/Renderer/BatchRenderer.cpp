@@ -135,7 +135,9 @@ Result<void> BatchRenderer::Flush(
             {2, VertexAttributeType::Float4, sizeof(f32) * 4}};
 
         const auto vertexArray =
-            m_Device.CreateVertexArray(layout);
+            m_Device.CreateVertexArray(
+                layout,
+                vertexBuffer.Value());
 
         if (!vertexArray)
         {

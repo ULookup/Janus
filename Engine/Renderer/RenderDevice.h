@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Core/Error/Result.h"
+#include "Core/Math/Mat4.h"
 #include "Renderer/RendererTypes.h"
 
 namespace Janus
@@ -31,7 +32,8 @@ public:
     virtual void DestroyIndexBuffer(IndexBufferHandle handle) = 0;
 
     virtual Result<VertexArrayHandle> CreateVertexArray(
-        const VertexLayout& layout) = 0;
+        const VertexLayout& layout,
+        VertexBufferHandle vertexBuffer) = 0;
     virtual void DestroyVertexArray(VertexArrayHandle handle) = 0;
 
     virtual Result<ShaderHandle> CreateShader(
@@ -47,6 +49,8 @@ public:
     virtual void DestroyFramebuffer(FramebufferHandle handle) = 0;
 
     virtual void SetViewport(Viewport viewport) = 0;
+    virtual void SetViewProjection(const Mat4& matrix) = 0;
+    virtual void UseShader(ShaderHandle handle) = 0;
     virtual void Clear(Color color) = 0;
     virtual void DrawIndexed(const DrawCommand& command) = 0;
 
