@@ -2,7 +2,7 @@
 
 Janus 是一个面向 Human Developer 与 AI Agent 的 C++20 2D 游戏引擎。项目希望让 Editor、Game 和 Agent 通过同一套 Engine Capability 理解、修改、运行并验证游戏世界。
 
-项目目前处于 **v0.1 Engine Foundation**：正在建立可持续演进的应用生命周期、平台、窗口、事件、时间、文件系统与测试基础。Renderer、ECS、Scene、Asset、Editor 和 MCP 尚未进入可用阶段。
+项目已完成 **v0.1 Engine Foundation**：Application 生命周期、SDL3 窗口、OpenGL 4.5 Core Context、基础事件与键盘输入、帧时间、文件系统、日志和自动测试均已形成可复现闭环。当前下一里程碑为 **v0.2 Renderer2D**。
 
 ## 环境要求
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Core/Error/Result.h"
 #include "Core/Types.h"
 
 #include <string>
@@ -16,5 +17,8 @@ namespace Janus
 
         bool resizable = true;
     };
+
+    [[nodiscard]]
+    Result<void> ValidateWindowConfig(const WindowConfig& config);
 
 } // namespace Janus

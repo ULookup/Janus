@@ -14,10 +14,19 @@ target_sources(
     PRIVATE
 
         Core/Log/Log.cpp
+        Core/FileSystem/FileSystem.cpp
+        Core/Time/FrameClock.cpp
+        Core/Input/InputState.cpp
 
         Platform/SDL/SDLPlatform.cpp
+        Platform/SDL/SDLOpenGLContext.cpp
+        Platform/SDL/SDLOpenGLContext.h
 
+        Platform/Window/WindowConfig.cpp
         Platform/SDL/SDLWindow.cpp
+
+        Application/Application.cpp
+        Application/Detail/ApplicationDependencies.h
 
     PUBLIC
 
@@ -30,10 +39,23 @@ target_sources(
 
         Core/Log/Log.h
 
+        Core/FileSystem/FileSystem.h
+
+        Core/Time/FrameClock.h
+        Core/Time/TimeStep.h
+
+        Core/Event/Event.h
+        Core/Input/InputState.h
+
         Platform/Platform.h
+        Platform/Graphics/GraphicsContext.h
         Platform/Window/WindowConfig.h
         Platform/Window/Window.h
         Platform/SDL/SDLWindow.h
+
+        Application/ApplicationConfig.h
+        Application/ApplicationClient.h
+        Application/Application.h
 )
 
 

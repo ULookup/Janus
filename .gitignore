@@ -1,6 +1,7 @@
 # CMake and build output
 /out/
 /build/
+/.worktrees/
 CMakeUserPresets.json
 compile_commands.json
 

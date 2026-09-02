@@ -12,6 +12,7 @@ enum class ErrorCode
 	None = 0,
 
 	InvalidArgument,
+	InvalidState,
 
 	FileNotFound,
 	FileReadFailed,
@@ -19,6 +20,9 @@ enum class ErrorCode
 
 	PlatformInitFailed,
 	WindowCreateFailed,
+	GraphicsContextCreateFailed,
+	GraphicsContextMakeCurrentFailed,
+	SwapIntervalFailed,
 
 	Unknown
 };

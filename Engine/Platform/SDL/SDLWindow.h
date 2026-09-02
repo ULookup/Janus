@@ -24,7 +24,7 @@ namespace Janus
         // Event Pump
         // --------------------------------------------------------
 
-        void PollEvents() override;
+        void PollEvents(const EventCallback& callback) override;
 
         // --------------------------------------------------------
         // Window State

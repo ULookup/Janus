@@ -2,6 +2,12 @@ add_executable(
     JanusTests
 
     Core/ResultTests.cpp
+    Core/TimeTests.cpp
+    Core/FileSystemTests.cpp
+    Core/EventInputTests.cpp
+    Core/LogTests.cpp
+    Platform/WindowConfigTests.cpp
+    Application/ApplicationTests.cpp
 )
 
 

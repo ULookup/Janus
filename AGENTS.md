@@ -62,6 +62,7 @@ For a behavior change, run the narrowest relevant test first and then the full `
 - Use fixed-width aliases from `Core/Types.h` where engine-facing width matters.
 - Include headers by their path relative to `Engine/`.
 - Apply `.clang-format` to touched C++ regions only; do not reformat unrelated files.
+- Write concise comments for critical intent and invariants—especially ownership/lifetime, cleanup order, backend translation, and non-obvious algorithms. Explain why the constraint exists; do not restate what the code already says.
 - Keep warnings enabled through `janus_set_warnings` for every Janus target.
 
 ## Scope control

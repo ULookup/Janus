@@ -30,40 +30,47 @@ namespace Janus
 
 
 // ============================================================
-// Core Logger
+// Logging macros
 // ============================================================
 
-#define JANUS_CORE_TRACE(...)    \
-    ::Janus::Log::GetCoreLogger()->trace(__VA_ARGS__)
+// A single statement-safe guard keeps every public macro null-safe without
+// duplicating the lifetime check, so logging remains a no-op before
+// initialization or after shutdown.
+#define JANUS_DETAIL_LOG(LoggerGetter, Level, ...)                       \
+    do                                                                   \
+    {                                                                    \
+        if (const auto& janusDetailLogger = (LoggerGetter))              \
+        {                                                                \
+            janusDetailLogger->Level(__VA_ARGS__);                       \
+        }                                                                \
+    } while (false)
 
-#define JANUS_CORE_INFO(...)     \
-    ::Janus::Log::GetCoreLogger()->info(__VA_ARGS__)
+#define JANUS_CORE_TRACE(...) \
+    JANUS_DETAIL_LOG(::Janus::Log::GetCoreLogger(), trace, __VA_ARGS__)
 
-#define JANUS_CORE_WARN(...)     \
-    ::Janus::Log::GetCoreLogger()->warn(__VA_ARGS__)
+#define JANUS_CORE_INFO(...) \
+    JANUS_DETAIL_LOG(::Janus::Log::GetCoreLogger(), info, __VA_ARGS__)
 
-#define JANUS_CORE_ERROR(...)    \
-    ::Janus::Log::GetCoreLogger()->error(__VA_ARGS__)
+#define JANUS_CORE_WARN(...) \
+    JANUS_DETAIL_LOG(::Janus::Log::GetCoreLogger(), warn, __VA_ARGS__)
+
+#define JANUS_CORE_ERROR(...) \
+    JANUS_DETAIL_LOG(::Janus::Log::GetCoreLogger(), error, __VA_ARGS__)
 
 #define JANUS_CORE_CRITICAL(...) \
-    ::Janus::Log::GetCoreLogger()->critical(__VA_ARGS__)
+    JANUS_DETAIL_LOG(::Janus::Log::GetCoreLogger(), critical, __VA_ARGS__)
 
+#define JANUS_TRACE(...) \
+    JANUS_DETAIL_LOG(::Janus::Log::GetClientLogger(), trace, __VA_ARGS__)
 
-// ============================================================
-// Client Logger
-// ============================================================
+#define JANUS_INFO(...) \
+    JANUS_DETAIL_LOG(::Janus::Log::GetClientLogger(), info, __VA_ARGS__)
 
-#define JANUS_TRACE(...)    \
-    ::Janus::Log::GetClientLogger()->trace(__VA_ARGS__)
+#define JANUS_WARN(...) \
+    JANUS_DETAIL_LOG(::Janus::Log::GetClientLogger(), warn, __VA_ARGS__)
 
-#define JANUS_INFO(...)     \
-    ::Janus::Log::GetClientLogger()->info(__VA_ARGS__)
-
-#define JANUS_WARN(...)     \
-    ::Janus::Log::GetClientLogger()->warn(__VA_ARGS__)
-
-#define JANUS_ERROR(...)    \
-    ::Janus::Log::GetClientLogger()->error(__VA_ARGS__)
+#define JANUS_ERROR(...) \
+    JANUS_DETAIL_LOG(::Janus::Log::GetClientLogger(), error, __VA_ARGS__)
 
 #define JANUS_CRITICAL(...) \
-    ::Janus::Log::GetClientLogger()->critical(__VA_ARGS__)
+    JANUS_DETAIL_LOG(::Janus::Log::GetClientLogger(), critical, __VA_ARGS__)
