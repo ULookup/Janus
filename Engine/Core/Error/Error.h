@@ -24,6 +24,11 @@ enum class ErrorCode
 	GraphicsContextMakeCurrentFailed,
 	SwapIntervalFailed,
 
+	RendererInitFailed,
+	ShaderCompileFailed,
+	TextureCreateFailed,
+	FramebufferCreateFailed,
+
 	Unknown
 };
 

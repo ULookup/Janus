@@ -17,6 +17,16 @@ target_sources(
         Core/FileSystem/FileSystem.cpp
         Core/Time/FrameClock.cpp
         Core/Input/InputState.cpp
+        Core/Math/Mat4.cpp
+
+        Renderer/RendererStatistics.cpp
+        Renderer/RenderDevice.h
+        Renderer/RenderQueue.h
+        Renderer/RenderQueue.cpp
+        Renderer/BatchRenderer.h
+        Renderer/BatchRenderer.cpp
+        Renderer/Renderer2D.h
+        Renderer/Renderer2D.cpp
 
         Platform/SDL/SDLPlatform.cpp
         Platform/SDL/SDLOpenGLContext.cpp
@@ -27,6 +37,9 @@ target_sources(
 
         Application/Application.cpp
         Application/Detail/ApplicationDependencies.h
+
+        Backend/OpenGL/OpenGLRenderDevice.h
+        Backend/OpenGL/OpenGLRenderDevice.cpp
 
     PUBLIC
 
@@ -46,6 +59,15 @@ target_sources(
 
         Core/Event/Event.h
         Core/Input/InputState.h
+
+        Core/Math/Vector2.h
+        Core/Math/Mat4.h
+
+        Renderer/RendererTypes.h
+        Renderer/Sprite.h
+        Renderer/OrthographicCamera.h
+        Renderer/RendererStatistics.h
+        Renderer/Renderer2D.h
 
         Platform/Platform.h
         Platform/Graphics/GraphicsContext.h
@@ -82,6 +104,8 @@ target_link_libraries(
     PRIVATE
 
         SDL3::SDL3
+        glad_gl_45
+        glm::glm
 
     PUBLIC
 

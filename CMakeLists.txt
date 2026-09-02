@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.24)
 project(
     Janus
     VERSION 0.1.0
-    LANGUAGES CXX
+    LANGUAGES C CXX
 )
 
 
@@ -31,6 +31,12 @@ option(
 option(
     JANUS_BUILD_TESTS
     "Build Janus tests"
+    OFF
+)
+
+option(
+    JANUS_BUILD_BENCHMARKS
+    "Build Janus benchmarks"
     OFF
 )
 
@@ -115,6 +121,53 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(SDL3)
 
 
+# ------------------------------------------------------------
+# glad
+# ------------------------------------------------------------
+
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
+FetchContent_Declare(
+    glad
+
+    GIT_REPOSITORY
+        https://github.com/Dav1dde/glad.git
+
+    GIT_TAG
+        v2.0.8
+
+    SOURCE_SUBDIR
+        cmake
+)
+
+FetchContent_MakeAvailable(glad)
+
+glad_add_library(
+    glad_gl_45
+    STATIC
+    REPRODUCIBLE
+    LOADER
+    API gl:core=4.5
+)
+
+
+# ------------------------------------------------------------
+# glm
+# ------------------------------------------------------------
+
+FetchContent_Declare(
+    glm
+
+    GIT_REPOSITORY
+        https://github.com/g-truc/glm.git
+
+    GIT_TAG
+        1.0.3
+)
+
+FetchContent_MakeAvailable(glm)
+
+
 # ============================================================
 # Engine
 # ============================================================
@@ -128,6 +181,15 @@ add_subdirectory(Engine)
 
 if(JANUS_BUILD_SANDBOX)
     add_subdirectory(Sandbox)
+endif()
+
+
+# ============================================================
+# Benchmarks
+# ============================================================
+
+if(JANUS_BUILD_BENCHMARKS)
+    add_subdirectory(Benchmarks)
 endif()
 
 

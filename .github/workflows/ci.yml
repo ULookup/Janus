@@ -18,8 +18,16 @@ jobs:
       - name: Configure MSVC environment
         uses: ilammy/msvc-dev-cmd@v1
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install glad generator dependency
+        run: python -m pip install jinja2
+
       - name: Configure
-        run: cmake --preset windows-msvc-debug-tests
+        run: cmake --preset windows-msvc-debug-tests -DPython_EXECUTABLE="$env:pythonLocation\python.exe" -DPython3_EXECUTABLE="$env:pythonLocation\python.exe"
 
       - name: Build
         run: cmake --build --preset windows-msvc-debug-tests

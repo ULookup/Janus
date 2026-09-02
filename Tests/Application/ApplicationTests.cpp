@@ -7,6 +7,9 @@
 #include "Core/Time/FrameClock.h"
 #include "Platform/Graphics/GraphicsContext.h"
 #include "Platform/Window/Window.h"
+#include "Renderer/Renderer2D.h"
+
+#include "../Renderer/FakeRenderDevice.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -32,6 +35,7 @@ struct TestState
     bool failMakeCurrent = false;
     bool failSwapInterval = false;
     Janus::FrameClock::TimePoint now{};
+    Janus::Test::FakeRenderDevice rendererDevice;
 };
 
 class FakeWindow final : public Janus::Window
@@ -245,6 +249,14 @@ Janus::Detail::ApplicationDependencies MakeDependencies(TestState& state)
             std::move(context));
     };
 
+    dependencies.createRenderer2D = [&state]
+    {
+        state.order.emplace_back("renderer.create");
+        return Janus::Result<std::unique_ptr<Janus::Renderer2D>>::Success(
+            Janus::Detail::Renderer2DTestAccess::Create(
+                state.rendererDevice));
+    };
+
     dependencies.now = [&state]
     {
         const auto current = state.now;
@@ -288,6 +300,7 @@ TEST_CASE("Application runs and cleans up in lifecycle order", "[application]")
         "context.create",
         "context.make_current",
         "context.swap_interval",
+        "renderer.create",
         "client.initialize",
         "window.poll",
         "client.event.resize",
@@ -318,6 +331,7 @@ TEST_CASE("Application cleans initialized resources when client initialization f
         "context.create",
         "context.make_current",
         "context.swap_interval",
+        "renderer.create",
         "client.initialize",
         "context.destroy",
         "window.destroy",

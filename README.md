@@ -2,7 +2,7 @@
 
 Janus 是一个面向 Human Developer 与 AI Agent 的 C++20 2D 游戏引擎。项目希望让 Editor、Game 和 Agent 通过同一套 Engine Capability 理解、修改、运行并验证游戏世界。
 
-项目已完成 **v0.1 Engine Foundation**：Application 生命周期、SDL3 窗口、OpenGL 4.5 Core Context、基础事件与键盘输入、帧时间、文件系统、日志和自动测试均已形成可复现闭环。当前下一里程碑为 **v0.2 Renderer2D**。
+项目已完成 **v0.1 Engine Foundation** 和 **v0.2 Renderer2D**：Application 生命周期、SDL3 窗口、OpenGL 4.5 Core Context、基础事件与键盘输入、帧时间、文件系统、日志、2D Sprite Renderer、Batch Renderer、正交相机、渲染统计和 Benchmark 均已形成可复现闭环。当前下一里程碑为 **v0.3 ECS + Scene**。
 
 ## 环境要求
 
@@ -10,6 +10,7 @@ Janus 是一个面向 Human Developer 与 AI Agent 的 C++20 2D 游戏引擎。�
 - Visual Studio 2022，安装“使用 C++ 的桌面开发”工作负载
 - CMake 3.24 或更高版本
 - Ninja
+- Python 3，用于 glad OpenGL loader 生成；首次配置前安装 `jinja2`（`python -m pip install jinja2`）
 - Git 与可访问 GitHub 的网络环境（依赖通过 CMake `FetchContent` 获取）
 
 建议从 Visual Studio Developer PowerShell 或 Developer Command Prompt 运行以下命令，以确保 MSVC 工具链环境完整。
