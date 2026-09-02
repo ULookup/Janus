@@ -18,6 +18,9 @@ jobs:
       - name: Configure MSVC environment
         uses: ilammy/msvc-dev-cmd@v1
 
+      - name: Install glad generator dependency
+        run: python -m pip install jinja2
+
       - name: Configure
         run: cmake --preset windows-msvc-debug-tests
 
