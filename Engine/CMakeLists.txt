@@ -36,6 +36,9 @@ target_sources(
         Application/Application.cpp
         Application/Detail/ApplicationDependencies.h
 
+        Backend/OpenGL/OpenGLRenderDevice.h
+        Backend/OpenGL/OpenGLRenderDevice.cpp
+
     PUBLIC
 
         Core/Base.h
