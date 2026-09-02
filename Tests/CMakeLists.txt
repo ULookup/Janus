@@ -9,6 +9,8 @@ add_executable(
     Platform/WindowConfigTests.cpp
     Application/ApplicationTests.cpp
     Renderer/RendererTypesTests.cpp
+    Renderer/RenderQueueTests.cpp
+    Renderer/BatchRendererTests.cpp
 )
 
 

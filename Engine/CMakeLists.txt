@@ -21,6 +21,10 @@ target_sources(
 
         Renderer/RendererStatistics.cpp
         Renderer/RenderDevice.h
+        Renderer/RenderQueue.h
+        Renderer/RenderQueue.cpp
+        Renderer/BatchRenderer.h
+        Renderer/BatchRenderer.cpp
 
         Platform/SDL/SDLPlatform.cpp
         Platform/SDL/SDLOpenGLContext.cpp
