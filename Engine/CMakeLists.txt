@@ -22,6 +22,8 @@ target_sources(
         ECS/SparseSet.cpp
         ECS/Registry.cpp
 
+        Scene/Scene.cpp
+
         Renderer/RendererStatistics.cpp
         Renderer/RenderDevice.h
         Renderer/RenderQueue.h
@@ -71,6 +73,10 @@ target_sources(
         ECS/ComponentPool.h
         ECS/View.h
         ECS/Registry.h
+
+        Scene/Hierarchy.h
+        Scene/Components.h
+        Scene/Scene.h
 
         Renderer/RendererTypes.h
         Renderer/Sprite.h

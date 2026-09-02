@@ -16,6 +16,8 @@ add_executable(
     ECS/ComponentPoolTests.cpp
     ECS/RegistryTests.cpp
     ECS/ViewTests.cpp
+    Scene/HierarchyTests.cpp
+    Scene/TransformTests.cpp
 )
 
 
