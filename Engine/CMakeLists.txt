@@ -20,6 +20,7 @@ target_sources(
         Core/Math/Mat4.cpp
 
         Renderer/RendererStatistics.cpp
+        Renderer/RenderDevice.h
 
         Platform/SDL/SDLPlatform.cpp
         Platform/SDL/SDLOpenGLContext.cpp
