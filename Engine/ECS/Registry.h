@@ -24,7 +24,7 @@ public:
     [[nodiscard]] usize AliveEntityCount() const noexcept;
 
     template <typename T>
-    T& AddComponent(Entity entity, T component)
+    T* AddComponent(Entity entity, T component)
     {
         return GetPool<T>().Add(entity, std::move(component));
     }

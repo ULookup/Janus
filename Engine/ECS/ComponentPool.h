@@ -45,18 +45,22 @@ public:
         return &m_Components[m_Sparse.DenseIndex(entity)];
     }
 
-    T& Add(Entity entity, T component)
+    T* Add(Entity entity, T component)
     {
         if (Has(entity))
         {
             m_Components[m_Sparse.DenseIndex(entity)] =
                 std::move(component);
-            return m_Components[m_Sparse.DenseIndex(entity)];
+            return &m_Components[m_Sparse.DenseIndex(entity)];
         }
 
-        m_Sparse.Add(entity);
+        if (!m_Sparse.Add(entity))
+        {
+            return nullptr;
+        }
+
         m_Components.push_back(std::move(component));
-        return m_Components.back();
+        return &m_Components.back();
     }
 
     void Remove(Entity entity) override
@@ -67,7 +71,10 @@ public:
         }
 
         const u32 removedIndex = m_Sparse.DenseIndex(entity);
-        m_Components[removedIndex] = std::move(m_Components.back());
+        if (removedIndex != m_Components.size() - 1)
+        {
+            m_Components[removedIndex] = std::move(m_Components.back());
+        }
         m_Components.pop_back();
         m_Sparse.Remove(entity);
     }

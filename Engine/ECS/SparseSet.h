@@ -15,7 +15,7 @@ public:
     [[nodiscard]] u32 DenseIndex(Entity entity) const noexcept;
     [[nodiscard]] const std::vector<Entity>& Entities() const noexcept;
 
-    void Add(Entity entity);
+    bool Add(Entity entity);
     void Remove(Entity entity);
 
 private:

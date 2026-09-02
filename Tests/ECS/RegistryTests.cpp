@@ -56,3 +56,12 @@ TEST_CASE("Registry owns component lifetime", "[ecs][registry]")
     registry.DestroyEntity(entity);
     REQUIRE_FALSE(registry.HasComponent<Name>(entity));
 }
+
+TEST_CASE("Registry rejects adding a component to an invalid entity", "[ecs][registry]")
+{
+    Janus::ECS::Registry registry;
+    const Janus::ECS::Entity invalid;
+
+    REQUIRE(registry.AddComponent<Health>(invalid, Health{1}) == nullptr);
+    REQUIRE_FALSE(registry.HasComponent<Health>(invalid));
+}

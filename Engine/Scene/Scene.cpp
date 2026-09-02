@@ -198,6 +198,7 @@ void Scene::UpdateTransformRecursive(
 Result<ECS::Entity> Scene::FindCamera()
 {
     ECS::Entity firstCamera = ECS::Entity{};
+    bool primaryFound = false;
 
     m_Registry
         .View<TransformComponent, CameraComponent>()
@@ -212,10 +213,10 @@ Result<ECS::Entity> Scene::FindCamera()
                     firstCamera = entity;
                 }
 
-                if (camera.primary)
+                if (camera.primary && !primaryFound)
                 {
                     firstCamera = entity;
-                    return;
+                    primaryFound = true;
                 }
             });
 

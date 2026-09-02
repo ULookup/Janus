@@ -31,7 +31,7 @@ public:
     [[nodiscard]] const ECS::Registry& GetRegistry() const noexcept;
 
     template <typename T>
-    T& AddComponent(ECS::Entity entity, T component)
+    T* AddComponent(ECS::Entity entity, T component)
     {
         return m_Registry.AddComponent<T>(
             entity,

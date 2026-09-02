@@ -15,6 +15,9 @@ template <typename... Components>
 class View
 {
 public:
+    // ForEach iterates live component storage. Structural changes
+    // (AddComponent, RemoveComponent, DestroyEntity) on the same Registry
+    // during iteration are not allowed and may invalidate pool storage.
     template <typename Function>
     void ForEach(Function&& function) const
     {

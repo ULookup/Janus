@@ -1,6 +1,7 @@
 #include "Application/Application.h"
 
 #include "Application/ApplicationClient.h"
+#include "Core/Assert.h"
 #include "Core/Event/Event.h"
 #include "Core/Log/Log.h"
 #include "Platform/Graphics/GraphicsContext.h"
@@ -224,11 +225,17 @@ const InputState& Application::GetInput() const noexcept
 
 Renderer2D& Application::GetRenderer2D() noexcept
 {
+    JANUS_CORE_ASSERT(
+        m_Renderer2D != nullptr,
+        "Renderer2D is not available before Application::Run.");
     return *m_Renderer2D;
 }
 
 Scene& Application::GetScene() noexcept
 {
+    JANUS_CORE_ASSERT(
+        m_Scene != nullptr,
+        "Scene is not available before Application::Run.");
     return *m_Scene;
 }
 

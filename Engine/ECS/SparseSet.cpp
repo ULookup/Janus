@@ -22,11 +22,11 @@ const std::vector<Entity>& SparseSet::Entities() const noexcept
     return m_Dense;
 }
 
-void SparseSet::Add(Entity entity)
+bool SparseSet::Add(Entity entity)
 {
     if (!entity.IsValid() || Contains(entity))
     {
-        return;
+        return false;
     }
 
     if (entity.index >= m_Sparse.size())
@@ -41,6 +41,7 @@ void SparseSet::Add(Entity entity)
     m_Sparse[entity.index] = entity;
     m_SparseToDense[entity.index] = denseIndex;
     m_Dense.push_back(entity);
+    return true;
 }
 
 void SparseSet::Remove(Entity entity)
