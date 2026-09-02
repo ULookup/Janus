@@ -133,6 +133,9 @@ Result<std::unique_ptr<OpenGLRenderDevice>>
     auto device = std::unique_ptr<OpenGLRenderDevice>(
         new OpenGLRenderDevice());
 
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
     const auto programResult = LinkProgram();
 
     if (!programResult)
@@ -330,11 +333,19 @@ void OpenGLRenderDevice::DestroyShader(ShaderHandle handle)
 Result<TextureHandle> OpenGLRenderDevice::CreateTexture(
     const TextureDesc& desc)
 {
-    if (desc.width == 0 || desc.height == 0 || desc.data == nullptr)
+    constexpr usize channels = 4;
+
+    if (desc.width == 0 ||
+        desc.height == 0 ||
+        desc.data == nullptr ||
+        desc.dataSize <
+            static_cast<usize>(desc.width) *
+                static_cast<usize>(desc.height) *
+                channels)
     {
         return Result<TextureHandle>::Failure(
             ErrorCode::TextureCreateFailed,
-            "Texture dimensions and data must be non-null.");
+            "Texture dimensions and RGBA8 data size are invalid.");
     }
 
     u32 object = 0;

@@ -10,6 +10,7 @@ Janus 是一个面向 Human Developer 与 AI Agent 的 C++20 2D 游戏引擎。�
 - Visual Studio 2022，安装“使用 C++ 的桌面开发”工作负载
 - CMake 3.24 或更高版本
 - Ninja
+- Python 3，用于 glad OpenGL loader 生成；首次配置前安装 `jinja2`（`python -m pip install jinja2`）
 - Git 与可访问 GitHub 的网络环境（依赖通过 CMake `FetchContent` 获取）
 
 建议从 Visual Studio Developer PowerShell 或 Developer Command Prompt 运行以下命令，以确保 MSVC 工具链环境完整。
