@@ -25,6 +25,8 @@ target_sources(
         Renderer/RenderQueue.cpp
         Renderer/BatchRenderer.h
         Renderer/BatchRenderer.cpp
+        Renderer/Renderer2D.h
+        Renderer/Renderer2D.cpp
 
         Platform/SDL/SDLPlatform.cpp
         Platform/SDL/SDLOpenGLContext.cpp
@@ -65,6 +67,7 @@ target_sources(
         Renderer/Sprite.h
         Renderer/OrthographicCamera.h
         Renderer/RendererStatistics.h
+        Renderer/Renderer2D.h
 
         Platform/Platform.h
         Platform/Graphics/GraphicsContext.h

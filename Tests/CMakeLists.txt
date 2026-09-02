@@ -11,6 +11,7 @@ add_executable(
     Renderer/RendererTypesTests.cpp
     Renderer/RenderQueueTests.cpp
     Renderer/BatchRendererTests.cpp
+    Renderer/Renderer2DTests.cpp
 )
 
 
