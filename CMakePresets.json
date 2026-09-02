@@ -25,6 +25,15 @@
       "cacheVariables": {
         "JANUS_BUILD_TESTS": "ON"
       }
+    },
+    {
+      "name": "windows-msvc-debug-benchmarks",
+      "displayName": "Windows MSVC Debug with Benchmarks",
+      "inherits": "windows-msvc-debug",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "cacheVariables": {
+        "JANUS_BUILD_BENCHMARKS": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -35,6 +44,10 @@
     {
       "name": "windows-msvc-debug-tests",
       "configurePreset": "windows-msvc-debug-tests"
+    },
+    {
+      "name": "windows-msvc-debug-benchmarks",
+      "configurePreset": "windows-msvc-debug-benchmarks"
     }
   ],
   "testPresets": [

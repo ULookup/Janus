@@ -34,6 +34,12 @@ option(
     OFF
 )
 
+option(
+    JANUS_BUILD_BENCHMARKS
+    "Build Janus benchmarks"
+    OFF
+)
+
 
 # ============================================================
 # Common Project Configuration
@@ -175,6 +181,15 @@ add_subdirectory(Engine)
 
 if(JANUS_BUILD_SANDBOX)
     add_subdirectory(Sandbox)
+endif()
+
+
+# ============================================================
+# Benchmarks
+# ============================================================
+
+if(JANUS_BUILD_BENCHMARKS)
+    add_subdirectory(Benchmarks)
 endif()
 
 
