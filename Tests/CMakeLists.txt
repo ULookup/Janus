@@ -14,6 +14,8 @@ add_executable(
     Renderer/Renderer2DTests.cpp
     ECS/SparseSetTests.cpp
     ECS/ComponentPoolTests.cpp
+    ECS/RegistryTests.cpp
+    ECS/ViewTests.cpp
 )
 
 

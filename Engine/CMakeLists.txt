@@ -20,6 +20,7 @@ target_sources(
         Core/Math/Mat4.cpp
 
         ECS/SparseSet.cpp
+        ECS/Registry.cpp
 
         Renderer/RendererStatistics.cpp
         Renderer/RenderDevice.h
@@ -68,6 +69,8 @@ target_sources(
         ECS/Entity.h
         ECS/SparseSet.h
         ECS/ComponentPool.h
+        ECS/View.h
+        ECS/Registry.h
 
         Renderer/RendererTypes.h
         Renderer/Sprite.h
