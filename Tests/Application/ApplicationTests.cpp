@@ -8,6 +8,7 @@
 #include "Platform/Graphics/GraphicsContext.h"
 #include "Platform/Window/Window.h"
 #include "Renderer/Renderer2D.h"
+#include "Scene/Scene.h"
 
 #include "../Renderer/FakeRenderDevice.h"
 
@@ -257,6 +258,12 @@ Janus::Detail::ApplicationDependencies MakeDependencies(TestState& state)
                 state.rendererDevice));
     };
 
+    dependencies.createScene = [&state]
+    {
+        state.order.emplace_back("scene.create");
+        return std::make_unique<Janus::Scene>();
+    };
+
     dependencies.now = [&state]
     {
         const auto current = state.now;
@@ -301,6 +308,7 @@ TEST_CASE("Application runs and cleans up in lifecycle order", "[application]")
         "context.make_current",
         "context.swap_interval",
         "renderer.create",
+        "scene.create",
         "client.initialize",
         "window.poll",
         "client.event.resize",
@@ -332,6 +340,7 @@ TEST_CASE("Application cleans initialized resources when client initialization f
         "context.make_current",
         "context.swap_interval",
         "renderer.create",
+        "scene.create",
         "client.initialize",
         "context.destroy",
         "window.destroy",

@@ -19,6 +19,11 @@ target_sources(
         Core/Input/InputState.cpp
         Core/Math/Mat4.cpp
 
+        ECS/SparseSet.cpp
+        ECS/Registry.cpp
+
+        Scene/Scene.cpp
+
         Renderer/RendererStatistics.cpp
         Renderer/RenderDevice.h
         Renderer/RenderQueue.h
@@ -62,6 +67,16 @@ target_sources(
 
         Core/Math/Vector2.h
         Core/Math/Mat4.h
+
+        ECS/Entity.h
+        ECS/SparseSet.h
+        ECS/ComponentPool.h
+        ECS/View.h
+        ECS/Registry.h
+
+        Scene/Hierarchy.h
+        Scene/Components.h
+        Scene/Scene.h
 
         Renderer/RendererTypes.h
         Renderer/Sprite.h

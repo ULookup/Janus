@@ -29,6 +29,11 @@ enum class ErrorCode
 	TextureCreateFailed,
 	FramebufferCreateFailed,
 
+	InvalidEntity,
+	EntityNotFound,
+	CameraNotFound,
+	HierarchyCycle,
+
 	Unknown
 };
 

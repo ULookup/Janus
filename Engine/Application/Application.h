@@ -15,6 +15,7 @@ namespace Janus
 class Window;
 class GraphicsContext;
 class Renderer2D;
+class Scene;
 class ApplicationClient;
 
 class Application final
@@ -30,6 +31,7 @@ public:
     void RequestExit() noexcept;
     [[nodiscard]] const InputState& GetInput() const noexcept;
     [[nodiscard]] Renderer2D& GetRenderer2D() noexcept;
+    [[nodiscard]] Scene& GetScene() noexcept;
 
 private:
     Application(
@@ -43,6 +45,7 @@ private:
     std::unique_ptr<Window> m_Window;
     std::unique_ptr<GraphicsContext> m_GraphicsContext;
     std::unique_ptr<Renderer2D> m_Renderer2D;
+    std::unique_ptr<Scene> m_Scene;
     InputState m_Input;
     FrameClock m_FrameClock;
 

@@ -5,9 +5,8 @@
 #include "Core/Log/Log.h"
 #include "Core/Math/Vector2.h"
 #include "Core/Time/TimeStep.h"
-#include "Renderer/OrthographicCamera.h"
 #include "Renderer/Renderer2D.h"
-#include "Renderer/Sprite.h"
+#include "Scene/Scene.h"
 
 #include <cmath>
 #include <cstdio>
@@ -40,6 +39,37 @@ public:
         m_CheckerTexture = checker.Value();
         m_TransparentTexture = transparent.Value();
 
+        auto& scene = application.GetScene();
+
+        const auto camera = scene.CreateEntity();
+        scene.AddComponent<Janus::CameraComponent>(
+            camera,
+            Janus::CameraComponent{1.0f, true});
+
+        const auto player = scene.CreateEntity();
+        scene.AddComponent<Janus::SpriteRendererComponent>(
+            player,
+            Janus::SpriteRendererComponent{
+                m_CheckerTexture,
+                Janus::Vector2{256.0f, 256.0f}});
+
+        for (int index = 0; index < 8; ++index)
+        {
+            const auto enemy = scene.CreateEntity();
+            auto* transform =
+                scene.GetComponent<Janus::TransformComponent>(
+                    enemy);
+            transform->position = Janus::Vector2{
+                static_cast<Janus::f32>((index % 4) * 80 - 120),
+                static_cast<Janus::f32>((index / 4) * 70 - 40)};
+
+            scene.AddComponent<Janus::SpriteRendererComponent>(
+                enemy,
+                Janus::SpriteRendererComponent{
+                    m_TransparentTexture,
+                    Janus::Vector2{96.0f, 96.0f}});
+        }
+
         return Janus::Result<void>::Success();
     }
 
@@ -61,41 +91,20 @@ public:
 
         m_ElapsedSeconds += timeStep.GetSeconds();
 
-        Janus::OrthographicCamera camera;
-        camera.position = Janus::Vector2{
-            static_cast<Janus::f32>(std::sin(m_ElapsedSeconds)) * 200.0f,
-            static_cast<Janus::f32>(std::cos(m_ElapsedSeconds)) * 80.0f};
-
-        auto& renderer = application.GetRenderer2D();
-        renderer.BeginFrame(camera);
-
-        Janus::Sprite atlasSprite;
-        atlasSprite.texture = m_CheckerTexture;
-        atlasSprite.position = Janus::Vector2{0.0f, 0.0f};
-        atlasSprite.size = Janus::Vector2{256.0f, 256.0f};
-        atlasSprite.uv = Janus::TextureRegion{
-            Janus::Vector2{0.0f, 0.0f},
-            Janus::Vector2{1.0f, 1.0f}};
-        atlasSprite.color.a = 1.0f;
-
-        renderer.SubmitSprite(atlasSprite);
-
-        Janus::Sprite transparentSprite;
-        transparentSprite.texture = m_TransparentTexture;
-        transparentSprite.position = Janus::Vector2{120.0f, 60.0f};
-        transparentSprite.size = Janus::Vector2{128.0f, 128.0f};
-        transparentSprite.rotationRadians =
-            static_cast<Janus::f32>(m_ElapsedSeconds);
-        transparentSprite.color.a = 0.55f;
-
-        renderer.SubmitSprite(transparentSprite);
-
-        const auto result = renderer.EndFrame();
-
-        if (!result)
-        {
-            JANUS_ERROR("Renderer EndFrame failed: {}", result.GetError().message);
-        }
+        auto& scene = application.GetScene();
+        scene.View<Janus::TransformComponent,
+                   Janus::CameraComponent>()
+            .ForEach(
+                [&](Janus::ECS::Entity,
+                    Janus::TransformComponent& transform,
+                    Janus::CameraComponent&)
+                {
+                    transform.position = Janus::Vector2{
+                        static_cast<Janus::f32>(
+                            std::sin(m_ElapsedSeconds)) * 200.0f,
+                        static_cast<Janus::f32>(
+                            std::cos(m_ElapsedSeconds)) * 80.0f};
+                });
     }
 
 private:

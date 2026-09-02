@@ -10,3 +10,16 @@ target_link_libraries(
 )
 
 janus_set_warnings(JanusRendererBenchmark)
+
+add_executable(
+    JanusECSBenchmark
+    ECSBenchmark.cpp
+)
+
+target_link_libraries(
+    JanusECSBenchmark
+    PRIVATE
+        JanusEngine
+)
+
+janus_set_warnings(JanusECSBenchmark)

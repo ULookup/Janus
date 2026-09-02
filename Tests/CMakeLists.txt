@@ -12,6 +12,13 @@ add_executable(
     Renderer/RenderQueueTests.cpp
     Renderer/BatchRendererTests.cpp
     Renderer/Renderer2DTests.cpp
+    ECS/SparseSetTests.cpp
+    ECS/ComponentPoolTests.cpp
+    ECS/RegistryTests.cpp
+    ECS/ViewTests.cpp
+    Scene/HierarchyTests.cpp
+    Scene/TransformTests.cpp
+    Scene/SceneRenderTests.cpp
 )
 
 
