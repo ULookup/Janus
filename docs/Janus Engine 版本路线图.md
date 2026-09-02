@@ -268,7 +268,7 @@ GLuint
 
 # 5. v0.3 — ECS + Scene
 
-状态：下一里程碑
+状态：已完成
 
 ## 目标
 
@@ -353,6 +353,8 @@ Renderer 不再由 Sandbox 手动提交所有 Sprite 数据。
 ---
 
 # 6. v0.4 — Asset + Serialization
+
+状态：下一里程碑
 
 ## 目标
 
