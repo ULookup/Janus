@@ -18,6 +18,7 @@ add_executable(
     ECS/ViewTests.cpp
     Scene/HierarchyTests.cpp
     Scene/TransformTests.cpp
+    Scene/SceneRenderTests.cpp
 )
 
 
