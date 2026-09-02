@@ -17,6 +17,9 @@ target_sources(
         Core/FileSystem/FileSystem.cpp
         Core/Time/FrameClock.cpp
         Core/Input/InputState.cpp
+        Core/Math/Mat4.cpp
+
+        Renderer/RendererStatistics.cpp
 
         Platform/SDL/SDLPlatform.cpp
         Platform/SDL/SDLOpenGLContext.cpp
@@ -46,6 +49,14 @@ target_sources(
 
         Core/Event/Event.h
         Core/Input/InputState.h
+
+        Core/Math/Vector2.h
+        Core/Math/Mat4.h
+
+        Renderer/RendererTypes.h
+        Renderer/Sprite.h
+        Renderer/OrthographicCamera.h
+        Renderer/RendererStatistics.h
 
         Platform/Platform.h
         Platform/Graphics/GraphicsContext.h

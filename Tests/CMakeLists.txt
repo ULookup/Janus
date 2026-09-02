@@ -8,6 +8,7 @@ add_executable(
     Core/LogTests.cpp
     Platform/WindowConfigTests.cpp
     Application/ApplicationTests.cpp
+    Renderer/RendererTypesTests.cpp
 )
 
 
