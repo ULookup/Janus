@@ -82,6 +82,8 @@ target_link_libraries(
     PRIVATE
 
         SDL3::SDL3
+        glad_gl_45
+        glm::glm
 
     PUBLIC
 
