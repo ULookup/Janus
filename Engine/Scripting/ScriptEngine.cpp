@@ -106,7 +106,6 @@ constexpr std::array<KeyBinding, 21> KeyBindings{{
             return binding.key;
         }
     }
-
     return std::nullopt;
 }
 
@@ -122,7 +121,6 @@ constexpr std::array<KeyBinding, 21> KeyBindings{{
         luaL_error(state, "Janus scripting binding context is unavailable.");
         return nullptr;
     }
-
     return context;
 }
 
@@ -144,7 +142,6 @@ constexpr std::array<KeyBinding, 21> KeyBindings{{
         luaL_error(state, "Janus Entity reference is stale.");
         return {};
     }
-
     return entity;
 }
 
@@ -153,7 +150,6 @@ int EntityId(lua_State* state)
     BindingContext* context = GetBindingContext(state);
     LuaEntityRef* reference = CheckEntityRef(state);
     const ECS::Entity entity = ResolveEntity(state, *context, *reference);
-
     const auto* identity =
         context->scene->GetComponent<EntityIdentityComponent>(entity);
     if (identity == nullptr)
@@ -171,7 +167,6 @@ int EntityName(lua_State* state)
     BindingContext* context = GetBindingContext(state);
     LuaEntityRef* reference = CheckEntityRef(state);
     const ECS::Entity entity = ResolveEntity(state, *context, *reference);
-
     const auto* identity =
         context->scene->GetComponent<EntityIdentityComponent>(entity);
     if (identity == nullptr)
@@ -179,10 +174,7 @@ int EntityName(lua_State* state)
         return luaL_error(state, "Janus Entity is missing EntityIdentityComponent.");
     }
 
-    lua_pushlstring(
-        state,
-        identity->name.data(),
-        identity->name.size());
+    lua_pushlstring(state, identity->name.data(), identity->name.size());
     return 1;
 }
 
@@ -191,7 +183,6 @@ int EntityGetPosition(lua_State* state)
     BindingContext* context = GetBindingContext(state);
     LuaEntityRef* reference = CheckEntityRef(state);
     const ECS::Entity entity = ResolveEntity(state, *context, *reference);
-
     const auto* transform =
         context->scene->GetComponent<TransformComponent>(entity);
     if (transform == nullptr)
@@ -209,7 +200,6 @@ int EntitySetPosition(lua_State* state)
     BindingContext* context = GetBindingContext(state);
     LuaEntityRef* reference = CheckEntityRef(state);
     const ECS::Entity entity = ResolveEntity(state, *context, *reference);
-
     auto* transform = context->scene->GetComponent<TransformComponent>(entity);
     if (transform == nullptr)
     {
@@ -231,46 +221,39 @@ int EntitySetPosition(lua_State* state)
         luaL_error(state, "Unknown Janus key name '%s'.", name);
         return KeyCode::Escape;
     }
-
     return *key;
 }
 
 int InputIsKeyDown(lua_State* state)
 {
     BindingContext* context = GetBindingContext(state);
-    const KeyCode key = CheckKeyCode(state);
-    lua_pushboolean(state, context->input->IsKeyDown(key));
+    lua_pushboolean(state, context->input->IsKeyDown(CheckKeyCode(state)));
     return 1;
 }
 
 int InputWasKeyPressed(lua_State* state)
 {
     BindingContext* context = GetBindingContext(state);
-    const KeyCode key = CheckKeyCode(state);
-    lua_pushboolean(state, context->input->WasKeyPressed(key));
+    lua_pushboolean(state, context->input->WasKeyPressed(CheckKeyCode(state)));
     return 1;
 }
 
 int InputWasKeyReleased(lua_State* state)
 {
     BindingContext* context = GetBindingContext(state);
-    const KeyCode key = CheckKeyCode(state);
-    lua_pushboolean(state, context->input->WasKeyReleased(key));
+    lua_pushboolean(state, context->input->WasKeyReleased(CheckKeyCode(state)));
     return 1;
 }
 
 int ReadOnlyNewIndex(lua_State* state)
 {
-    static_cast<void>(state);
     return luaL_error(state, "Input table is read-only.");
 }
 
 void PushEntityReference(lua_State* state, UUID entityId)
 {
     void* storage = lua_newuserdatauv(state, sizeof(LuaEntityRef), 0);
-    auto* reference = new (storage) LuaEntityRef{entityId.GetBytes()};
-    static_cast<void>(reference);
-
+    new (storage) LuaEntityRef{entityId.GetBytes()};
     luaL_getmetatable(state, EntityMetatableName);
     lua_setmetatable(state, -2);
 }
@@ -279,7 +262,7 @@ void RegisterEntityBinding(lua_State* state)
 {
     if (luaL_newmetatable(state, EntityMetatableName) != 0)
     {
-        static constexpr luaL_Reg Methods[] = {
+        static const luaL_Reg Methods[] = {
             {"id", EntityId},
             {"name", EntityName},
             {"get_position", EntityGetPosition},
@@ -292,21 +275,20 @@ void RegisterEntityBinding(lua_State* state)
         lua_pushliteral(state, "locked");
         lua_setfield(state, -2, "__metatable");
     }
-
     lua_pop(state, 1);
 }
 
 void RegisterInputBinding(lua_State* state)
 {
-    static constexpr luaL_Reg Methods[] = {
+    static const luaL_Reg Methods[] = {
         {"is_key_down", InputIsKeyDown},
         {"was_key_pressed", InputWasKeyPressed},
         {"was_key_released", InputWasKeyReleased},
         {nullptr, nullptr}};
 
-    lua_newtable(state); // proxy
-    lua_newtable(state); // metatable
-    lua_newtable(state); // method backing table
+    lua_newtable(state);
+    lua_newtable(state);
+    lua_newtable(state);
     luaL_setfuncs(state, Methods, 0);
     lua_setfield(state, -2, "__index");
     lua_pushcfunction(state, ReadOnlyNewIndex);
@@ -388,7 +370,6 @@ struct ScriptEngine::Impl
         lua_pushlightuserdata(state, &BindingContextRegistryKey);
         lua_pushlightuserdata(state, &bindingContext);
         lua_rawset(state, LUA_REGISTRYINDEX);
-
         RegisterEntityBinding(state);
         RegisterInputBinding(state);
 
@@ -398,7 +379,6 @@ struct ScriptEngine::Impl
     [[nodiscard]] Result<std::vector<DesiredInstance>> BuildDesiredInstances()
     {
         std::vector<DesiredInstance> desired;
-
         for (const ECS::Entity entity : scene.GetEntities())
         {
             const auto* script = scene.GetComponent<LuaScriptComponent>(entity);
@@ -415,7 +395,6 @@ struct ScriptEngine::Impl
                     ErrorCode::InvalidState,
                     "Scripted Scene entity is missing persistent identity.");
             }
-
             if (!script->script.IsValid())
             {
                 return Result<std::vector<DesiredInstance>>::Failure(
@@ -435,7 +414,6 @@ struct ScriptEngine::Impl
             {
                 return left.entityId < right.entityId;
             });
-
         return Result<std::vector<DesiredInstance>>::Success(std::move(desired));
     }
 
@@ -450,7 +428,6 @@ struct ScriptEngine::Impl
 
         lua_pushcfunction(state, TracebackHandler);
         const int errorHandlerIndex = lua_gettop(state);
-
         lua_rawgeti(state, LUA_REGISTRYINDEX, instance.tableRegistryRef);
         if (!lua_istable(state, -1))
         {
@@ -464,15 +441,13 @@ struct ScriptEngine::Impl
         }
 
         const int tableIndex = lua_gettop(state);
-        const std::string stableCallback(callback);
-        lua_getfield(state, tableIndex, stableCallback.c_str());
-
+        lua_pushlstring(state, callback.data(), callback.size());
+        lua_rawget(state, tableIndex);
         if (lua_isnil(state, -1))
         {
             lua_settop(state, initialTop);
             return Result<void>::Success();
         }
-
         if (!lua_isfunction(state, -1))
         {
             lua_settop(state, initialTop);
@@ -497,7 +472,6 @@ struct ScriptEngine::Impl
             argumentCount,
             0,
             errorHandlerIndex);
-
         if (callStatus != LUA_OK)
         {
             const std::string luaMessage = ReadLuaError(state);
@@ -530,7 +504,6 @@ struct ScriptEngine::Impl
         lua_State* state = State();
         Detail::LuaStackGuard stackGuard(state);
         const int initialTop = lua_gettop(state);
-
         lua_pushcfunction(state, TracebackHandler);
         const int errorHandlerIndex = lua_gettop(state);
 
@@ -542,7 +515,6 @@ struct ScriptEngine::Impl
             sourceText.size(),
             chunkName.c_str(),
             nullptr);
-
         if (loadStatus != LUA_OK)
         {
             const std::string luaMessage = ReadLuaError(state);
@@ -581,14 +553,15 @@ struct ScriptEngine::Impl
                     + " must return exactly one table.");
         }
 
+        const int tableIndex = lua_gettop(state);
+        lua_pushliteral(state, "entity");
         PushEntityReference(state, entityId);
-        lua_setfield(state, -2, "entity");
+        lua_rawset(state, tableIndex);
 
         ScriptInstance instance{
             entityId,
             scriptHandle,
             luaL_ref(state, LUA_REGISTRYINDEX)};
-
         lua_settop(state, initialTop);
 
         auto created = CallCallback(instance, "OnCreate");
@@ -598,7 +571,6 @@ struct ScriptEngine::Impl
             instance.tableRegistryRef = LUA_NOREF;
             return Result<ScriptInstance>::Failure(created.GetError());
         }
-
         return Result<ScriptInstance>::Success(instance);
     }
 
@@ -610,6 +582,19 @@ struct ScriptEngine::Impl
         return destroyed;
     }
 
+    [[nodiscard]] std::vector<UUID> SortedInstanceIds() const
+    {
+        std::vector<UUID> ids;
+        ids.reserve(instances.size());
+        for (const auto& [entityId, instance] : instances)
+        {
+            static_cast<void>(instance);
+            ids.push_back(entityId);
+        }
+        std::sort(ids.begin(), ids.end());
+        return ids;
+    }
+
     [[nodiscard]] Result<void> Reconcile()
     {
         auto desiredResult = BuildDesiredInstances();
@@ -617,9 +602,9 @@ struct ScriptEngine::Impl
         {
             return Result<void>::Failure(desiredResult.GetError());
         }
-
         std::vector<DesiredInstance> desired =
             std::move(desiredResult).Value();
+
         std::unordered_map<UUID, AssetHandle, UUIDHash> desiredById;
         desiredById.reserve(desired.size());
         for (const DesiredInstance& entry : desired)
@@ -630,9 +615,9 @@ struct ScriptEngine::Impl
         std::vector<UUID> toDestroy;
         for (const auto& [entityId, instance] : instances)
         {
-            const auto iterator = desiredById.find(entityId);
-            if (iterator == desiredById.end()
-                || iterator->second != instance.script)
+            const auto desiredIterator = desiredById.find(entityId);
+            if (desiredIterator == desiredById.end()
+                || desiredIterator->second != instance.script)
             {
                 toDestroy.push_back(entityId);
             }
@@ -640,7 +625,6 @@ struct ScriptEngine::Impl
         std::sort(toDestroy.begin(), toDestroy.end());
 
         std::optional<Error> firstError;
-
         for (const UUID& entityId : toDestroy)
         {
             auto iterator = instances.find(entityId);
@@ -648,7 +632,6 @@ struct ScriptEngine::Impl
             {
                 continue;
             }
-
             auto destroyed = DestroyInstance(iterator->second);
             if (!destroyed && !firstError.has_value())
             {
@@ -663,7 +646,6 @@ struct ScriptEngine::Impl
             {
                 continue;
             }
-
             auto created = CreateInstance(entry.entityId, entry.script);
             if (!created)
             {
@@ -673,7 +655,6 @@ struct ScriptEngine::Impl
                 }
                 continue;
             }
-
             instances.emplace(entry.entityId, std::move(created).Value());
         }
 
@@ -681,29 +662,18 @@ struct ScriptEngine::Impl
         {
             return Result<void>::Failure(std::move(*firstError));
         }
-
         return Result<void>::Success();
     }
 
     [[nodiscard]] Result<void> UpdateInstances(TimeStep timeStep)
     {
-        std::vector<UUID> entityIds;
-        entityIds.reserve(instances.size());
-        for (const auto& [entityId, instance] : instances)
-        {
-            static_cast<void>(instance);
-            entityIds.push_back(entityId);
-        }
-        std::sort(entityIds.begin(), entityIds.end());
-
-        for (const UUID& entityId : entityIds)
+        for (const UUID& entityId : SortedInstanceIds())
         {
             const auto iterator = instances.find(entityId);
             if (iterator == instances.end())
             {
                 continue;
             }
-
             auto updated = CallCallback(
                 iterator->second,
                 "OnUpdate",
@@ -713,30 +683,19 @@ struct ScriptEngine::Impl
                 return updated;
             }
         }
-
         return Result<void>::Success();
     }
 
     [[nodiscard]] Result<void> StopInstances()
     {
-        std::vector<UUID> entityIds;
-        entityIds.reserve(instances.size());
-        for (const auto& [entityId, instance] : instances)
-        {
-            static_cast<void>(instance);
-            entityIds.push_back(entityId);
-        }
-        std::sort(entityIds.begin(), entityIds.end());
-
         std::optional<Error> firstError;
-        for (const UUID& entityId : entityIds)
+        for (const UUID& entityId : SortedInstanceIds())
         {
             auto iterator = instances.find(entityId);
             if (iterator == instances.end())
             {
                 continue;
             }
-
             auto destroyed = DestroyInstance(iterator->second);
             if (!destroyed && !firstError.has_value())
             {
@@ -749,7 +708,6 @@ struct ScriptEngine::Impl
         {
             return Result<void>::Failure(std::move(*firstError));
         }
-
         return Result<void>::Success();
     }
 
@@ -839,7 +797,6 @@ Result<void> ScriptEngine::Start()
         m_Impl->running = false;
         return Result<void>::Failure(startupError);
     }
-
     return Result<void>::Success();
 }
 
@@ -857,7 +814,6 @@ Result<void> ScriptEngine::Update(TimeStep timeStep)
     {
         return reconciled;
     }
-
     return m_Impl->UpdateInstances(timeStep);
 }
 
