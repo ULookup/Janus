@@ -1,12 +1,15 @@
+#include "Asset/AssetRegistry.h"
+#include "Asset/AssetService.h"
+#include "Renderer/Renderer2D.h"
 #include "Scene/Scene.h"
+#include "Scene/SceneRenderer.h"
 
 #include "../Renderer/FakeRenderDevice.h"
-#include "Renderer/Renderer2D.h"
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
-TEST_CASE("Scene propagates transform hierarchy", "[scene][transform]")
+TEST_CASE("SceneRenderer propagates transform hierarchy", "[scene][transform]")
 {
     Janus::Scene scene;
     const auto parent = scene.CreateEntity();
@@ -31,8 +34,15 @@ TEST_CASE("Scene propagates transform hierarchy", "[scene][transform]")
     Janus::Test::FakeRenderDevice device;
     auto renderer =
         Janus::Detail::Renderer2DTestAccess::Create(device);
+    Janus::AssetRegistry registry;
+    Janus::AssetService assets(".", registry, *renderer);
+    Janus::SceneRenderer sceneRenderer;
 
-    REQUIRE(scene.Render(*renderer, Janus::Viewport{800, 600}));
+    REQUIRE(sceneRenderer.Render(
+        scene,
+        assets,
+        *renderer,
+        Janus::Viewport{800, 600}));
 
     REQUIRE(childTransform->worldPosition.x == Catch::Approx(15.0f));
     REQUIRE(childTransform->worldPosition.y == Catch::Approx(26.0f));
@@ -40,7 +50,8 @@ TEST_CASE("Scene propagates transform hierarchy", "[scene][transform]")
     REQUIRE(childTransform->worldScale.y == Catch::Approx(3.0f));
 }
 
-TEST_CASE("Scene refreshes runtime transform mutations on every render", "[scene][transform]")
+TEST_CASE("SceneRenderer refreshes runtime transform mutations on every render",
+          "[scene][transform]")
 {
     Janus::Scene scene;
     const auto entity = scene.CreateEntity();
@@ -60,15 +71,26 @@ TEST_CASE("Scene refreshes runtime transform mutations on every render", "[scene
     Janus::Test::FakeRenderDevice device;
     auto renderer =
         Janus::Detail::Renderer2DTestAccess::Create(device);
+    Janus::AssetRegistry registry;
+    Janus::AssetService assets(".", registry, *renderer);
+    Janus::SceneRenderer sceneRenderer;
 
-    REQUIRE(scene.Render(*renderer, Janus::Viewport{800, 600}));
+    REQUIRE(sceneRenderer.Render(
+        scene,
+        assets,
+        *renderer,
+        Janus::Viewport{800, 600}));
     REQUIRE_FALSE(transform->dirty);
 
     transform->position = Janus::Vector2{7.0f, 8.0f};
     transform->rotationRadians = 0.5f;
     transform->scale = Janus::Vector2{4.0f, 5.0f};
 
-    REQUIRE(scene.Render(*renderer, Janus::Viewport{800, 600}));
+    REQUIRE(sceneRenderer.Render(
+        scene,
+        assets,
+        *renderer,
+        Janus::Viewport{800, 600}));
 
     REQUIRE(transform->worldPosition.x == Catch::Approx(7.0f));
     REQUIRE(transform->worldPosition.y == Catch::Approx(8.0f));
@@ -77,7 +99,8 @@ TEST_CASE("Scene refreshes runtime transform mutations on every render", "[scene
     REQUIRE(transform->worldScale.y == Catch::Approx(5.0f));
 }
 
-TEST_CASE("Scene preserves ancestor transforms when a deep child is dirty", "[scene][transform]")
+TEST_CASE("SceneRenderer preserves ancestor transforms when a deep child is dirty",
+          "[scene][transform]")
 {
     Janus::Scene scene;
     const auto root = scene.CreateEntity();
@@ -106,14 +129,25 @@ TEST_CASE("Scene preserves ancestor transforms when a deep child is dirty", "[sc
     Janus::Test::FakeRenderDevice device;
     auto renderer =
         Janus::Detail::Renderer2DTestAccess::Create(device);
+    Janus::AssetRegistry registry;
+    Janus::AssetService assets(".", registry, *renderer);
+    Janus::SceneRenderer sceneRenderer;
 
-    REQUIRE(scene.Render(*renderer, Janus::Viewport{800, 600}));
+    REQUIRE(sceneRenderer.Render(
+        scene,
+        assets,
+        *renderer,
+        Janus::Viewport{800, 600}));
     REQUIRE(grandchildTransform->worldPosition.x == Catch::Approx(16.0f));
 
     grandchildTransform->position = Janus::Vector2{3.0f, 0.0f};
     grandchildTransform->dirty = true;
 
-    REQUIRE(scene.Render(*renderer, Janus::Viewport{800, 600}));
+    REQUIRE(sceneRenderer.Render(
+        scene,
+        assets,
+        *renderer,
+        Janus::Viewport{800, 600}));
 
     REQUIRE(grandchildTransform->worldPosition.x == Catch::Approx(18.0f));
     REQUIRE(grandchildTransform->worldPosition.y == Catch::Approx(0.0f));

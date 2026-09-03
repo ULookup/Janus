@@ -1,6 +1,8 @@
 #include "Application/Application.h"
 
 #include "Application/ApplicationClient.h"
+#include "Asset/AssetRegistry.h"
+#include "Asset/AssetService.h"
 #include "Core/Assert.h"
 #include "Core/Event/Event.h"
 #include "Core/Log/Log.h"
@@ -9,7 +11,9 @@
 #include "Platform/Window/Window.h"
 #include "Renderer/Renderer2D.h"
 #include "Scene/Scene.h"
+#include "Scene/SceneRenderer.h"
 
+#include <filesystem>
 #include <memory>
 #include <utility>
 #include <variant>
@@ -75,7 +79,7 @@ Application::Application(
     ApplicationConfig config,
     Detail::ApplicationDependencies dependencies)
     : m_Config(std::move(config)),
-    m_Dependencies(std::move(dependencies))
+      m_Dependencies(std::move(dependencies))
 {
 }
 
@@ -155,6 +159,15 @@ Result<void> Application::Run(ApplicationClient& client)
 
     m_Renderer2D = std::move(rendererResult).Value();
 
+    // #12 replaces this empty runtime registry/current-directory root with
+    // the disk-backed project configuration. #11 only establishes the
+    // ownership and render dependency chain required by SceneRenderer.
+    m_AssetRegistry = std::make_unique<AssetRegistry>();
+    m_AssetService = std::make_unique<AssetService>(
+        std::filesystem::current_path(),
+        *m_AssetRegistry,
+        *m_Renderer2D);
+    m_SceneRenderer = std::make_unique<SceneRenderer>();
     m_Scene = m_Dependencies.createScene();
 
     auto initializeResult = client.OnInitialize(*this);
@@ -194,8 +207,11 @@ Result<void> Application::Run(ApplicationClient& client)
             m_Window->GetWidth(),
             m_Window->GetHeight()};
 
-        const auto renderResult =
-            m_Scene->Render(*m_Renderer2D, viewport);
+        const auto renderResult = m_SceneRenderer->Render(
+            *m_Scene,
+            *m_AssetService,
+            *m_Renderer2D,
+            viewport);
 
         if (!renderResult)
         {
@@ -249,9 +265,13 @@ void Application::Cleanup(
         m_ClientInitialized = false;
     }
 
-    // The OpenGL context references the native window, so their destruction
-    // order is a correctness requirement rather than a stylistic preference.
+    // AssetService owns runtime GPU resources, so it must be destroyed before
+    // Renderer2D and the graphics context. SceneRenderer is stateless but is
+    // reset before its dependencies for an explicit lifecycle order.
     m_Scene.reset();
+    m_SceneRenderer.reset();
+    m_AssetService.reset();
+    m_AssetRegistry.reset();
     m_Renderer2D.reset();
     m_GraphicsContext.reset();
     m_Window.reset();

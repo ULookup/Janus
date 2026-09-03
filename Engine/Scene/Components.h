@@ -1,12 +1,22 @@
 #pragma once
 
+#include "Asset/AssetHandle.h"
 #include "Core/Math/Mat4.h"
 #include "Core/Math/Vector2.h"
 #include "Core/Types.h"
+#include "Core/UUID/UUID.h"
 #include "Renderer/RendererTypes.h"
+
+#include <string>
 
 namespace Janus
 {
+
+struct EntityIdentityComponent
+{
+    UUID id;
+    std::string name{"Entity"};
+};
 
 struct TransformComponent
 {
@@ -22,7 +32,7 @@ struct TransformComponent
 
 struct SpriteRendererComponent
 {
-    TextureHandle texture;
+    AssetHandle texture;
     Vector2 size{1.0f, 1.0f};
     Color color = Color::White();
     i32 layer = 0;
