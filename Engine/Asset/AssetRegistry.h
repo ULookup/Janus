@@ -23,7 +23,7 @@ public:
 
     [[nodiscard]] const AssetMetadata* Find(AssetHandle handle) const noexcept;
     [[nodiscard]] const AssetMetadata* FindByPath(
-        const std::filesystem::path& relativePath) const noexcept;
+        const std::filesystem::path& relativePath) const;
 
     [[nodiscard]] bool Contains(AssetHandle handle) const noexcept;
     [[nodiscard]] usize Size() const noexcept;

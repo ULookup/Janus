@@ -17,9 +17,9 @@ namespace
 constexpr std::string_view RegistrySchema = "janus.asset-registry";
 constexpr i32 RegistryVersion = 1;
 
-[[nodiscard]] Result<void> InvalidRegistry(std::string message)
+[[nodiscard]] Error InvalidRegistry(std::string message)
 {
-    return Result<void>::Failure(
+    return Error(
         ErrorCode::InvalidArgument,
         "Invalid asset registry: " + std::move(message));
 }
@@ -86,7 +86,7 @@ const AssetMetadata* AssetRegistry::Find(AssetHandle handle) const noexcept
 }
 
 const AssetMetadata* AssetRegistry::FindByPath(
-    const std::filesystem::path& relativePath) const noexcept
+    const std::filesystem::path& relativePath) const
 {
     auto normalized = NormalizeRelativePath(relativePath);
     if (!normalized)
@@ -116,7 +116,7 @@ usize AssetRegistry::Size() const noexcept
 Result<void> AssetRegistry::Save(const std::filesystem::path& registryPath) const
 {
     nlohmann::json document = {
-        {"schema", RegistrySchema},
+        {"schema", std::string(RegistrySchema)},
         {"version", RegistryVersion},
         {"assets", nlohmann::json::array()}};
 
@@ -141,7 +141,7 @@ Result<void> AssetRegistry::Save(const std::filesystem::path& registryPath) cons
     {
         document["assets"].push_back({
             {"handle", metadata->handle.ToString()},
-            {"type", AssetTypeName(metadata->type)},
+            {"type", std::string(AssetTypeName(metadata->type))},
             {"path", metadata->relativePath.generic_string()}});
     }
 
@@ -168,22 +168,22 @@ Result<AssetRegistry> AssetRegistry::Load(
             || !document["schema"].is_string()
             || document["schema"].get<std::string>() != RegistrySchema)
         {
-            auto error = InvalidRegistry("unsupported or missing schema.");
-            return Result<AssetRegistry>::Failure(error.GetError());
+            return Result<AssetRegistry>::Failure(
+                InvalidRegistry("unsupported or missing schema."));
         }
 
         if (!document.contains("version")
             || !document["version"].is_number_integer()
             || document["version"].get<i32>() != RegistryVersion)
         {
-            auto error = InvalidRegistry("unsupported or missing version.");
-            return Result<AssetRegistry>::Failure(error.GetError());
+            return Result<AssetRegistry>::Failure(
+                InvalidRegistry("unsupported or missing version."));
         }
 
         if (!document.contains("assets") || !document["assets"].is_array())
         {
-            auto error = InvalidRegistry("'assets' must be an array.");
-            return Result<AssetRegistry>::Failure(error.GetError());
+            return Result<AssetRegistry>::Failure(
+                InvalidRegistry("'assets' must be an array."));
         }
 
         AssetRegistry registry;
@@ -198,9 +198,9 @@ Result<AssetRegistry> AssetRegistry::Load(
                 || !entry.contains("path")
                 || !entry["path"].is_string())
             {
-                auto error = InvalidRegistry(
-                    "each asset must contain string handle, type, and path fields.");
-                return Result<AssetRegistry>::Failure(error.GetError());
+                return Result<AssetRegistry>::Failure(
+                    InvalidRegistry(
+                        "each asset must contain string handle, type, and path fields."));
             }
 
             auto handle = AssetHandle::Parse(entry["handle"].get<std::string>());
