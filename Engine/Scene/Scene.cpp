@@ -133,8 +133,7 @@ void Scene::UpdateTransforms()
                         entity,
                         Mat4::Identity(),
                         0.0f,
-                        Vector2{1.0f, 1.0f},
-                        false);
+                        Vector2{1.0f, 1.0f});
                 }
             });
 }
@@ -143,8 +142,7 @@ void Scene::UpdateTransformRecursive(
     ECS::Entity entity,
     const Mat4& parentWorld,
     f32 parentWorldRotation,
-    Vector2 parentWorldScale,
-    bool parentDirty)
+    Vector2 parentWorldScale)
 {
     auto* transform =
         m_Registry.GetComponent<TransformComponent>(entity);
@@ -156,29 +154,22 @@ void Scene::UpdateTransformRecursive(
         return;
     }
 
-    const bool needsUpdate =
-        transform->dirty || parentDirty;
+    const Mat4 local = Mat4::Multiply(
+        Mat4::Translate(transform->position),
+        Mat4::Multiply(
+            Mat4::Rotate(transform->rotationRadians),
+            Mat4::Scale(transform->scale)));
 
-    Mat4 world = parentWorld;
+    const Mat4 world = Mat4::Multiply(parentWorld, local);
 
-    if (needsUpdate)
-    {
-        const Mat4 local = Mat4::Multiply(
-            Mat4::Translate(transform->position),
-            Mat4::Multiply(
-                Mat4::Rotate(transform->rotationRadians),
-                Mat4::Scale(transform->scale)));
-
-        world = Mat4::Multiply(parentWorld, local);
-        transform->worldPosition =
-            Mat4::TransformPoint(parentWorld, transform->position);
-        transform->worldRotationRadians =
-            parentWorldRotation + transform->rotationRadians;
-        transform->worldScale = Vector2{
-            parentWorldScale.x * transform->scale.x,
-            parentWorldScale.y * transform->scale.y};
-        transform->dirty = false;
-    }
+    transform->worldPosition =
+        Mat4::TransformPoint(parentWorld, transform->position);
+    transform->worldRotationRadians =
+        parentWorldRotation + transform->rotationRadians;
+    transform->worldScale = Vector2{
+        parentWorldScale.x * transform->scale.x,
+        parentWorldScale.y * transform->scale.y};
+    transform->dirty = false;
 
     ECS::Entity child = hierarchy->firstChild;
     while (child.IsValid())
@@ -189,8 +180,7 @@ void Scene::UpdateTransformRecursive(
             child,
             world,
             transform->worldRotationRadians,
-            transform->worldScale,
-            needsUpdate);
+            transform->worldScale);
         child = childHierarchy->nextSibling;
     }
 }

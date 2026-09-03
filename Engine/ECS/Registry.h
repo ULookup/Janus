@@ -26,12 +26,22 @@ public:
     template <typename T>
     T* AddComponent(Entity entity, T component)
     {
+        if (!IsValid(entity))
+        {
+            return nullptr;
+        }
+
         return GetPool<T>().Add(entity, std::move(component));
     }
 
     template <typename T>
     bool RemoveComponent(Entity entity)
     {
+        if (!IsValid(entity))
+        {
+            return false;
+        }
+
         auto* pool = FindPool<T>();
         if (pool == nullptr || !pool->Has(entity))
         {
@@ -45,6 +55,11 @@ public:
     template <typename T>
     [[nodiscard]] T* GetComponent(Entity entity) noexcept
     {
+        if (!IsValid(entity))
+        {
+            return nullptr;
+        }
+
         auto* pool = FindPool<T>();
         return pool == nullptr ? nullptr : pool->Get(entity);
     }
@@ -52,6 +67,11 @@ public:
     template <typename T>
     [[nodiscard]] const T* GetComponent(Entity entity) const noexcept
     {
+        if (!IsValid(entity))
+        {
+            return nullptr;
+        }
+
         const auto* pool = FindPool<T>();
         return pool == nullptr ? nullptr : pool->Get(entity);
     }
@@ -59,6 +79,11 @@ public:
     template <typename T>
     [[nodiscard]] bool HasComponent(Entity entity) const noexcept
     {
+        if (!IsValid(entity))
+        {
+            return false;
+        }
+
         const auto* pool = FindPool<T>();
         return pool != nullptr && pool->Has(entity);
     }

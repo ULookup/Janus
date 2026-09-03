@@ -65,3 +65,28 @@ TEST_CASE("Registry rejects adding a component to an invalid entity", "[ecs][reg
     REQUIRE(registry.AddComponent<Health>(invalid, Health{1}) == nullptr);
     REQUIRE_FALSE(registry.HasComponent<Health>(invalid));
 }
+
+TEST_CASE("Registry rejects component access through stale entity handles", "[ecs][registry]")
+{
+    Janus::ECS::Registry registry;
+    const auto stale = registry.CreateEntity();
+
+    REQUIRE(registry.AddComponent<Health>(stale, Health{42}) != nullptr);
+    REQUIRE(registry.DestroyEntity(stale));
+
+    const auto replacement = registry.CreateEntity();
+    REQUIRE(replacement.index == stale.index);
+    REQUIRE(replacement.generation != stale.generation);
+    REQUIRE_FALSE(registry.IsValid(stale));
+
+    REQUIRE(registry.AddComponent<Health>(stale, Health{7}) == nullptr);
+    REQUIRE_FALSE(registry.RemoveComponent<Health>(stale));
+    REQUIRE(registry.GetComponent<Health>(stale) == nullptr);
+    REQUIRE_FALSE(registry.HasComponent<Health>(stale));
+
+    auto* replacementHealth =
+        registry.AddComponent<Health>(replacement, Health{99});
+    REQUIRE(replacementHealth != nullptr);
+    REQUIRE(replacementHealth->value == 99);
+    REQUIRE(registry.HasComponent<Health>(replacement));
+}
