@@ -1,12 +1,27 @@
 #include "Core/FileSystem/FileSystem.h"
 
+#include <atomic>
+#include <chrono>
 #include <fstream>
 #include <limits>
+#include <string>
+
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <Windows.h>
+#endif
 
 namespace Janus::FileSystem
 {
 namespace
 {
+
+std::atomic<u64> g_AtomicWriteCounter{0};
 
 Result<std::vector<u8>> ReadBytes(const std::filesystem::path& path)
 {
@@ -34,7 +49,7 @@ Result<std::vector<u8>> ReadBytes(const std::filesystem::path& path)
     }
 
     const auto end = stream.tellg();
-    if (end < std::streampos{ 0 })
+    if (end < std::streampos{0})
     {
         return Result<std::vector<u8>>::Failure(
             ErrorCode::FileReadFailed,
@@ -76,6 +91,57 @@ Result<std::vector<u8>> ReadBytes(const std::filesystem::path& path)
     }
 
     return Result<std::vector<u8>>::Success(std::move(contents));
+}
+
+[[nodiscard]] std::filesystem::path MakeAtomicTemporaryPath(
+    const std::filesystem::path& path)
+{
+    const auto timestamp = static_cast<u64>(
+        std::chrono::steady_clock::now().time_since_epoch().count());
+    const u64 counter = g_AtomicWriteCounter.fetch_add(1, std::memory_order_relaxed);
+
+    std::filesystem::path temporary = path;
+    temporary += ".tmp.";
+    temporary += std::to_string(timestamp);
+    temporary += ".";
+    temporary += std::to_string(counter);
+    return temporary;
+}
+
+void RemoveBestEffort(const std::filesystem::path& path) noexcept
+{
+    std::error_code error;
+    std::filesystem::remove(path, error);
+}
+
+Result<void> ReplaceAtomically(
+    const std::filesystem::path& temporary,
+    const std::filesystem::path& target)
+{
+#if defined(_WIN32)
+    const DWORD flags = MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH;
+    if (::MoveFileExW(temporary.c_str(), target.c_str(), flags) == 0)
+    {
+        const DWORD error = ::GetLastError();
+        return Result<void>::Failure(
+            ErrorCode::FileWriteFailed,
+            "Failed to atomically replace file '" + target.string()
+                + "' (Win32 error "
+                + std::to_string(static_cast<unsigned long>(error)) + ").");
+    }
+#else
+    std::error_code error;
+    std::filesystem::rename(temporary, target, error);
+    if (error)
+    {
+        return Result<void>::Failure(
+            ErrorCode::FileWriteFailed,
+            "Failed to atomically replace file '" + target.string()
+                + "': " + error.message() + ".");
+    }
+#endif
+
+    return Result<void>::Success();
 }
 
 } // namespace
@@ -152,6 +218,39 @@ Result<void> WriteText(
     std::string_view contents)
 {
     return WriteBinary(
+        path,
+        std::span<const u8>(
+            reinterpret_cast<const u8*>(contents.data()), contents.size()));
+}
+
+Result<void> WriteBinaryAtomic(
+    const std::filesystem::path& path,
+    std::span<const u8> contents)
+{
+    const std::filesystem::path temporary = MakeAtomicTemporaryPath(path);
+
+    auto write = WriteBinary(temporary, contents);
+    if (!write)
+    {
+        RemoveBestEffort(temporary);
+        return Result<void>::Failure(write.GetError());
+    }
+
+    auto replace = ReplaceAtomically(temporary, path);
+    if (!replace)
+    {
+        RemoveBestEffort(temporary);
+        return replace;
+    }
+
+    return Result<void>::Success();
+}
+
+Result<void> WriteTextAtomic(
+    const std::filesystem::path& path,
+    std::string_view contents)
+{
+    return WriteBinaryAtomic(
         path,
         std::span<const u8>(
             reinterpret_cast<const u8*>(contents.data()), contents.size()));

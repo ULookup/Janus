@@ -49,7 +49,7 @@ TEST_CASE("FileSystem round trips text and binary", "[core][filesystem]")
     TempDirectory temp;
     const auto textPath = temp.Path() / "sample.txt";
     const auto binaryPath = temp.Path() / "sample.bin";
-    const std::array<Janus::u8, 4> bytes{ 0, 1, 127, 255 };
+    const std::array<Janus::u8, 4> bytes{0, 1, 127, 255};
 
     REQUIRE(Janus::FileSystem::WriteText(textPath, "Janus"));
     REQUIRE(Janus::FileSystem::WriteBinary(binaryPath, bytes));
@@ -84,4 +84,39 @@ TEST_CASE("FileSystem round trips empty text and binary", "[core][filesystem]")
     REQUIRE(Janus::FileSystem::WriteBinary(binaryPath, bytes));
     REQUIRE(Janus::FileSystem::ReadText(textPath).Value().empty());
     REQUIRE(Janus::FileSystem::ReadBinary(binaryPath).Value().empty());
+}
+
+TEST_CASE("FileSystem atomically replaces persistent text and binary", "[core][filesystem]")
+{
+    TempDirectory temp;
+    const auto textPath = temp.Path() / "registry.json";
+    const auto binaryPath = temp.Path() / "state.bin";
+    const std::array<Janus::u8, 3> firstBytes{1, 2, 3};
+    const std::array<Janus::u8, 4> secondBytes{4, 5, 6, 7};
+
+    REQUIRE(Janus::FileSystem::WriteText(textPath, "before"));
+    REQUIRE(Janus::FileSystem::WriteTextAtomic(textPath, "after"));
+    REQUIRE(Janus::FileSystem::ReadText(textPath).Value() == "after");
+
+    REQUIRE(Janus::FileSystem::WriteBinary(binaryPath, firstBytes));
+    REQUIRE(Janus::FileSystem::WriteBinaryAtomic(binaryPath, secondBytes));
+    REQUIRE(Janus::FileSystem::ReadBinary(binaryPath).Value()
+            == std::vector<Janus::u8>(secondBytes.begin(), secondBytes.end()));
+
+    for (const auto& entry : std::filesystem::directory_iterator(temp.Path()))
+    {
+        REQUIRE(entry.path().filename().string().find(".tmp.") == std::string::npos);
+    }
+}
+
+TEST_CASE("FileSystem atomic write reports invalid destination", "[core][filesystem]")
+{
+    TempDirectory temp;
+    const auto invalidPath = temp.Path() / "missing-parent" / "registry.json";
+
+    const auto result = Janus::FileSystem::WriteTextAtomic(invalidPath, "data");
+
+    REQUIRE_FALSE(result);
+    REQUIRE(result.GetError().code == Janus::ErrorCode::FileWriteFailed);
+    REQUIRE_FALSE(Janus::FileSystem::Exists(invalidPath));
 }
