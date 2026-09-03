@@ -11,6 +11,8 @@
 #include <filesystem>
 #include <string>
 #include <system_error>
+#include <utility>
+#include <variant>
 
 namespace
 {
