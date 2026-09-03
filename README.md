@@ -2,7 +2,7 @@
 
 Janus 是一个面向 Human Developer 与 AI Agent 的 C++20 2D 游戏引擎。项目希望让 Editor、Game 和 Agent 通过同一套 Engine Capability 理解、修改、运行并验证游戏世界。
 
-项目已完成 **v0.1 Engine Foundation**、**v0.2 Renderer2D** 和 **v0.3 ECS + Scene**：Application 生命周期、SDL3 窗口、OpenGL 4.5 Core Context、基础事件与键盘输入、帧时间、文件系统、日志、2D Sprite Renderer、Batch Renderer、正交相机、渲染统计、SparseSet ECS、Scene、Hierarchy、Transform、SpriteRenderer、Camera 和 ECS Benchmark 均已形成可复现闭环。当前下一里程碑为 **v0.4 Asset + Serialization**。
+项目已完成 **v0.1 Engine Foundation**、**v0.2 Renderer2D**、**v0.3 ECS + Scene** 和 **v0.4 Asset + Serialization**。当前引擎已经能够从磁盘项目数据加载 AssetRegistry 与 Scene，通过稳定 UUID / AssetHandle 恢复 World，按需解析并缓存纹理资源，再交由 SceneRenderer / Renderer2D 渲染。下一里程碑为 **v0.5 Lua Gameplay Runtime**。
 
 ## 环境要求
 
@@ -34,15 +34,50 @@ ctest --preset windows-msvc-debug-tests
 
 生成内容位于 `out/`。不要提交 `out/`、`.vs/`、二进制或本地 IDE 设置。
 
+## v0.4 磁盘项目工作流
+
+仓库提供最小可运行项目：
+
+```text
+SandboxProject/
+├── Assets/
+│   └── player.png
+├── Scenes/
+│   └── Battle.scene
+└── Config/
+    └── AssetRegistry.json
+```
+
+运行链路：
+
+```text
+ProjectRuntimeConfig
+    ↓
+AssetRegistry.json + Battle.scene
+    ↓
+Persistent UUID / AssetHandle
+    ↓
+AssetService load + cache
+    ↓
+SceneRenderer
+    ↓
+Renderer2D
+```
+
+构建 `JanusSandbox` 时，CMake 会把 `SandboxProject` 复制到可执行文件旁边。直接启动 Sandbox 会默认加载该目录；也可以把自定义 project root 作为第一个命令行参数传入。
+
+Scene 文件只保存 authoring/persistent state，不保存 ECS index/generation、GPU handle 或绝对资源路径。重复引用同一 `AssetHandle` 的 Sprite 会通过 `AssetService` 命中同一 runtime texture cache。
+
 ## 目录
 
 ```text
 Janus/
-├── Engine/      引擎静态库与公共 API
-├── Sandbox/     最小引擎客户端和运行验证程序
-├── Tests/       自动测试
-├── docs/        PRD、技术架构和版本路线图
-└── AGENTS.md    代码 Agent 的仓库级工作规则
+├── Engine/          引擎静态库与公共 API
+├── Sandbox/         最小引擎客户端和运行验证程序
+├── SandboxProject/  v0.4 磁盘项目与资源 Fixture
+├── Tests/           自动测试
+├── docs/            PRD、技术架构和版本路线图
+└── AGENTS.md        代码 Agent 的仓库级工作规则
 ```
 
 ## 设计文档
@@ -56,6 +91,8 @@ Janus/
 - 纵向闭环优先于横向功能数量。
 - Engine Capability 先于 Editor 或 MCP 适配层。
 - Core 不依赖 Renderer、Scene、Asset、Editor、MCP 或 Game。
+- Persistent identity 与 runtime identity 分离。
+- Scene/Component 保存 authoring state，不保存 GPU state。
 - 可恢复错误使用显式 `Result`/`Error` 模型。
 - 行为变更必须配套自动测试和可复现验证。
 
