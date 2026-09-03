@@ -123,8 +123,12 @@ target_include_directories(
     PUBLIC
 
         ${CMAKE_CURRENT_SOURCE_DIR}
+)
 
-    PRIVATE
+target_include_directories(
+    JanusEngine
+
+    SYSTEM PRIVATE
 
         ${stb_SOURCE_DIR}
 )

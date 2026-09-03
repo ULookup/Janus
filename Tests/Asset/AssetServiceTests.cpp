@@ -3,8 +3,8 @@
 #include "Core/FileSystem/FileSystem.h"
 #include "Renderer/Renderer2D.h"
 
-#include "Asset/AssetTestUtils.h"
-#include "Renderer/FakeRenderDevice.h"
+#include "AssetTestUtils.h"
+#include "../Renderer/FakeRenderDevice.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -140,7 +140,7 @@ TEST_CASE("AssetService caches shader source until unload", "[asset][service]")
     REQUIRE(reloaded.Value() == "second");
 }
 
-TEST_CASE("AssetService clear and destructor release textures exactly once", "[asset][service]")
+TEST_CASE("AssetService clear releases textures exactly once", "[asset][service]")
 {
     Janus::Test::AssetTempDirectory temp;
     PrepareAssetDirectory(temp.Path());
@@ -174,4 +174,32 @@ TEST_CASE("AssetService clear and destructor release textures exactly once", "[a
     }
 
     REQUIRE(device.destroyedTextures.size() == 2);
+}
+
+TEST_CASE("AssetService destructor releases cached textures", "[asset][service]")
+{
+    Janus::Test::AssetTempDirectory temp;
+    PrepareAssetDirectory(temp.Path());
+    CopyTextureFixture(temp.Path(), "Assets/test.png");
+
+    Janus::AssetRegistry registry;
+    const auto texture = registry.Register(
+        Janus::AssetType::Texture,
+        "Assets/test.png");
+    REQUIRE(texture);
+
+    Janus::Test::FakeRenderDevice device;
+    auto renderer = Janus::Detail::Renderer2DTestAccess::Create(device);
+
+    Janus::TextureHandle runtimeTexture;
+    {
+        Janus::AssetService service(temp.Path(), registry, *renderer);
+        const auto loaded = service.LoadTexture(texture.Value());
+        REQUIRE(loaded);
+        runtimeTexture = loaded.Value();
+        REQUIRE(device.destroyedTextures.empty());
+    }
+
+    REQUIRE(device.destroyedTextures.size() == 1);
+    REQUIRE(device.destroyedTextures.front().value == runtimeTexture.value);
 }

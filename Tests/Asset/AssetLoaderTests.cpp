@@ -3,8 +3,8 @@
 #include "Core/FileSystem/FileSystem.h"
 #include "Renderer/Renderer2D.h"
 
-#include "Asset/AssetTestUtils.h"
-#include "Renderer/FakeRenderDevice.h"
+#include "AssetTestUtils.h"
+#include "../Renderer/FakeRenderDevice.h"
 
 #include <catch2/catch_test_macros.hpp>
 
