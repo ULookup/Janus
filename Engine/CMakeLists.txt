@@ -29,6 +29,8 @@ target_sources(
         Asset/Loader/TextureLoader.cpp
         Asset/Loader/ShaderSourceLoader.h
         Asset/Loader/ShaderSourceLoader.cpp
+        Asset/Loader/LuaScriptSourceLoader.h
+        Asset/Loader/LuaScriptSourceLoader.cpp
 
         ECS/SparseSet.cpp
         ECS/Registry.cpp

@@ -119,6 +119,9 @@ TEST_CASE("AssetRegistry persists deterministic project-relative metadata", "[as
     const auto registryPath = temp.Path() / "AssetRegistry.json";
 
     Janus::AssetRegistry registry;
+    const auto script = registry.Register(
+        Janus::AssetType::LuaScript,
+        std::filesystem::path("Scripts/PlayerController.lua"));
     const auto shader = registry.Register(
         Janus::AssetType::ShaderSource,
         std::filesystem::path("Assets/Shaders/sprite.glsl"));
@@ -126,20 +129,27 @@ TEST_CASE("AssetRegistry persists deterministic project-relative metadata", "[as
         Janus::AssetType::Texture,
         std::filesystem::path("Assets/Textures/player.png"));
 
+    REQUIRE(script);
     REQUIRE(shader);
     REQUIRE(texture);
     REQUIRE(registry.Save(registryPath));
 
     auto loaded = Janus::AssetRegistry::Load(registryPath);
     REQUIRE(loaded);
-    REQUIRE(loaded.Value().Size() == 2);
+    REQUIRE(loaded.Value().Size() == 3);
 
+    const auto* loadedScript = loaded.Value().Find(script.Value());
     const auto* loadedShader = loaded.Value().Find(shader.Value());
     const auto* loadedTexture = loaded.Value().Find(texture.Value());
+    REQUIRE(loadedScript != nullptr);
     REQUIRE(loadedShader != nullptr);
     REQUIRE(loadedTexture != nullptr);
+    REQUIRE(loadedScript->type == Janus::AssetType::LuaScript);
     REQUIRE(loadedShader->type == Janus::AssetType::ShaderSource);
     REQUIRE(loadedTexture->type == Janus::AssetType::Texture);
+    REQUIRE(
+        loadedScript->relativePath
+        == std::filesystem::path("Scripts/PlayerController.lua"));
     REQUIRE(
         loadedTexture->relativePath
         == std::filesystem::path("Assets/Textures/player.png"));
@@ -147,6 +157,7 @@ TEST_CASE("AssetRegistry persists deterministic project-relative metadata", "[as
     const auto serialized = Janus::FileSystem::ReadText(registryPath);
     REQUIRE(serialized);
     REQUIRE(serialized.Value().find("janus.asset-registry") != std::string::npos);
+    REQUIRE(serialized.Value().find("lua-script") != std::string::npos);
     REQUIRE(serialized.Value().find("\\\\") == std::string::npos);
 }
 

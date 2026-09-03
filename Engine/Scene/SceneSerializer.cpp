@@ -151,6 +151,23 @@ Result<std::string> SceneSerializer::Serialize(const Scene& scene)
                 {"primary", camera->primary}};
         }
 
+        if (const auto* script = scene.GetComponent<LuaScriptComponent>(entity);
+            script != nullptr)
+        {
+            if (script->enabled && !script->script.IsValid())
+            {
+                return Result<std::string>::Failure(
+                    ErrorCode::InvalidState,
+                    "Enabled LuaScript component requires a valid Script AssetHandle.");
+            }
+
+            Json scriptJson{{"enabled", script->enabled}};
+            scriptJson["script"] = script->script.IsValid()
+                ? Json(script->script.ToString())
+                : Json(nullptr);
+            components["LuaScript"] = std::move(scriptJson);
+        }
+
         entityJson["components"] = std::move(components);
         root["entities"].push_back(std::move(entityJson));
     }

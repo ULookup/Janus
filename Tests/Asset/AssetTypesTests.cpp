@@ -27,14 +27,18 @@ TEST_CASE("AssetType names round trip", "[asset][types]")
 {
     REQUIRE(Janus::AssetTypeName(Janus::AssetType::Texture) == "texture");
     REQUIRE(Janus::AssetTypeName(Janus::AssetType::ShaderSource) == "shader_source");
+    REQUIRE(Janus::AssetTypeName(Janus::AssetType::LuaScript) == "lua-script");
 
     const auto texture = Janus::ParseAssetType("texture");
     const auto shader = Janus::ParseAssetType("shader_source");
+    const auto luaScript = Janus::ParseAssetType("lua-script");
     const auto invalid = Janus::ParseAssetType("audio");
 
     REQUIRE(texture);
     REQUIRE(shader);
+    REQUIRE(luaScript);
     REQUIRE(texture.Value() == Janus::AssetType::Texture);
     REQUIRE(shader.Value() == Janus::AssetType::ShaderSource);
+    REQUIRE(luaScript.Value() == Janus::AssetType::LuaScript);
     REQUIRE_FALSE(invalid);
 }

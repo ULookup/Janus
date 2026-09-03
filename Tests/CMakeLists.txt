@@ -12,6 +12,7 @@ add_executable(
     Asset/AssetCacheTests.cpp
     Asset/AssetLoaderTests.cpp
     Asset/AssetServiceTests.cpp
+    Asset/LuaScriptAssetTests.cpp
     Platform/WindowConfigTests.cpp
     Application/ApplicationTests.cpp
     Application/ProjectRuntimeTests.cpp
@@ -29,6 +30,7 @@ add_executable(
     Scene/SceneSerializationTests.cpp
     Scene/SceneHierarchySerializationTests.cpp
     Scene/SceneRenderTests.cpp
+    Scene/LuaScriptSerializationTests.cpp
     Scripting/LuaVirtualMachineTests.cpp
 )
 
