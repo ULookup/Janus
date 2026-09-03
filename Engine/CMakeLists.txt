@@ -22,6 +22,13 @@ target_sources(
 
         Asset/AssetMetadata.cpp
         Asset/AssetRegistry.cpp
+        Asset/AssetCache.h
+        Asset/AssetCache.cpp
+        Asset/AssetService.cpp
+        Asset/Loader/TextureLoader.h
+        Asset/Loader/TextureLoader.cpp
+        Asset/Loader/ShaderSourceLoader.h
+        Asset/Loader/ShaderSourceLoader.cpp
 
         ECS/SparseSet.cpp
         ECS/Registry.cpp
@@ -76,6 +83,7 @@ target_sources(
         Asset/AssetHandle.h
         Asset/AssetMetadata.h
         Asset/AssetRegistry.h
+        Asset/AssetService.h
 
         ECS/Entity.h
         ECS/SparseSet.h
@@ -115,6 +123,14 @@ target_include_directories(
     PUBLIC
 
         ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_include_directories(
+    JanusEngine
+
+    SYSTEM PRIVATE
+
+        ${stb_SOURCE_DIR}
 )
 
 
