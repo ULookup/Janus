@@ -1,0 +1,11 @@
+{
+  "schema": "janus.asset-registry",
+  "version": 1,
+  "assets": [
+    {
+      "handle": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "type": "texture",
+      "path": "Assets/player.png"
+    }
+  ]
+}

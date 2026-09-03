@@ -354,7 +354,7 @@ Renderer 不再由 Sandbox 手动提交所有 Sprite 数据。
 
 # 6. v0.4 — Asset + Serialization
 
-状态：下一里程碑
+状态：已完成
 
 ## 目标
 
@@ -377,11 +377,17 @@ Texture Loader
 
 Shader Loader
 
+Asset Cache
+
+AssetService
+
 Scene Serialization
 
 Scene Deserialization
 
-Asset Cache
+SceneRenderer
+
+Disk-backed Project Bootstrap
 ```
 
 ## Demo
@@ -396,6 +402,20 @@ Reopen
 ```
 
 Scene 完整恢复。
+
+Sandbox 主路径进一步验证：
+
+```text
+Persistent Project Files
+    ↓
+AssetRegistry + Scene
+    ↓
+Runtime Reconstruction
+    ↓
+Asset Resolve / Cache
+    ↓
+Render
+```
 
 ## Scene 中资源
 
@@ -433,11 +453,14 @@ Atomic File Write
 
 - Scene 可可靠保存加载；
 - 资源引用不依赖绝对路径；
-- 同资源重复加载可命中 Cache。
+- 同资源重复加载可命中 Cache；
+- Sandbox 可从磁盘 AssetRegistry + Scene 恢复并渲染。
 
 ---
 
 # 7. v0.5 — Lua Gameplay Runtime
+
+状态：下一里程碑
 
 ## 目标
 
