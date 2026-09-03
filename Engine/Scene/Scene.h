@@ -74,8 +74,7 @@ private:
         ECS::Entity entity,
         const Mat4& parentWorld,
         f32 parentWorldRotation,
-        Vector2 parentWorldScale,
-        bool parentDirty);
+        Vector2 parentWorldScale);
 
     [[nodiscard]] Result<ECS::Entity> FindCamera();
 
