@@ -318,6 +318,56 @@ Result<void> RestoreComponents(
                 spriteJson["enabled"].get<bool>()});
     }
 
+    if (components.contains("LuaScript"))
+    {
+        const Json& scriptJson = components["LuaScript"];
+        if (!scriptJson.is_object()
+            || !scriptJson.contains("script")
+            || !scriptJson.contains("enabled")
+            || !scriptJson["enabled"].is_boolean())
+        {
+            return Result<void>::Failure(
+                ErrorCode::InvalidArgument,
+                "LuaScript authoring data is incomplete or invalid.");
+        }
+
+        const bool enabled = scriptJson["enabled"].get<bool>();
+        AssetHandle script;
+
+        if (scriptJson["script"].is_null())
+        {
+            if (enabled)
+            {
+                return Result<void>::Failure(
+                    ErrorCode::InvalidArgument,
+                    "Enabled LuaScript component requires a valid Script AssetHandle.");
+            }
+        }
+        else
+        {
+            if (!scriptJson["script"].is_string())
+            {
+                return Result<void>::Failure(
+                    ErrorCode::InvalidArgument,
+                    "LuaScript script must be an AssetHandle string or null.");
+            }
+
+            auto parsedScript =
+                AssetHandle::Parse(scriptJson["script"].get<std::string>());
+            if (!parsedScript)
+            {
+                return Result<void>::Failure(
+                    ErrorCode::InvalidArgument,
+                    "LuaScript script contains an invalid AssetHandle.");
+            }
+            script = parsedScript.Value();
+        }
+
+        scene.AddComponent<LuaScriptComponent>(
+            entity,
+            LuaScriptComponent{script, enabled});
+    }
+
     return Result<void>::Success();
 }
 

@@ -2,6 +2,7 @@
 
 #include "Asset/AssetMetadata.h"
 #include "Asset/AssetRegistry.h"
+#include "Asset/Loader/LuaScriptSourceLoader.h"
 #include "Asset/Loader/ShaderSourceLoader.h"
 #include "Asset/Loader/TextureLoader.h"
 #include "Renderer/Renderer2D.h"
@@ -122,6 +123,58 @@ Result<std::string_view> AssetService::LoadShaderSource(AssetHandle handle)
     return Result<std::string_view>::Success(std::string_view(*cached));
 }
 
+Result<std::string_view> AssetService::LoadLuaScriptSource(AssetHandle handle)
+{
+    if (const auto* cached = m_Cache.FindLuaScriptSource(handle))
+    {
+        return Result<std::string_view>::Success(std::string_view(*cached));
+    }
+
+    const AssetMetadata* metadata = m_Registry.Find(handle);
+    if (metadata == nullptr)
+    {
+        return Result<std::string_view>::Failure(
+            ErrorCode::AssetNotFound,
+            "Asset handle '" + handle.ToString() + "' is not registered.");
+    }
+
+    if (metadata->type != AssetType::LuaScript)
+    {
+        return Result<std::string_view>::Failure(
+            ErrorCode::AssetTypeMismatch,
+            "Asset '" + metadata->relativePath.generic_string()
+                + "' is not a Lua script.");
+    }
+
+    auto source = LuaScriptSourceLoader::Load(
+        ResolvePath(metadata->relativePath));
+    if (!source)
+    {
+        return Result<std::string_view>::Failure(source.GetError());
+    }
+
+    if (!m_Cache.StoreLuaScriptSource(
+            handle,
+            std::move(source).Value()))
+    {
+        return Result<std::string_view>::Failure(
+            ErrorCode::InvalidState,
+            "Failed to cache Lua script asset '"
+                + metadata->relativePath.generic_string() + "'.");
+    }
+
+    const auto* cached = m_Cache.FindLuaScriptSource(handle);
+    if (cached == nullptr)
+    {
+        return Result<std::string_view>::Failure(
+            ErrorCode::InvalidState,
+            "Lua script source cache lost asset '"
+                + metadata->relativePath.generic_string() + "'.");
+    }
+
+    return Result<std::string_view>::Success(std::string_view(*cached));
+}
+
 bool AssetService::IsLoaded(AssetHandle handle) const noexcept
 {
     return m_Cache.Contains(handle);
@@ -135,7 +188,12 @@ bool AssetService::Unload(AssetHandle handle) noexcept
         return true;
     }
 
-    return m_Cache.RemoveShaderSource(handle);
+    if (m_Cache.RemoveShaderSource(handle))
+    {
+        return true;
+    }
+
+    return m_Cache.RemoveLuaScriptSource(handle);
 }
 
 void AssetService::Clear() noexcept

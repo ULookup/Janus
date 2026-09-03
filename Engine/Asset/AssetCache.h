@@ -18,17 +18,22 @@ public:
         AssetHandle handle) const noexcept;
     [[nodiscard]] const std::string* FindShaderSource(
         AssetHandle handle) const noexcept;
+    [[nodiscard]] const std::string* FindLuaScriptSource(
+        AssetHandle handle) const noexcept;
 
     bool StoreTexture(AssetHandle handle, TextureHandle texture);
     bool StoreShaderSource(AssetHandle handle, std::string source);
+    bool StoreLuaScriptSource(AssetHandle handle, std::string source);
 
     [[nodiscard]] std::optional<TextureHandle> RemoveTexture(
         AssetHandle handle) noexcept;
     bool RemoveShaderSource(AssetHandle handle) noexcept;
+    bool RemoveLuaScriptSource(AssetHandle handle) noexcept;
 
     [[nodiscard]] bool Contains(AssetHandle handle) const noexcept;
     [[nodiscard]] usize TextureCount() const noexcept;
     [[nodiscard]] usize ShaderSourceCount() const noexcept;
+    [[nodiscard]] usize LuaScriptSourceCount() const noexcept;
 
     template <typename Function>
     void ForEachTexture(Function&& function) const
@@ -44,6 +49,7 @@ public:
 private:
     std::unordered_map<AssetHandle, TextureHandle, AssetHandleHash> m_Textures;
     std::unordered_map<AssetHandle, std::string, AssetHandleHash> m_ShaderSources;
+    std::unordered_map<AssetHandle, std::string, AssetHandleHash> m_LuaScriptSources;
 };
 
 } // namespace Janus

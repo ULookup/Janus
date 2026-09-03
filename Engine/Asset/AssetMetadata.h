@@ -12,7 +12,8 @@ namespace Janus
 enum class AssetType
 {
     Texture,
-    ShaderSource
+    ShaderSource,
+    LuaScript
 };
 
 [[nodiscard]] std::string_view AssetTypeName(AssetType type) noexcept;

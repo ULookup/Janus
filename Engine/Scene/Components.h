@@ -46,4 +46,10 @@ struct CameraComponent
     bool primary = false;
 };
 
+struct LuaScriptComponent
+{
+    AssetHandle script;
+    bool enabled = true;
+};
+
 } // namespace Janus
