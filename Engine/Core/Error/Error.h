@@ -18,6 +18,10 @@ enum class ErrorCode
 	FileReadFailed,
 	FileWriteFailed,
 
+	AssetNotFound,
+	AssetTypeMismatch,
+	AssetDecodeFailed,
+
 	PlatformInitFailed,
 	WindowCreateFailed,
 	GraphicsContextCreateFailed,

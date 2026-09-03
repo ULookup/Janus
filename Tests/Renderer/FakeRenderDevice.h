@@ -2,10 +2,20 @@
 
 #include "Renderer/RenderDevice.h"
 
+#include <utility>
 #include <vector>
 
 namespace Janus::Test
 {
+
+struct CreatedTextureRecord
+{
+    TextureHandle handle;
+    u32 width = 0;
+    u32 height = 0;
+    usize dataSize = 0;
+    std::vector<u8> pixels;
+};
 
 class FakeRenderDevice final : public RenderDevice
 {
@@ -56,14 +66,29 @@ public:
     }
 
     Result<TextureHandle> CreateTexture(
-        const TextureDesc&) override
+        const TextureDesc& desc) override
     {
-        return Result<TextureHandle>::Success(
-            TextureHandle{Next()});
+        const TextureHandle handle{Next()};
+
+        CreatedTextureRecord record;
+        record.handle = handle;
+        record.width = desc.width;
+        record.height = desc.height;
+        record.dataSize = desc.dataSize;
+
+        if (desc.data != nullptr && desc.dataSize != 0)
+        {
+            const auto* begin = static_cast<const u8*>(desc.data);
+            record.pixels.assign(begin, begin + desc.dataSize);
+        }
+
+        createdTextures.push_back(std::move(record));
+        return Result<TextureHandle>::Success(handle);
     }
 
-    void DestroyTexture(TextureHandle) override
+    void DestroyTexture(TextureHandle handle) override
     {
+        destroyedTextures.push_back(handle);
     }
 
     Result<FramebufferHandle> CreateFramebuffer(
@@ -106,6 +131,8 @@ public:
     }
 
     std::vector<DrawCommand> drawCommands;
+    std::vector<CreatedTextureRecord> createdTextures;
+    std::vector<TextureHandle> destroyedTextures;
     Viewport lastViewport;
     Color lastClearColor;
 

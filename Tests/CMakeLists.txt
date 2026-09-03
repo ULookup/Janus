@@ -9,6 +9,9 @@ add_executable(
     Core/LogTests.cpp
     Asset/AssetTypesTests.cpp
     Asset/AssetRegistryTests.cpp
+    Asset/AssetCacheTests.cpp
+    Asset/AssetLoaderTests.cpp
+    Asset/AssetServiceTests.cpp
     Platform/WindowConfigTests.cpp
     Application/ApplicationTests.cpp
     Renderer/RendererTypesTests.cpp
@@ -22,6 +25,15 @@ add_executable(
     Scene/HierarchyTests.cpp
     Scene/TransformTests.cpp
     Scene/SceneRenderTests.cpp
+)
+
+
+target_compile_definitions(
+    JanusTests
+
+    PRIVATE
+
+        JANUS_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
 )
 
 
