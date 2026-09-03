@@ -204,8 +204,9 @@ Result<void> Application::Run(ApplicationClient& client)
     m_Renderer2D = std::move(rendererResult).Value();
 
     std::filesystem::path projectRoot = std::filesystem::current_path();
+    const bool diskBackedProject = m_Config.project.has_value();
 
-    if (m_Config.project.has_value())
+    if (diskBackedProject)
     {
         const ProjectRuntimeConfig& project = *m_Config.project;
         projectRoot = project.root;
@@ -311,8 +312,14 @@ Result<void> Application::Run(ApplicationClient& client)
         {
             Error error = renderResult.GetError();
             JANUS_CORE_ERROR("Scene render failed: {}", error.message);
-            Cleanup(&client, true);
-            return Result<void>::Failure(std::move(error));
+
+            if (diskBackedProject)
+            {
+                Cleanup(&client, true);
+                return Result<void>::Failure(std::move(error));
+            }
+
+            RequestExit();
         }
 
         m_GraphicsContext->Present();
