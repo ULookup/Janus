@@ -38,6 +38,10 @@ target_sources(
         Scene/SceneDeserializer.cpp
         Scene/SceneRenderer.cpp
 
+        Scripting/LuaStackGuard.h
+        Scripting/LuaVirtualMachine.h
+        Scripting/LuaVirtualMachine.cpp
+
         Renderer/RendererStatistics.cpp
         Renderer/RenderDevice.h
         Renderer/RenderQueue.h
@@ -154,6 +158,7 @@ target_link_libraries(
         glad_gl_45
         glm::glm
         nlohmann_json::nlohmann_json
+        JanusLua
 
     PUBLIC
 

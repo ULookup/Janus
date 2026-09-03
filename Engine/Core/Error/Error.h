@@ -22,6 +22,10 @@ enum class ErrorCode
 	AssetTypeMismatch,
 	AssetDecodeFailed,
 
+	ScriptVmCreateFailed,
+	ScriptCompileFailed,
+	ScriptRuntimeFailed,
+
 	PlatformInitFailed,
 	WindowCreateFailed,
 	GraphicsContextCreateFailed,
