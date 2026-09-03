@@ -193,4 +193,9 @@ int LuaVirtualMachine::GetStackTop() const noexcept
     return lua_gettop(m_Impl->state);
 }
 
+void* LuaVirtualMachine::GetNativeState() noexcept
+{
+    return m_Impl->state;
+}
+
 } // namespace Janus

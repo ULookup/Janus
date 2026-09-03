@@ -43,6 +43,7 @@ target_sources(
         Scripting/LuaStackGuard.h
         Scripting/LuaVirtualMachine.h
         Scripting/LuaVirtualMachine.cpp
+        Scripting/ScriptEngine.cpp
 
         Renderer/RendererStatistics.cpp
         Renderer/RenderDevice.h
@@ -107,6 +108,8 @@ target_sources(
         Scene/SceneSerializer.h
         Scene/SceneDeserializer.h
         Scene/SceneRenderer.h
+
+        Scripting/ScriptEngine.h
 
         Renderer/RendererTypes.h
         Renderer/Sprite.h

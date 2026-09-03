@@ -9,6 +9,7 @@ namespace Janus
 {
 namespace Detail
 {
+struct LuaVirtualMachineAccess;
 struct LuaVirtualMachineTestAccess;
 }
 
@@ -34,9 +35,11 @@ private:
     explicit LuaVirtualMachine(std::unique_ptr<Impl> impl) noexcept;
 
     [[nodiscard]] int GetStackTop() const noexcept;
+    [[nodiscard]] void* GetNativeState() noexcept;
 
     std::unique_ptr<Impl> m_Impl;
 
+    friend struct Detail::LuaVirtualMachineAccess;
     friend struct Detail::LuaVirtualMachineTestAccess;
 };
 

@@ -51,6 +51,12 @@ public:
     }
 
     template <typename T>
+    bool RemoveComponent(ECS::Entity entity)
+    {
+        return m_Registry.RemoveComponent<T>(entity);
+    }
+
+    template <typename T>
     [[nodiscard]] T* GetComponent(ECS::Entity entity) noexcept
     {
         return m_Registry.GetComponent<T>(entity);
