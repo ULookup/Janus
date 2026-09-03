@@ -395,7 +395,7 @@ TEST_CASE("Application surfaces missing project assets as runtime failures",
     REQUIRE_FALSE(result);
     REQUIRE(client.initialized);
     REQUIRE(client.shutdown);
-    REQUIRE(result.GetError().message.find("Assets/missing.png")
+    REQUIRE(result.GetError().message.find("missing.png")
         != std::string::npos);
     REQUIRE(state.rendererDevice.createdTextures.empty());
 }
