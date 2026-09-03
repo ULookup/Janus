@@ -1,32 +1,44 @@
 #pragma once
 
 #include "Core/Error/Result.h"
+#include "Core/UUID/UUID.h"
 #include "ECS/Registry.h"
 #include "Scene/Components.h"
 #include "Scene/Hierarchy.h"
+#include "Scene/SceneMetadata.h"
 
-#include <memory>
+#include <string>
+#include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace Janus
 {
-
-class Renderer2D;
 
 class Scene
 {
 public:
     Scene();
+    explicit Scene(SceneMetadata metadata);
     ~Scene();
 
     Scene(const Scene&) = delete;
     Scene& operator=(const Scene&) = delete;
 
-    [[nodiscard]] ECS::Entity CreateEntity();
+    [[nodiscard]] ECS::Entity CreateEntity(std::string name = "Entity");
+    [[nodiscard]] Result<ECS::Entity> CreateEntityWithUUID(
+        UUID id,
+        std::string name = "Entity");
     bool DestroyEntity(ECS::Entity entity);
+
     [[nodiscard]] Result<void> SetParent(
         ECS::Entity child,
         ECS::Entity parent);
+
+    [[nodiscard]] ECS::Entity FindEntity(UUID id) const noexcept;
+    [[nodiscard]] std::vector<ECS::Entity> GetEntities() const;
+    [[nodiscard]] const SceneMetadata& GetMetadata() const noexcept;
+    void SetName(std::string name);
 
     [[nodiscard]] const ECS::Registry& GetRegistry() const noexcept;
 
@@ -64,27 +76,16 @@ public:
         return m_Registry.View<Components...>();
     }
 
-    [[nodiscard]] Result<void> Render(
-        Renderer2D& renderer,
-        Viewport viewport);
-
 private:
-    void UpdateTransforms();
-    void UpdateTransformRecursive(
-        ECS::Entity entity,
-        const Mat4& parentWorld,
-        f32 parentWorldRotation,
-        Vector2 parentWorldScale);
-
-    [[nodiscard]] Result<ECS::Entity> FindCamera();
-
     void DetachFromParent(ECS::Entity entity);
     void DestroyEntityRecursive(ECS::Entity entity);
     [[nodiscard]] bool IsAncestor(
         ECS::Entity entity,
         ECS::Entity possibleAncestor) const;
 
+    SceneMetadata m_Metadata;
     ECS::Registry m_Registry;
+    std::unordered_map<UUID, ECS::Entity, UUIDHash> m_EntityIndex;
 };
 
 } // namespace Janus

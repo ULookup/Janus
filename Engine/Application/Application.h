@@ -12,10 +12,13 @@
 namespace Janus
 {
 
+class AssetRegistry;
+class AssetService;
 class Window;
 class GraphicsContext;
 class Renderer2D;
 class Scene;
+class SceneRenderer;
 class ApplicationClient;
 
 class Application final
@@ -45,6 +48,9 @@ private:
     std::unique_ptr<Window> m_Window;
     std::unique_ptr<GraphicsContext> m_GraphicsContext;
     std::unique_ptr<Renderer2D> m_Renderer2D;
+    std::unique_ptr<AssetRegistry> m_AssetRegistry;
+    std::unique_ptr<AssetService> m_AssetService;
+    std::unique_ptr<SceneRenderer> m_SceneRenderer;
     std::unique_ptr<Scene> m_Scene;
     InputState m_Input;
     FrameClock m_FrameClock;

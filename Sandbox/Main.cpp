@@ -5,13 +5,12 @@
 #include "Core/Log/Log.h"
 #include "Core/Math/Vector2.h"
 #include "Core/Time/TimeStep.h"
-#include "Renderer/Renderer2D.h"
 #include "Scene/Scene.h"
 
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
-#include <vector>
+#include <string>
 #include <variant>
 
 class SandboxClient final : public Janus::ApplicationClient
@@ -19,55 +18,26 @@ class SandboxClient final : public Janus::ApplicationClient
 public:
     Janus::Result<void> OnInitialize(Janus::Application& application) override
     {
-        auto& renderer = application.GetRenderer2D();
-
-        const auto checker = CreateCheckerTexture(renderer, false);
-
-        if (!checker)
-        {
-            return Janus::Result<void>::Failure(checker.GetError());
-        }
-
-        const auto transparent = CreateCheckerTexture(renderer, true);
-
-        if (!transparent)
-        {
-            renderer.DestroyTexture(checker.Value());
-            return Janus::Result<void>::Failure(transparent.GetError());
-        }
-
-        m_CheckerTexture = checker.Value();
-        m_TransparentTexture = transparent.Value();
-
         auto& scene = application.GetScene();
+        scene.SetName("Sandbox Transitional Scene");
 
-        const auto camera = scene.CreateEntity();
+        const auto camera = scene.CreateEntity("Camera");
         scene.AddComponent<Janus::CameraComponent>(
             camera,
             Janus::CameraComponent{1.0f, true});
 
-        const auto player = scene.CreateEntity();
-        scene.AddComponent<Janus::SpriteRendererComponent>(
-            player,
-            Janus::SpriteRendererComponent{
-                m_CheckerTexture,
-                Janus::Vector2{256.0f, 256.0f}});
-
+        // v0.4 #11 intentionally removes the old runtime TextureHandle-backed
+        // sprite setup. #12 replaces this transitional scene with the
+        // disk-backed SandboxProject/AssetRegistry/Scene vertical slice.
         for (int index = 0; index < 8; ++index)
         {
-            const auto enemy = scene.CreateEntity();
+            const auto entity = scene.CreateEntity(
+                "Entity " + std::to_string(index));
             auto* transform =
-                scene.GetComponent<Janus::TransformComponent>(
-                    enemy);
+                scene.GetComponent<Janus::TransformComponent>(entity);
             transform->position = Janus::Vector2{
                 static_cast<Janus::f32>((index % 4) * 80 - 120),
                 static_cast<Janus::f32>((index / 4) * 70 - 40)};
-
-            scene.AddComponent<Janus::SpriteRendererComponent>(
-                enemy,
-                Janus::SpriteRendererComponent{
-                    m_TransparentTexture,
-                    Janus::Vector2{96.0f, 96.0f}});
         }
 
         return Janus::Result<void>::Success();
@@ -108,42 +78,6 @@ public:
     }
 
 private:
-    static Janus::Result<Janus::TextureHandle> CreateCheckerTexture(
-        Janus::Renderer2D& renderer,
-        bool transparent)
-    {
-        constexpr Janus::u32 size = 4;
-        std::vector<Janus::u8> pixels(
-            size * size * 4);
-
-        for (Janus::u32 y = 0; y < size; ++y)
-        {
-            for (Janus::u32 x = 0; x < size; ++x)
-            {
-                const bool bright = ((x + y) % 2) == 0;
-                const Janus::u8 value = bright ? 220 : 40;
-                const Janus::u8 alpha = transparent ? 128 : 255;
-                const Janus::usize offset =
-                    (static_cast<Janus::usize>(y) * size + x) * 4;
-
-                pixels[offset] = value;
-                pixels[offset + 1] = bright ? 80 : 30;
-                pixels[offset + 2] = bright ? 220 : 100;
-                pixels[offset + 3] = alpha;
-            }
-        }
-
-        Janus::TextureDesc desc;
-        desc.width = size;
-        desc.height = size;
-        desc.data = pixels.data();
-        desc.dataSize = pixels.size();
-
-        return renderer.CreateTexture(desc);
-    }
-
-    Janus::TextureHandle m_CheckerTexture;
-    Janus::TextureHandle m_TransparentTexture;
     Janus::f64 m_ElapsedSeconds = 0.0;
 };
 

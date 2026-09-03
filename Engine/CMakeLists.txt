@@ -34,6 +34,9 @@ target_sources(
         ECS/Registry.cpp
 
         Scene/Scene.cpp
+        Scene/SceneSerializer.cpp
+        Scene/SceneDeserializer.cpp
+        Scene/SceneRenderer.cpp
 
         Renderer/RendererStatistics.cpp
         Renderer/RenderDevice.h
@@ -93,7 +96,11 @@ target_sources(
 
         Scene/Hierarchy.h
         Scene/Components.h
+        Scene/SceneMetadata.h
         Scene/Scene.h
+        Scene/SceneSerializer.h
+        Scene/SceneDeserializer.h
+        Scene/SceneRenderer.h
 
         Renderer/RendererTypes.h
         Renderer/Sprite.h

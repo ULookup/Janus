@@ -1,23 +1,62 @@
 #include "Scene/Scene.h"
 
-#include "Core/Math/Mat4.h"
-#include "Core/Math/Vector2.h"
-#include "ECS/View.h"
-#include "Renderer/OrthographicCamera.h"
-#include "Renderer/Renderer2D.h"
-#include "Renderer/Sprite.h"
-
-#include <vector>
+#include <algorithm>
+#include <utility>
 
 namespace Janus
 {
 
-Scene::Scene() = default;
+Scene::Scene()
+    : Scene(SceneMetadata{UUID::Random(), "Scene"})
+{
+}
+
+Scene::Scene(SceneMetadata metadata)
+    : m_Metadata(std::move(metadata))
+{
+    if (!m_Metadata.id.IsValid())
+    {
+        m_Metadata.id = UUID::Random();
+    }
+}
+
 Scene::~Scene() = default;
 
-ECS::Entity Scene::CreateEntity()
+ECS::Entity Scene::CreateEntity(std::string name)
 {
+    UUID id;
+    do
+    {
+        id = UUID::Random();
+    }
+    while (m_EntityIndex.contains(id));
+
+    auto result = CreateEntityWithUUID(id, std::move(name));
+    return std::move(result).Value();
+}
+
+Result<ECS::Entity> Scene::CreateEntityWithUUID(
+    UUID id,
+    std::string name)
+{
+    if (!id.IsValid())
+    {
+        return Result<ECS::Entity>::Failure(
+            ErrorCode::InvalidArgument,
+            "Scene entity UUID cannot be nil.");
+    }
+
+    if (m_EntityIndex.contains(id))
+    {
+        return Result<ECS::Entity>::Failure(
+            ErrorCode::InvalidArgument,
+            "Scene already contains entity UUID " + id.ToString() + ".");
+    }
+
     const ECS::Entity entity = m_Registry.CreateEntity();
+    m_Registry.AddComponent<EntityIdentityComponent>(
+        entity,
+        EntityIdentityComponent{id, std::move(name)});
     m_Registry.AddComponent<TransformComponent>(
         entity,
         TransformComponent{});
@@ -25,7 +64,9 @@ ECS::Entity Scene::CreateEntity()
         entity,
         HierarchyComponent{});
 
-    return entity;
+    m_EntityIndex.emplace(id, entity);
+
+    return Result<ECS::Entity>::Success(entity);
 }
 
 bool Scene::DestroyEntity(ECS::Entity entity)
@@ -99,7 +140,10 @@ Result<void> Scene::SetParent(
             auto* oldFirst =
                 m_Registry.GetComponent<HierarchyComponent>(
                     parentHierarchy->firstChild);
-            oldFirst->previousSibling = child;
+            if (oldFirst != nullptr)
+            {
+                oldFirst->previousSibling = child;
+            }
         }
 
         parentHierarchy->firstChild = child;
@@ -107,179 +151,67 @@ Result<void> Scene::SetParent(
 
     auto* transform =
         m_Registry.GetComponent<TransformComponent>(child);
-    transform->dirty = true;
+    if (transform != nullptr)
+    {
+        transform->dirty = true;
+    }
 
     return Result<void>::Success();
+}
+
+ECS::Entity Scene::FindEntity(UUID id) const noexcept
+{
+    const auto it = m_EntityIndex.find(id);
+    if (it == m_EntityIndex.end() || !m_Registry.IsValid(it->second))
+    {
+        return ECS::Entity{};
+    }
+
+    return it->second;
+}
+
+std::vector<ECS::Entity> Scene::GetEntities() const
+{
+    std::vector<ECS::Entity> entities;
+    entities.reserve(m_EntityIndex.size());
+
+    for (const auto& [id, entity] : m_EntityIndex)
+    {
+        (void)id;
+        if (m_Registry.IsValid(entity))
+        {
+            entities.push_back(entity);
+        }
+    }
+
+    std::sort(
+        entities.begin(),
+        entities.end(),
+        [this](ECS::Entity left, ECS::Entity right)
+        {
+            const auto* leftIdentity =
+                m_Registry.GetComponent<EntityIdentityComponent>(left);
+            const auto* rightIdentity =
+                m_Registry.GetComponent<EntityIdentityComponent>(right);
+            return leftIdentity->id < rightIdentity->id;
+        });
+
+    return entities;
+}
+
+const SceneMetadata& Scene::GetMetadata() const noexcept
+{
+    return m_Metadata;
+}
+
+void Scene::SetName(std::string name)
+{
+    m_Metadata.name = std::move(name);
 }
 
 const ECS::Registry& Scene::GetRegistry() const noexcept
 {
     return m_Registry;
-}
-
-void Scene::UpdateTransforms()
-{
-    m_Registry
-        .View<TransformComponent, HierarchyComponent>()
-        .ForEach(
-            [this](
-                ECS::Entity entity,
-                TransformComponent&,
-                HierarchyComponent& hierarchy)
-            {
-                if (!hierarchy.parent.IsValid())
-                {
-                    UpdateTransformRecursive(
-                        entity,
-                        Mat4::Identity(),
-                        0.0f,
-                        Vector2{1.0f, 1.0f});
-                }
-            });
-}
-
-void Scene::UpdateTransformRecursive(
-    ECS::Entity entity,
-    const Mat4& parentWorld,
-    f32 parentWorldRotation,
-    Vector2 parentWorldScale)
-{
-    auto* transform =
-        m_Registry.GetComponent<TransformComponent>(entity);
-    auto* hierarchy =
-        m_Registry.GetComponent<HierarchyComponent>(entity);
-
-    if (transform == nullptr || hierarchy == nullptr)
-    {
-        return;
-    }
-
-    const Mat4 local = Mat4::Multiply(
-        Mat4::Translate(transform->position),
-        Mat4::Multiply(
-            Mat4::Rotate(transform->rotationRadians),
-            Mat4::Scale(transform->scale)));
-
-    const Mat4 world = Mat4::Multiply(parentWorld, local);
-
-    transform->worldPosition =
-        Mat4::TransformPoint(parentWorld, transform->position);
-    transform->worldRotationRadians =
-        parentWorldRotation + transform->rotationRadians;
-    transform->worldScale = Vector2{
-        parentWorldScale.x * transform->scale.x,
-        parentWorldScale.y * transform->scale.y};
-    transform->dirty = false;
-
-    ECS::Entity child = hierarchy->firstChild;
-    while (child.IsValid())
-    {
-        auto* childHierarchy =
-            m_Registry.GetComponent<HierarchyComponent>(child);
-        UpdateTransformRecursive(
-            child,
-            world,
-            transform->worldRotationRadians,
-            transform->worldScale);
-        child = childHierarchy->nextSibling;
-    }
-}
-
-Result<ECS::Entity> Scene::FindCamera()
-{
-    ECS::Entity firstCamera = ECS::Entity{};
-    bool primaryFound = false;
-
-    m_Registry
-        .View<TransformComponent, CameraComponent>()
-        .ForEach(
-            [&](
-                ECS::Entity entity,
-                TransformComponent&,
-                CameraComponent& camera)
-            {
-                if (!firstCamera.IsValid())
-                {
-                    firstCamera = entity;
-                }
-
-                if (camera.primary && !primaryFound)
-                {
-                    firstCamera = entity;
-                    primaryFound = true;
-                }
-            });
-
-    if (!firstCamera.IsValid())
-    {
-        return Result<ECS::Entity>::Failure(
-            ErrorCode::CameraNotFound,
-            "Scene has no camera.");
-    }
-
-    return Result<ECS::Entity>::Success(firstCamera);
-}
-
-Result<void> Scene::Render(
-    Renderer2D& renderer,
-    Viewport viewport)
-{
-    const auto cameraResult = FindCamera();
-    if (!cameraResult)
-    {
-        return Result<void>::Failure(cameraResult.GetError());
-    }
-
-    UpdateTransforms();
-
-    const ECS::Entity cameraEntity = cameraResult.Value();
-    const auto* cameraTransform =
-        m_Registry.GetComponent<TransformComponent>(cameraEntity);
-    const auto* cameraComponent =
-        m_Registry.GetComponent<CameraComponent>(cameraEntity);
-
-    OrthographicCamera camera;
-    camera.position = cameraTransform->worldPosition;
-    camera.rotationRadians =
-        cameraTransform->worldRotationRadians;
-    camera.zoom = cameraComponent->zoom;
-
-    renderer.SetViewport(viewport);
-    renderer.BeginFrame(camera);
-
-    m_Registry
-        .View<TransformComponent, SpriteRendererComponent>()
-        .ForEach(
-            [&](
-                ECS::Entity,
-                TransformComponent& transform,
-                SpriteRendererComponent& spriteComponent)
-            {
-                if (!spriteComponent.enabled
-                    || spriteComponent.texture.value == 0)
-                {
-                    return;
-                }
-
-                Sprite sprite;
-                sprite.texture = spriteComponent.texture;
-                sprite.position = transform.worldPosition;
-                sprite.size = Vector2{
-                    spriteComponent.size.x
-                        * transform.worldScale.x,
-                    spriteComponent.size.y
-                        * transform.worldScale.y};
-                sprite.rotationRadians =
-                    transform.worldRotationRadians;
-                sprite.color = spriteComponent.color;
-                sprite.layer = spriteComponent.layer;
-                sprite.uv = spriteComponent.uv;
-                sprite.blendMode = BlendMode::Alpha;
-
-                renderer.SubmitSprite(sprite);
-            });
-
-    return renderer.EndFrame();
 }
 
 void Scene::DetachFromParent(ECS::Entity entity)
@@ -296,13 +228,16 @@ void Scene::DetachFromParent(ECS::Entity entity)
 
     if (!parent.IsValid())
     {
+        hierarchy->previousSibling = ECS::Entity{};
+        hierarchy->nextSibling = ECS::Entity{};
         return;
     }
 
     auto* parentHierarchy =
         m_Registry.GetComponent<HierarchyComponent>(parent);
 
-    if (parentHierarchy->firstChild == entity)
+    if (parentHierarchy != nullptr
+        && parentHierarchy->firstChild == entity)
     {
         parentHierarchy->firstChild = hierarchy->nextSibling;
     }
@@ -312,7 +247,10 @@ void Scene::DetachFromParent(ECS::Entity entity)
         auto* previous =
             m_Registry.GetComponent<HierarchyComponent>(
                 hierarchy->previousSibling);
-        previous->nextSibling = hierarchy->nextSibling;
+        if (previous != nullptr)
+        {
+            previous->nextSibling = hierarchy->nextSibling;
+        }
     }
 
     if (hierarchy->nextSibling.IsValid())
@@ -320,7 +258,10 @@ void Scene::DetachFromParent(ECS::Entity entity)
         auto* next =
             m_Registry.GetComponent<HierarchyComponent>(
                 hierarchy->nextSibling);
-        next->previousSibling = hierarchy->previousSibling;
+        if (next != nullptr)
+        {
+            next->previousSibling = hierarchy->previousSibling;
+        }
     }
 
     hierarchy->parent = ECS::Entity{};
@@ -333,28 +274,37 @@ void Scene::DestroyEntityRecursive(ECS::Entity entity)
     auto* hierarchy =
         m_Registry.GetComponent<HierarchyComponent>(entity);
 
-    if (hierarchy == nullptr)
+    if (hierarchy != nullptr)
     {
-        m_Registry.DestroyEntity(entity);
-        return;
+        std::vector<ECS::Entity> children;
+        ECS::Entity child = hierarchy->firstChild;
+        while (child.IsValid())
+        {
+            children.push_back(child);
+            auto* childHierarchy =
+                m_Registry.GetComponent<HierarchyComponent>(child);
+            if (childHierarchy == nullptr)
+            {
+                break;
+            }
+            child = childHierarchy->nextSibling;
+        }
+
+        for (ECS::Entity childEntity : children)
+        {
+            DestroyEntityRecursive(childEntity);
+        }
+
+        DetachFromParent(entity);
     }
 
-    std::vector<ECS::Entity> children;
-    ECS::Entity child = hierarchy->firstChild;
-    while (child.IsValid())
+    const auto* identity =
+        m_Registry.GetComponent<EntityIdentityComponent>(entity);
+    if (identity != nullptr)
     {
-        children.push_back(child);
-        auto* childHierarchy =
-            m_Registry.GetComponent<HierarchyComponent>(child);
-        child = childHierarchy->nextSibling;
+        m_EntityIndex.erase(identity->id);
     }
 
-    for (ECS::Entity childEntity : children)
-    {
-        DestroyEntityRecursive(childEntity);
-    }
-
-    DetachFromParent(entity);
     m_Registry.DestroyEntity(entity);
 }
 
