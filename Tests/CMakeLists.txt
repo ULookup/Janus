@@ -14,6 +14,7 @@ add_executable(
     Asset/AssetServiceTests.cpp
     Platform/WindowConfigTests.cpp
     Application/ApplicationTests.cpp
+    Application/ProjectRuntimeTests.cpp
     Renderer/RendererTypesTests.cpp
     Renderer/RenderQueueTests.cpp
     Renderer/BatchRendererTests.cpp

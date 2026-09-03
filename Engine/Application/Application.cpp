@@ -11,10 +11,13 @@
 #include "Platform/Window/Window.h"
 #include "Renderer/Renderer2D.h"
 #include "Scene/Scene.h"
+#include "Scene/SceneDeserializer.h"
 #include "Scene/SceneRenderer.h"
 
 #include <filesystem>
 #include <memory>
+#include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 
@@ -67,6 +70,47 @@ ApplicationDependencies CreateDefaultApplicationDependencies()
 
 namespace Janus
 {
+namespace
+{
+
+Result<std::filesystem::path> ResolveProjectFile(
+    const ProjectRuntimeConfig& project,
+    const std::filesystem::path& relativePath,
+    std::string_view label)
+{
+    if (project.root.empty())
+    {
+        return Result<std::filesystem::path>::Failure(
+            ErrorCode::InvalidArgument,
+            "Project root must not be empty.");
+    }
+
+    if (relativePath.empty()
+        || relativePath.is_absolute()
+        || relativePath.has_root_name()
+        || relativePath.has_root_directory())
+    {
+        return Result<std::filesystem::path>::Failure(
+            ErrorCode::InvalidArgument,
+            std::string(label) + " must be project-relative.");
+    }
+
+    const std::filesystem::path normalized = relativePath.lexically_normal();
+    for (const auto& part : normalized)
+    {
+        if (part == std::filesystem::path(".."))
+        {
+            return Result<std::filesystem::path>::Failure(
+                ErrorCode::InvalidArgument,
+                std::string(label) + " cannot escape the project root.");
+        }
+    }
+
+    return Result<std::filesystem::path>::Success(
+        project.root / normalized);
+}
+
+} // namespace
 
 Application::Application(ApplicationConfig config)
     : Application(
@@ -159,16 +203,66 @@ Result<void> Application::Run(ApplicationClient& client)
 
     m_Renderer2D = std::move(rendererResult).Value();
 
-    // #12 replaces this empty runtime registry/current-directory root with
-    // the disk-backed project configuration. #11 only establishes the
-    // ownership and render dependency chain required by SceneRenderer.
-    m_AssetRegistry = std::make_unique<AssetRegistry>();
+    std::filesystem::path projectRoot = std::filesystem::current_path();
+
+    if (m_Config.project.has_value())
+    {
+        const ProjectRuntimeConfig& project = *m_Config.project;
+        projectRoot = project.root;
+
+        auto registryPath = ResolveProjectFile(
+            project,
+            project.assetRegistryPath,
+            "Asset registry path");
+        if (!registryPath)
+        {
+            Error error = std::move(registryPath.GetError());
+            Cleanup(&client, false);
+            return Result<void>::Failure(std::move(error));
+        }
+
+        auto scenePath = ResolveProjectFile(
+            project,
+            project.startupScenePath,
+            "Startup Scene path");
+        if (!scenePath)
+        {
+            Error error = std::move(scenePath.GetError());
+            Cleanup(&client, false);
+            return Result<void>::Failure(std::move(error));
+        }
+
+        auto registryResult = AssetRegistry::Load(registryPath.Value());
+        if (!registryResult)
+        {
+            Error error = std::move(registryResult.GetError());
+            Cleanup(&client, false);
+            return Result<void>::Failure(std::move(error));
+        }
+
+        auto sceneResult = SceneDeserializer::Load(scenePath.Value());
+        if (!sceneResult)
+        {
+            Error error = std::move(sceneResult.GetError());
+            Cleanup(&client, false);
+            return Result<void>::Failure(std::move(error));
+        }
+
+        m_AssetRegistry = std::make_unique<AssetRegistry>(
+            std::move(registryResult).Value());
+        m_Scene = std::move(sceneResult).Value();
+    }
+    else
+    {
+        m_AssetRegistry = std::make_unique<AssetRegistry>();
+        m_Scene = m_Dependencies.createScene();
+    }
+
     m_AssetService = std::make_unique<AssetService>(
-        std::filesystem::current_path(),
+        projectRoot,
         *m_AssetRegistry,
         *m_Renderer2D);
     m_SceneRenderer = std::make_unique<SceneRenderer>();
-    m_Scene = m_Dependencies.createScene();
 
     auto initializeResult = client.OnInitialize(*this);
     if (!initializeResult)
@@ -215,10 +309,10 @@ Result<void> Application::Run(ApplicationClient& client)
 
         if (!renderResult)
         {
-            JANUS_CORE_ERROR(
-                "Scene render failed: {}",
-                renderResult.GetError().message);
-            RequestExit();
+            Error error = renderResult.GetError();
+            JANUS_CORE_ERROR("Scene render failed: {}", error.message);
+            Cleanup(&client, true);
+            return Result<void>::Failure(std::move(error));
         }
 
         m_GraphicsContext->Present();
