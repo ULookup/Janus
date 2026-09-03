@@ -18,11 +18,13 @@ TEST_CASE("UUID random values round trip through canonical text", "[core][uuid]"
     REQUIRE(text[18] == '-');
     REQUIRE(text[23] == '-');
     REQUIRE(text[14] == '4');
-    REQUIRE(
+
+    const bool hasRfcVariant =
         text[19] == '8'
         || text[19] == '9'
         || text[19] == 'a'
-        || text[19] == 'b');
+        || text[19] == 'b';
+    REQUIRE(hasRfcVariant);
 
     auto parsed = Janus::UUID::Parse(text);
     REQUIRE(parsed);
