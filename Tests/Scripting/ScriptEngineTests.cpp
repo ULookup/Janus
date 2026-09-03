@@ -2,6 +2,7 @@
 #include "Asset/AssetService.h"
 #include "Core/FileSystem/FileSystem.h"
 #include "Core/Input/InputState.h"
+#include "Renderer/Renderer2D.h"
 #include "Scene/Components.h"
 #include "Scene/Scene.h"
 #include "Scripting/ScriptEngine.h"
@@ -16,6 +17,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace
 {
