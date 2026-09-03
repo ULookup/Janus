@@ -26,6 +26,7 @@ add_executable(
     Scene/HierarchyTests.cpp
     Scene/TransformTests.cpp
     Scene/SceneSerializationTests.cpp
+    Scene/SceneHierarchySerializationTests.cpp
     Scene/SceneRenderTests.cpp
 )
 
