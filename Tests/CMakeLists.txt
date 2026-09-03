@@ -4,8 +4,11 @@ add_executable(
     Core/ResultTests.cpp
     Core/TimeTests.cpp
     Core/FileSystemTests.cpp
+    Core/UUIDTests.cpp
     Core/EventInputTests.cpp
     Core/LogTests.cpp
+    Asset/AssetTypesTests.cpp
+    Asset/AssetRegistryTests.cpp
     Platform/WindowConfigTests.cpp
     Application/ApplicationTests.cpp
     Renderer/RendererTypesTests.cpp

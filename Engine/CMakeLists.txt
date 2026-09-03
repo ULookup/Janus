@@ -15,9 +15,13 @@ target_sources(
 
         Core/Log/Log.cpp
         Core/FileSystem/FileSystem.cpp
+        Core/UUID/UUID.cpp
         Core/Time/FrameClock.cpp
         Core/Input/InputState.cpp
         Core/Math/Mat4.cpp
+
+        Asset/AssetMetadata.cpp
+        Asset/AssetRegistry.cpp
 
         ECS/SparseSet.cpp
         ECS/Registry.cpp
@@ -58,6 +62,7 @@ target_sources(
         Core/Log/Log.h
 
         Core/FileSystem/FileSystem.h
+        Core/UUID/UUID.h
 
         Core/Time/FrameClock.h
         Core/Time/TimeStep.h
@@ -67,6 +72,10 @@ target_sources(
 
         Core/Math/Vector2.h
         Core/Math/Mat4.h
+
+        Asset/AssetHandle.h
+        Asset/AssetMetadata.h
+        Asset/AssetRegistry.h
 
         ECS/Entity.h
         ECS/SparseSet.h
@@ -121,6 +130,7 @@ target_link_libraries(
         SDL3::SDL3
         glad_gl_45
         glm::glm
+        nlohmann_json::nlohmann_json
 
     PUBLIC
 

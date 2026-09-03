@@ -21,5 +21,11 @@ namespace Janus::FileSystem
 [[nodiscard]] Result<void> WriteBinary(
     const std::filesystem::path& path,
     std::span<const u8> contents);
+[[nodiscard]] Result<void> WriteTextAtomic(
+    const std::filesystem::path& path,
+    std::string_view contents);
+[[nodiscard]] Result<void> WriteBinaryAtomic(
+    const std::filesystem::path& path,
+    std::span<const u8> contents);
 
 } // namespace Janus::FileSystem
