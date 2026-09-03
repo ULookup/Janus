@@ -8,6 +8,9 @@
 #include "Scene/Hierarchy.h"
 #include "Scene/Scene.h"
 
+#include <optional>
+#include <string>
+
 namespace Janus
 {
 
@@ -39,49 +42,57 @@ Result<void> SceneRenderer::Render(
     renderer.SetViewport(viewport);
     renderer.BeginFrame(camera);
 
-    for (const ECS::Entity entity : scene.GetEntities())
+    std::optional<Error> extractionError;
+
+    scene.View<TransformComponent, SpriteRendererComponent>()
+        .ForEach(
+            [&](ECS::Entity entity,
+                TransformComponent& transform,
+                SpriteRendererComponent& spriteComponent)
+            {
+                if (extractionError.has_value()
+                    || !spriteComponent.enabled
+                    || !spriteComponent.texture.IsValid())
+                {
+                    return;
+                }
+
+                auto textureResult =
+                    assets.LoadTexture(spriteComponent.texture);
+                if (!textureResult)
+                {
+                    const auto* identity =
+                        scene.GetComponent<EntityIdentityComponent>(entity);
+                    const std::string entityLabel = identity == nullptr
+                        ? std::string{"unknown entity"}
+                        : identity->name + " (" + identity->id.ToString() + ")";
+
+                    extractionError = Error{
+                        textureResult.GetError().code,
+                        "Failed to resolve sprite texture for "
+                            + entityLabel + ": "
+                            + textureResult.GetError().message};
+                    return;
+                }
+
+                Sprite sprite;
+                sprite.texture = textureResult.Value();
+                sprite.position = transform.worldPosition;
+                sprite.size = Vector2{
+                    spriteComponent.size.x * transform.worldScale.x,
+                    spriteComponent.size.y * transform.worldScale.y};
+                sprite.rotationRadians = transform.worldRotationRadians;
+                sprite.color = spriteComponent.color;
+                sprite.layer = spriteComponent.layer;
+                sprite.uv = spriteComponent.uv;
+                sprite.blendMode = BlendMode::Alpha;
+
+                renderer.SubmitSprite(sprite);
+            });
+
+    if (extractionError.has_value())
     {
-        auto* transform = scene.GetComponent<TransformComponent>(entity);
-        auto* spriteComponent =
-            scene.GetComponent<SpriteRendererComponent>(entity);
-
-        if (transform == nullptr
-            || spriteComponent == nullptr
-            || !spriteComponent->enabled
-            || !spriteComponent->texture.IsValid())
-        {
-            continue;
-        }
-
-        auto textureResult = assets.LoadTexture(spriteComponent->texture);
-        if (!textureResult)
-        {
-            const auto* identity =
-                scene.GetComponent<EntityIdentityComponent>(entity);
-            const std::string entityLabel = identity == nullptr
-                ? std::string{"unknown entity"}
-                : identity->name + " (" + identity->id.ToString() + ")";
-
-            return Result<void>::Failure(
-                textureResult.GetError().code,
-                "Failed to resolve sprite texture for "
-                    + entityLabel + ": "
-                    + textureResult.GetError().message);
-        }
-
-        Sprite sprite;
-        sprite.texture = textureResult.Value();
-        sprite.position = transform->worldPosition;
-        sprite.size = Vector2{
-            spriteComponent->size.x * transform->worldScale.x,
-            spriteComponent->size.y * transform->worldScale.y};
-        sprite.rotationRadians = transform->worldRotationRadians;
-        sprite.color = spriteComponent->color;
-        sprite.layer = spriteComponent->layer;
-        sprite.uv = spriteComponent->uv;
-        sprite.blendMode = BlendMode::Alpha;
-
-        renderer.SubmitSprite(sprite);
+        return Result<void>::Failure(std::move(*extractionError));
     }
 
     return renderer.EndFrame();
@@ -89,20 +100,23 @@ Result<void> SceneRenderer::Render(
 
 void SceneRenderer::UpdateTransforms(Scene& scene)
 {
-    for (const ECS::Entity entity : scene.GetEntities())
-    {
-        const auto* hierarchy =
-            scene.GetComponent<HierarchyComponent>(entity);
-        if (hierarchy != nullptr && !hierarchy->parent.IsValid())
-        {
-            UpdateTransformRecursive(
-                scene,
-                entity,
-                Mat4::Identity(),
-                0.0f,
-                Vector2{1.0f, 1.0f});
-        }
-    }
+    scene.View<TransformComponent, HierarchyComponent>()
+        .ForEach(
+            [this, &scene](
+                ECS::Entity entity,
+                TransformComponent&,
+                HierarchyComponent& hierarchy)
+            {
+                if (!hierarchy.parent.IsValid())
+                {
+                    UpdateTransformRecursive(
+                        scene,
+                        entity,
+                        Mat4::Identity(),
+                        0.0f,
+                        Vector2{1.0f, 1.0f});
+                }
+            });
 }
 
 void SceneRenderer::UpdateTransformRecursive(
@@ -161,29 +175,28 @@ void SceneRenderer::UpdateTransformRecursive(
 Result<ECS::Entity> SceneRenderer::FindCamera(Scene& scene) const
 {
     ECS::Entity firstCamera;
+    ECS::Entity primaryCamera;
 
-    for (const ECS::Entity entity : scene.GetEntities())
+    scene.View<TransformComponent, CameraComponent>()
+        .ForEach(
+            [&](ECS::Entity entity,
+                TransformComponent&,
+                CameraComponent& camera)
+            {
+                if (!firstCamera.IsValid())
+                {
+                    firstCamera = entity;
+                }
+
+                if (camera.primary && !primaryCamera.IsValid())
+                {
+                    primaryCamera = entity;
+                }
+            });
+
+    if (primaryCamera.IsValid())
     {
-        if (scene.GetComponent<TransformComponent>(entity) == nullptr)
-        {
-            continue;
-        }
-
-        const auto* camera = scene.GetComponent<CameraComponent>(entity);
-        if (camera == nullptr)
-        {
-            continue;
-        }
-
-        if (!firstCamera.IsValid())
-        {
-            firstCamera = entity;
-        }
-
-        if (camera->primary)
-        {
-            return Result<ECS::Entity>::Success(entity);
-        }
+        return Result<ECS::Entity>::Success(primaryCamera);
     }
 
     if (!firstCamera.IsValid())

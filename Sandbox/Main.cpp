@@ -10,6 +10,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <string>
 #include <variant>
 
 class SandboxClient final : public Janus::ApplicationClient
