@@ -47,6 +47,8 @@ public:
     virtual Result<FramebufferHandle> CreateFramebuffer(
         const FramebufferDesc& desc) = 0;
     virtual void DestroyFramebuffer(FramebufferHandle handle) = 0;
+    virtual Result<void> BindFramebuffer(FramebufferHandle handle) = 0;
+    virtual void BindDefaultFramebuffer() = 0;
 
     virtual void SetViewport(Viewport viewport) = 0;
     virtual void SetViewProjection(const Mat4& matrix) = 0;
