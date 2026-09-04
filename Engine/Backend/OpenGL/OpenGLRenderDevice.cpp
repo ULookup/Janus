@@ -44,6 +44,78 @@ void main()
 }
 )";
 
+#if defined(JANUS_DEBUG)
+
+void GLAPIENTRY OpenGLDebugCallback(
+    GLenum,
+    GLenum type,
+    GLuint id,
+    GLenum severity,
+    GLsizei,
+    const GLchar* message,
+    const void*)
+{
+    if (severity == GL_DEBUG_SEVERITY_NOTIFICATION)
+    {
+        return;
+    }
+
+    const char* text = message == nullptr ? "<no message>" : message;
+
+    if (severity == GL_DEBUG_SEVERITY_HIGH)
+    {
+        JANUS_CORE_ERROR(
+            "[OpenGL] debug message id={} type=0x{:X}: {}",
+            id,
+            static_cast<u32>(type),
+            text);
+        return;
+    }
+
+    if (severity == GL_DEBUG_SEVERITY_MEDIUM)
+    {
+        JANUS_CORE_WARN(
+            "[OpenGL] debug message id={} type=0x{:X}: {}",
+            id,
+            static_cast<u32>(type),
+            text);
+        return;
+    }
+
+    JANUS_CORE_TRACE(
+        "[OpenGL] debug message id={} type=0x{:X}: {}",
+        id,
+        static_cast<u32>(type),
+        text);
+}
+
+void EnableOpenGLDebugOutput()
+{
+    GLint contextFlags = 0;
+    glGetIntegerv(GL_CONTEXT_FLAGS, &contextFlags);
+
+    if ((contextFlags & GL_CONTEXT_FLAG_DEBUG_BIT) == 0)
+    {
+        JANUS_CORE_WARN(
+            "OpenGL debug output is unavailable because the current context "
+            "was not created with the debug flag.");
+        return;
+    }
+
+    glEnable(GL_DEBUG_OUTPUT);
+    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+    glDebugMessageCallback(OpenGLDebugCallback, nullptr);
+    glDebugMessageControl(
+        GL_DONT_CARE,
+        GL_DONT_CARE,
+        GL_DEBUG_SEVERITY_NOTIFICATION,
+        0,
+        nullptr,
+        GL_FALSE);
+}
+
+#endif
+
 [[nodiscard]] u32 CompileShader(
     u32 type,
     const char* source)
@@ -133,6 +205,10 @@ Result<std::unique_ptr<OpenGLRenderDevice>>
     auto device = std::unique_ptr<OpenGLRenderDevice>(
         new OpenGLRenderDevice());
 
+#if defined(JANUS_DEBUG)
+    EnableOpenGLDebugOutput();
+#endif
+
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -189,10 +265,9 @@ Result<VertexBufferHandle> OpenGLRenderDevice::CreateVertexBuffer(
     const BufferDesc& desc)
 {
     u32 object = 0;
-    glGenBuffers(1, &object);
-    glBindBuffer(GL_ARRAY_BUFFER, object);
-    glBufferData(
-        GL_ARRAY_BUFFER,
+    glCreateBuffers(1, &object);
+    glNamedBufferData(
+        object,
         static_cast<GLsizeiptr>(desc.size),
         desc.data,
         GL_STREAM_DRAW);
@@ -221,11 +296,13 @@ void OpenGLRenderDevice::DestroyVertexBuffer(
 Result<IndexBufferHandle> OpenGLRenderDevice::CreateIndexBuffer(
     const BufferDesc& desc)
 {
+    // GL_ELEMENT_ARRAY_BUFFER binding belongs to VAO state in core profile.
+    // Upload storage directly to the buffer object so creation is valid even
+    // when no VAO is bound.
     u32 object = 0;
-    glGenBuffers(1, &object);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, object);
-    glBufferData(
-        GL_ELEMENT_ARRAY_BUFFER,
+    glCreateBuffers(1, &object);
+    glNamedBufferData(
+        object,
         static_cast<GLsizeiptr>(desc.size),
         desc.data,
         GL_STREAM_DRAW);
