@@ -9,6 +9,7 @@
 #include "Platform/Graphics/GraphicsContext.h"
 #include "Platform/Window/Window.h"
 #include "Renderer/Renderer2D.h"
+#include "Scene/Components.h"
 #include "Scene/Scene.h"
 #include "Scene/SceneDeserializer.h"
 #include "Scene/SceneSerializer.h"
@@ -25,6 +26,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 namespace
 {
@@ -33,13 +35,28 @@ struct RuntimeTestState
 {
     Janus::FrameClock::TimePoint now{};
     Janus::Test::FakeRenderDevice rendererDevice;
+    std::vector<Janus::Event> firstPollEvents;
+    Janus::usize pollCount = 0;
 };
 
 class FakeWindow final : public Janus::Window
 {
 public:
-    void PollEvents(const EventCallback&) override
+    explicit FakeWindow(RuntimeTestState& state) noexcept
+        : m_State(state)
     {
+    }
+
+    void PollEvents(const EventCallback& callback) override
+    {
+        if (m_State.pollCount == 0)
+        {
+            for (const Janus::Event& event : m_State.firstPollEvents)
+            {
+                callback(event);
+            }
+        }
+        ++m_State.pollCount;
     }
 
     void SetTitle(std::string_view) override
@@ -69,6 +86,9 @@ public:
     {
         return nullptr;
     }
+
+private:
+    RuntimeTestState& m_State;
 };
 
 class FakeGraphicsContext final : public Janus::GraphicsContext
@@ -153,6 +173,50 @@ private:
     std::optional<std::filesystem::path> m_RoundTripPath;
 };
 
+class LuaMovementClient final : public Janus::ApplicationClient
+{
+public:
+    Janus::Result<void> OnInitialize(Janus::Application&) override
+    {
+        return Janus::Result<void>::Success();
+    }
+
+    void OnEvent(const Janus::Event&, Janus::Application&) override
+    {
+    }
+
+    void OnUpdate(Janus::TimeStep, Janus::Application& application) override
+    {
+        ++updateCount;
+        if (updateCount >= 2)
+        {
+            application.RequestExit();
+        }
+    }
+
+    void OnShutdown(Janus::Application& application) noexcept override
+    {
+        auto& scene = application.GetScene();
+        for (const Janus::ECS::Entity entity : scene.GetEntities())
+        {
+            const auto* identity =
+                scene.GetComponent<Janus::EntityIdentityComponent>(entity);
+            const auto* transform =
+                scene.GetComponent<Janus::TransformComponent>(entity);
+            if (identity != nullptr
+                && transform != nullptr
+                && identity->name == "Player")
+            {
+                playerX = transform->position.x;
+                break;
+            }
+        }
+    }
+
+    Janus::usize updateCount = 0;
+    std::optional<Janus::f32> playerX;
+};
+
 Janus::Detail::ApplicationDependencies MakeDependencies(RuntimeTestState& state)
 {
     Janus::Detail::ApplicationDependencies dependencies;
@@ -166,10 +230,10 @@ Janus::Detail::ApplicationDependencies MakeDependencies(RuntimeTestState& state)
     {
     };
 
-    dependencies.createWindow = [](const Janus::WindowConfig&)
+    dependencies.createWindow = [&state](const Janus::WindowConfig&)
     {
         std::unique_ptr<Janus::Window> window =
-            std::make_unique<FakeWindow>();
+            std::make_unique<FakeWindow>(state);
         return Janus::Result<std::unique_ptr<Janus::Window>>::Success(
             std::move(window));
     };
@@ -249,6 +313,63 @@ constexpr std::string_view MissingAssetRegistry = R"json({
       "handle": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       "type": "texture",
       "path": "Assets/missing.png"
+    }
+  ]
+})json";
+
+constexpr std::string_view ScriptRegistry = R"json({
+  "schema": "janus.asset-registry",
+  "version": 1,
+  "assets": [
+    {
+      "handle": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "type": "lua-script",
+      "path": "Scripts/Test.lua"
+    }
+  ]
+})json";
+
+constexpr std::string_view ScriptScene = R"json({
+  "schema": "janus.scene",
+  "version": 1,
+  "scene": {
+    "id": "99999999-9999-4999-8999-999999999999",
+    "name": "ScriptFailure"
+  },
+  "entities": [
+    {
+      "id": "77777777-7777-4777-8777-777777777777",
+      "name": "Camera",
+      "parent": null,
+      "siblingOrder": 0,
+      "components": {
+        "Transform": {
+          "position": [0.0, 0.0],
+          "rotation": 0.0,
+          "scale": [1.0, 1.0]
+        },
+        "Camera": {
+          "zoom": 1.0,
+          "primary": true
+        }
+      }
+    },
+    {
+      "id": "88888888-8888-4888-8888-888888888888",
+      "name": "Scripted",
+      "parent": null,
+      "siblingOrder": 0,
+      "components": {
+        "Transform": {
+          "position": [0.0, 0.0],
+          "rotation": 0.0,
+          "scale": [1.0, 1.0]
+        },
+        "LuaScript": {
+          "script": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "enabled": true
+        }
+      }
     }
   ]
 })json";
@@ -398,4 +519,82 @@ TEST_CASE("Application surfaces missing project assets as runtime failures",
     REQUIRE(result.GetError().message.find("missing.png")
         != std::string::npos);
     REQUIRE(state.rendererDevice.createdTextures.empty());
+}
+
+
+TEST_CASE("Application runs disk-backed Lua gameplay before rendering",
+          "[application][project][scripting][v0.5]")
+{
+    RuntimeTestState state;
+    state.firstPollEvents.emplace_back(
+        Janus::KeyPressedEvent{Janus::KeyCode::D, false});
+
+    LuaMovementClient client;
+    auto application = Janus::Detail::ApplicationTestAccess::Create(
+        ProjectConfig(SandboxProjectRoot()),
+        MakeDependencies(state));
+
+    const auto result = application->Run(client);
+
+    REQUIRE(result);
+    REQUIRE(client.updateCount == 2);
+    REQUIRE(client.playerX.has_value());
+    REQUIRE(*client.playerX > -80.0f);
+    REQUIRE(state.rendererDevice.createdTextures.size() == 1);
+    REQUIRE_FALSE(state.rendererDevice.drawCommands.empty());
+}
+
+TEST_CASE("Application surfaces disk-backed Lua compile failures",
+          "[application][project][scripting][v0.5][errors]")
+{
+    RuntimeTestState state;
+    Janus::Test::AssetTempDirectory temp;
+    WriteProjectText(temp.Path() / "Config/AssetRegistry.json", ScriptRegistry);
+    WriteProjectText(temp.Path() / "Scenes/Battle.scene", ScriptScene);
+    WriteProjectText(
+        temp.Path() / "Scripts/Test.lua",
+        "local Script = { this is invalid lua\n");
+
+    ProjectClient client;
+    auto application = Janus::Detail::ApplicationTestAccess::Create(
+        ProjectConfig(temp.Path()),
+        MakeDependencies(state));
+
+    const auto result = application->Run(client);
+
+    REQUIRE_FALSE(result);
+    REQUIRE(result.GetError().code == Janus::ErrorCode::ScriptCompileFailed);
+    REQUIRE(client.initialized);
+    REQUIRE(client.shutdown);
+}
+
+TEST_CASE("Application surfaces disk-backed Lua runtime failures cleanly",
+          "[application][project][scripting][v0.5][errors]")
+{
+    RuntimeTestState state;
+    Janus::Test::AssetTempDirectory temp;
+    WriteProjectText(temp.Path() / "Config/AssetRegistry.json", ScriptRegistry);
+    WriteProjectText(temp.Path() / "Scenes/Battle.scene", ScriptScene);
+    WriteProjectText(
+        temp.Path() / "Scripts/Test.lua",
+        R"lua(
+local Script = {}
+function Script.OnUpdate(self, dt)
+    error("runtime boom")
+end
+return Script
+)lua");
+
+    ProjectClient client;
+    auto application = Janus::Detail::ApplicationTestAccess::Create(
+        ProjectConfig(temp.Path()),
+        MakeDependencies(state));
+
+    const auto result = application->Run(client);
+
+    REQUIRE_FALSE(result);
+    REQUIRE(result.GetError().code == Janus::ErrorCode::ScriptRuntimeFailed);
+    REQUIRE(result.GetError().message.find("runtime boom") != std::string::npos);
+    REQUIRE(client.initialized);
+    REQUIRE(client.shutdown);
 }

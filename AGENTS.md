@@ -2,7 +2,7 @@
 
 ## Mission
 
-Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.5 Lua Gameplay Runtime**. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
+Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.6 Editor Foundation**. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
 
 This file applies to the entire repository. A more deeply nested `AGENTS.md` may add stricter rules for its subtree.
 
