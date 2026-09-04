@@ -28,6 +28,8 @@ EditorApplication::EditorApplication(std::filesystem::path projectRoot)
 {
 }
 
+EditorApplication::~EditorApplication() = default;
+
 Result<void> EditorApplication::OnInitialize(Application& application)
 {
     auto& window = application.GetWindow();
