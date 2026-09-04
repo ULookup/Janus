@@ -1,6 +1,9 @@
 #include "ProjectSession.h"
 
+#include "RuntimeSession.h"
+
 #include "Asset/AssetService.h"
+#include "Core/Input/InputState.h"
 #include "Renderer/Renderer2D.h"
 #include "Scene/Scene.h"
 #include "Scene/SceneDeserializer.h"
@@ -150,6 +153,68 @@ Scene& ProjectSession::GetEditorScene() noexcept
 const Scene& ProjectSession::GetEditorScene() const noexcept
 {
     return *m_EditorScene;
+}
+
+Result<void> ProjectSession::StartRuntime(const InputState& input)
+{
+    if (m_RuntimeSession != nullptr)
+    {
+        return Result<void>::Failure(
+            ErrorCode::InvalidState,
+            "ProjectSession already has an active RuntimeSession.");
+    }
+
+    auto runtime = RuntimeSession::Start(
+        *m_EditorScene,
+        *m_AssetService,
+        input);
+    if (!runtime)
+    {
+        return Result<void>::Failure(runtime.GetError());
+    }
+
+    m_RuntimeSession = std::move(runtime).Value();
+    return Result<void>::Success();
+}
+
+Result<void> ProjectSession::UpdateRuntime(TimeStep timeStep)
+{
+    if (m_RuntimeSession == nullptr)
+    {
+        return Result<void>::Failure(
+            ErrorCode::InvalidState,
+            "ProjectSession has no active RuntimeSession.");
+    }
+
+    return m_RuntimeSession->Update(timeStep);
+}
+
+Result<void> ProjectSession::StopRuntime()
+{
+    if (m_RuntimeSession == nullptr)
+    {
+        return Result<void>::Success();
+    }
+
+    auto stopped = m_RuntimeSession->Stop();
+    m_RuntimeSession.reset();
+    return stopped;
+}
+
+bool ProjectSession::IsPlaying() const noexcept
+{
+    return m_RuntimeSession != nullptr
+        && m_RuntimeSession->IsRunning();
+}
+
+RuntimeSession* ProjectSession::GetRuntimeSession() noexcept
+{
+    return m_RuntimeSession.get();
+}
+
+const RuntimeSession* ProjectSession::GetRuntimeSession() const noexcept
+{
+    return m_RuntimeSession.get();
 }
 
 } // namespace Janus::Editor
