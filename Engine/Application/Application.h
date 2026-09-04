@@ -34,6 +34,7 @@ public:
     [[nodiscard]] Result<void> Run(ApplicationClient& client);
     void RequestExit() noexcept;
     [[nodiscard]] const InputState& GetInput() const noexcept;
+    [[nodiscard]] Window& GetWindow() noexcept;
     [[nodiscard]] Renderer2D& GetRenderer2D() noexcept;
     [[nodiscard]] Scene& GetScene() noexcept;
 
