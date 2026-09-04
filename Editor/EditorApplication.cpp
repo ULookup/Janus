@@ -5,6 +5,7 @@
 #include "Application/Application.h"
 #include "Core/Input/InputState.h"
 #include "Core/Log/Log.h"
+#include "Platform/Window/Window.h"
 #include "Renderer/OrthographicCamera.h"
 #include "Renderer/Renderer2D.h"
 #include "Scene/Scene.h"
