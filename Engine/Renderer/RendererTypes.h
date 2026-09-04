@@ -78,6 +78,11 @@ struct FramebufferHandle
     u32 value = 0;
 };
 
+struct RenderTargetHandle
+{
+    u32 value = 0;
+};
+
 // ----------------------------------------------------------
 // Internal GPU resource descriptions
 // ----------------------------------------------------------
