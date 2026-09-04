@@ -16,6 +16,7 @@ add_executable(
     Platform/WindowConfigTests.cpp
     Application/ApplicationTests.cpp
     Application/ProjectRuntimeTests.cpp
+    Editor/ProjectSessionTests.cpp
     Renderer/RendererTypesTests.cpp
     Renderer/RenderQueueTests.cpp
     Renderer/BatchRendererTests.cpp
@@ -55,6 +56,7 @@ target_link_libraries(
     PRIVATE
 
         JanusEngine
+        JanusEditorCore
         Catch2::Catch2WithMain
 )
 
