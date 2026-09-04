@@ -1,6 +1,7 @@
 #include "Scene/SceneCloner.h"
 
 #include "Scene/SceneDeserializer.h"
+#include "Scene/Scene.h"
 #include "Scene/SceneSerializer.h"
 
 #include <utility>
