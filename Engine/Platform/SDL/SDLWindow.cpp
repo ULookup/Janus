@@ -9,6 +9,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 
 namespace Janus
 {
@@ -175,6 +176,11 @@ namespace Janus
 
         while (SDL_PollEvent(&event))
         {
+            if (m_NativeEventCallback)
+            {
+                m_NativeEventCallback(&event);
+            }
+
             switch (event.type)
             {
             case SDL_EVENT_QUIT:
@@ -257,6 +263,13 @@ namespace Janus
                 break;
             }
         }
+    }
+
+
+    void SDLWindow::SetNativeEventCallback(
+        NativeEventCallback callback)
+    {
+        m_NativeEventCallback = std::move(callback);
     }
 
 
