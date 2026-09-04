@@ -31,6 +31,8 @@ public:
     [[nodiscard]] Result<TextureHandle> LoadTexture(AssetHandle handle);
     [[nodiscard]] Result<std::string_view> LoadShaderSource(AssetHandle handle);
     [[nodiscard]] Result<std::string_view> LoadLuaScriptSource(AssetHandle handle);
+    [[nodiscard]] Result<std::filesystem::file_time_type> GetLastWriteTime(
+        AssetHandle handle) const;
 
     [[nodiscard]] bool IsLoaded(AssetHandle handle) const noexcept;
     bool Unload(AssetHandle handle) noexcept;

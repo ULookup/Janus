@@ -15,6 +15,7 @@ extern "C"
 
 #include <algorithm>
 #include <array>
+#include <filesystem>
 #include <new>
 #include <optional>
 #include <string>
@@ -665,6 +666,173 @@ struct ScriptEngine::Impl
         return Result<void>::Success();
     }
 
+    [[nodiscard]] std::vector<AssetHandle> DesiredScriptHandles(
+        const std::vector<DesiredInstance>& desired) const
+    {
+        std::vector<AssetHandle> handles;
+        handles.reserve(desired.size());
+        for (const DesiredInstance& entry : desired)
+        {
+            handles.push_back(entry.script);
+        }
+
+        std::sort(handles.begin(), handles.end());
+        handles.erase(
+            std::unique(handles.begin(), handles.end()),
+            handles.end());
+        return handles;
+    }
+
+    [[nodiscard]] Result<void> CaptureActiveWriteTimes()
+    {
+        scriptWriteTimes.clear();
+
+        std::vector<AssetHandle> handles;
+        handles.reserve(instances.size());
+        for (const auto& [entityId, instance] : instances)
+        {
+            static_cast<void>(entityId);
+            handles.push_back(instance.script);
+        }
+
+        std::sort(handles.begin(), handles.end());
+        handles.erase(
+            std::unique(handles.begin(), handles.end()),
+            handles.end());
+
+        for (const AssetHandle handle : handles)
+        {
+            auto time = assets.GetLastWriteTime(handle);
+            if (!time)
+            {
+                return Result<void>::Failure(time.GetError());
+            }
+            scriptWriteTimes.emplace(handle, time.Value());
+        }
+
+        return Result<void>::Success();
+    }
+
+    [[nodiscard]] Result<void> ReloadScript(
+        AssetHandle handle,
+        const std::vector<DesiredInstance>& desired,
+        std::filesystem::file_time_type currentWriteTime)
+    {
+        std::vector<UUID> existingIds;
+        for (const auto& [entityId, instance] : instances)
+        {
+            if (instance.script == handle)
+            {
+                existingIds.push_back(entityId);
+            }
+        }
+        std::sort(existingIds.begin(), existingIds.end());
+
+        std::optional<Error> destroyError;
+        for (const UUID& entityId : existingIds)
+        {
+            auto iterator = instances.find(entityId);
+            if (iterator == instances.end())
+            {
+                continue;
+            }
+
+            auto destroyed = DestroyInstance(iterator->second);
+            if (!destroyed && !destroyError.has_value())
+            {
+                destroyError = destroyed.GetError();
+            }
+            instances.erase(iterator);
+        }
+
+        static_cast<void>(assets.Unload(handle));
+
+        if (destroyError.has_value())
+        {
+            return Result<void>::Failure(std::move(*destroyError));
+        }
+
+        std::vector<UUID> createdIds;
+        for (const DesiredInstance& entry : desired)
+        {
+            if (entry.script != handle)
+            {
+                continue;
+            }
+
+            auto created = CreateInstance(entry.entityId, entry.script);
+            if (!created)
+            {
+                for (const UUID& createdId : createdIds)
+                {
+                    auto iterator = instances.find(createdId);
+                    if (iterator == instances.end())
+                    {
+                        continue;
+                    }
+                    static_cast<void>(DestroyInstance(iterator->second));
+                    instances.erase(iterator);
+                }
+                return Result<void>::Failure(created.GetError());
+            }
+
+            instances.emplace(entry.entityId, std::move(created).Value());
+            createdIds.push_back(entry.entityId);
+        }
+
+        scriptWriteTimes[handle] = currentWriteTime;
+        return Result<void>::Success();
+    }
+
+    [[nodiscard]] Result<void> ReloadChangedScripts()
+    {
+        auto desiredResult = BuildDesiredInstances();
+        if (!desiredResult)
+        {
+            return Result<void>::Failure(desiredResult.GetError());
+        }
+
+        const std::vector<DesiredInstance> desired =
+            std::move(desiredResult).Value();
+        const std::vector<AssetHandle> handles =
+            DesiredScriptHandles(desired);
+
+        for (const AssetHandle handle : handles)
+        {
+            auto currentTime = assets.GetLastWriteTime(handle);
+            if (!currentTime)
+            {
+                return Result<void>::Failure(currentTime.GetError());
+            }
+
+            const auto tracked = scriptWriteTimes.find(handle);
+            if (tracked == scriptWriteTimes.end())
+            {
+                // New script components have not loaded source yet. Establish
+                // a baseline; the following Reconcile/Update will load the
+                // current file contents.
+                scriptWriteTimes.emplace(handle, currentTime.Value());
+                continue;
+            }
+
+            if (tracked->second == currentTime.Value())
+            {
+                continue;
+            }
+
+            auto reloaded = ReloadScript(
+                handle,
+                desired,
+                currentTime.Value());
+            if (!reloaded)
+            {
+                return reloaded;
+            }
+        }
+
+        return Result<void>::Success();
+    }
+
     [[nodiscard]] Result<void> UpdateInstances(TimeStep timeStep)
     {
         for (const UUID& entityId : SortedInstanceIds())
@@ -739,6 +907,10 @@ struct ScriptEngine::Impl
     std::unique_ptr<LuaVirtualMachine> virtualMachine;
     BindingContext bindingContext;
     std::unordered_map<UUID, ScriptInstance, UUIDHash> instances;
+    std::unordered_map<
+        AssetHandle,
+        std::filesystem::file_time_type,
+        AssetHandleHash> scriptWriteTimes;
     bool running = false;
 };
 
@@ -794,10 +966,34 @@ Result<void> ScriptEngine::Start()
     {
         const Error startupError = reconciled.GetError();
         static_cast<void>(m_Impl->StopInstances());
+        m_Impl->scriptWriteTimes.clear();
         m_Impl->running = false;
         return Result<void>::Failure(startupError);
     }
+
+    auto captured = m_Impl->CaptureActiveWriteTimes();
+    if (!captured)
+    {
+        const Error startupError = captured.GetError();
+        static_cast<void>(m_Impl->StopInstances());
+        m_Impl->scriptWriteTimes.clear();
+        m_Impl->running = false;
+        return Result<void>::Failure(startupError);
+    }
+
     return Result<void>::Success();
+}
+
+Result<void> ScriptEngine::ReloadChangedScripts()
+{
+    if (!m_Impl->running)
+    {
+        return Result<void>::Failure(
+            ErrorCode::InvalidState,
+            "ScriptEngine must be started before ReloadChangedScripts.");
+    }
+
+    return m_Impl->ReloadChangedScripts();
 }
 
 Result<void> ScriptEngine::Update(TimeStep timeStep)
@@ -825,6 +1021,7 @@ Result<void> ScriptEngine::Stop()
     }
 
     auto stopped = m_Impl->StopInstances();
+    m_Impl->scriptWriteTimes.clear();
     m_Impl->running = false;
     return stopped;
 }
