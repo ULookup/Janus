@@ -8,6 +8,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <chrono>
 #include <filesystem>
 #include <string>
 
@@ -202,4 +203,46 @@ TEST_CASE("AssetService destructor releases cached textures", "[asset][service]"
 
     REQUIRE(device.destroyedTextures.size() == 1);
     REQUIRE(device.destroyedTextures.front().value == runtimeTexture.value);
+}
+
+
+TEST_CASE("AssetService reports registered asset modification time", "[asset][service][mtime]")
+{
+    Janus::Test::AssetTempDirectory temp;
+    PrepareAssetDirectory(temp.Path());
+    const auto scriptPath = temp.Path() / "Assets/test.lua";
+    REQUIRE(Janus::FileSystem::WriteText(scriptPath, "return {}\n"));
+
+    Janus::AssetRegistry registry;
+    const auto script = registry.Register(
+        Janus::AssetType::LuaScript,
+        "Assets/test.lua");
+    REQUIRE(script);
+
+    Janus::Test::FakeRenderDevice device;
+    auto renderer = Janus::Detail::Renderer2DTestAccess::Create(device);
+    Janus::AssetService service(temp.Path(), registry, *renderer);
+
+    const auto first = service.GetLastWriteTime(script.Value());
+    REQUIRE(first);
+
+    std::error_code error;
+    const auto bumped = first.Value() + std::chrono::seconds(2);
+    std::filesystem::last_write_time(scriptPath, bumped, error);
+    REQUIRE_FALSE(error);
+
+    const auto second = service.GetLastWriteTime(script.Value());
+    REQUIRE(second);
+    REQUIRE(second.Value() == bumped);
+
+    const auto missingHandle =
+        service.GetLastWriteTime(Janus::AssetHandle::Random());
+    REQUIRE_FALSE(missingHandle);
+    REQUIRE(missingHandle.GetError().code == Janus::ErrorCode::AssetNotFound);
+
+    std::filesystem::remove(scriptPath, error);
+    REQUIRE_FALSE(error);
+    const auto missingFile = service.GetLastWriteTime(script.Value());
+    REQUIRE_FALSE(missingFile);
+    REQUIRE(missingFile.GetError().code == Janus::ErrorCode::FileNotFound);
 }

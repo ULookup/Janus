@@ -460,7 +460,7 @@ Atomic File Write
 
 # 7. v0.5 — Lua Gameplay Runtime
 
-状态：下一里程碑
+状态：已完成
 
 ## 目标
 
@@ -529,6 +529,8 @@ Gameplay 移动逻辑完全可以由 Lua 实现。
 ---
 
 # 8. v0.6 — Editor Foundation
+
+状态：下一里程碑
 
 ## 目标
 

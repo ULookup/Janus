@@ -175,6 +175,35 @@ Result<std::string_view> AssetService::LoadLuaScriptSource(AssetHandle handle)
     return Result<std::string_view>::Success(std::string_view(*cached));
 }
 
+Result<std::filesystem::file_time_type> AssetService::GetLastWriteTime(
+    AssetHandle handle) const
+{
+    const AssetMetadata* metadata = m_Registry.Find(handle);
+    if (metadata == nullptr)
+    {
+        return Result<std::filesystem::file_time_type>::Failure(
+            ErrorCode::AssetNotFound,
+            "Asset handle '" + handle.ToString() + "' is not registered.");
+    }
+
+    const std::filesystem::path path = ResolvePath(metadata->relativePath);
+    std::error_code error;
+    const auto time = std::filesystem::last_write_time(path, error);
+    if (error)
+    {
+        const ErrorCode code = std::filesystem::exists(path)
+            ? ErrorCode::FileReadFailed
+            : ErrorCode::FileNotFound;
+        return Result<std::filesystem::file_time_type>::Failure(
+            code,
+            "Failed to read last-write time for asset '"
+                + metadata->relativePath.generic_string() + "': "
+                + error.message());
+    }
+
+    return Result<std::filesystem::file_time_type>::Success(time);
+}
+
 bool AssetService::IsLoaded(AssetHandle handle) const noexcept
 {
     return m_Cache.Contains(handle);

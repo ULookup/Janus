@@ -55,6 +55,10 @@
           "uvMin": [0.0, 0.0],
           "uvMax": [1.0, 1.0],
           "enabled": true
+        },
+        "LuaScript": {
+          "script": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "enabled": true
         }
       }
     },

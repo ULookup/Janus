@@ -13,6 +13,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <chrono>
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -467,4 +468,166 @@ return Script
         REQUIRE(updated.GetError().message.find(script.ToString()) != std::string::npos);
         REQUIRE(engine->Stop());
     }
+}
+
+
+TEST_CASE(
+    "ScriptEngine hot reload recreates only changed script instances",
+    "[scripting][script-engine][reload]")
+{
+    Janus::Test::AssetTempDirectory temp;
+    Janus::AssetRegistry registry;
+    const auto relativePath = std::filesystem::path("Scripts/Reload.lua");
+    const Janus::AssetHandle script = RegisterScript(
+        temp,
+        registry,
+        relativePath,
+        R"lua(
+local Script = {}
+function Script.OnCreate(self)
+    local x, y = self.entity:get_position()
+    self.entity:set_position(x + 1, y)
+end
+function Script.OnDestroy(self)
+    local x, y = self.entity:get_position()
+    self.entity:set_position(x + 10, y)
+end
+return Script
+)lua");
+
+    Janus::Test::FakeRenderDevice device;
+    auto renderer = Janus::Detail::Renderer2DTestAccess::Create(device);
+    Janus::AssetService assets(temp.Path(), registry, *renderer);
+    Janus::Scene scene;
+    const auto entity = scene.CreateEntity("Reloadable");
+    REQUIRE(scene.AddComponent<Janus::LuaScriptComponent>(
+        entity,
+        Janus::LuaScriptComponent{script, true}) != nullptr);
+    auto* transform = scene.GetComponent<Janus::TransformComponent>(entity);
+    REQUIRE(transform != nullptr);
+
+    Janus::InputState input;
+    auto engine = CreateEngine(scene, assets, input);
+    REQUIRE(engine->Start());
+    REQUIRE(transform->position.x == Catch::Approx(1.0f));
+
+    // Unchanged source must not recreate the instance.
+    REQUIRE(engine->ReloadChangedScripts());
+    REQUIRE(transform->position.x == Catch::Approx(1.0f));
+    REQUIRE(engine->InstanceCount() == 1);
+
+    const auto scriptPath = temp.Path() / relativePath;
+    const auto initialTime = assets.GetLastWriteTime(script);
+    REQUIRE(initialTime);
+    REQUIRE(Janus::FileSystem::WriteText(
+        scriptPath,
+        R"lua(
+local Script = {}
+function Script.OnCreate(self)
+    local x, y = self.entity:get_position()
+    self.entity:set_position(x + 100, y)
+end
+function Script.OnDestroy(self)
+    local x, y = self.entity:get_position()
+    self.entity:set_position(x + 1000, y)
+end
+return Script
+)lua"));
+
+    std::error_code error;
+    std::filesystem::last_write_time(
+        scriptPath,
+        initialTime.Value() + std::chrono::seconds(2),
+        error);
+    REQUIRE_FALSE(error);
+
+    REQUIRE(engine->ReloadChangedScripts());
+    // Old OnDestroy (+10), then new OnCreate (+100).
+    REQUIRE(transform->position.x == Catch::Approx(111.0f));
+    REQUIRE(engine->InstanceCount() == 1);
+    REQUIRE(engine->Stop());
+    REQUIRE(transform->position.x == Catch::Approx(1111.0f));
+}
+
+TEST_CASE(
+    "ScriptEngine hot reload fails atomically on invalid changed source",
+    "[scripting][script-engine][reload][errors]")
+{
+    Janus::Test::AssetTempDirectory temp;
+    Janus::AssetRegistry registry;
+    const auto relativePath = std::filesystem::path("Scripts/ReloadError.lua");
+    const Janus::AssetHandle script = RegisterScript(
+        temp,
+        registry,
+        relativePath,
+        R"lua(
+local Script = {}
+function Script.OnCreate(self)
+    local x, y = self.entity:get_position()
+    self.entity:set_position(x + 1, y)
+end
+function Script.OnDestroy(self)
+    local x, y = self.entity:get_position()
+    self.entity:set_position(x + 10, y)
+end
+return Script
+)lua");
+
+    Janus::Test::FakeRenderDevice device;
+    auto renderer = Janus::Detail::Renderer2DTestAccess::Create(device);
+    Janus::AssetService assets(temp.Path(), registry, *renderer);
+    Janus::Scene scene;
+    const auto entity = scene.CreateEntity("Reloadable");
+    REQUIRE(scene.AddComponent<Janus::LuaScriptComponent>(
+        entity,
+        Janus::LuaScriptComponent{script, true}) != nullptr);
+    auto* transform = scene.GetComponent<Janus::TransformComponent>(entity);
+    REQUIRE(transform != nullptr);
+
+    Janus::InputState input;
+    auto engine = CreateEngine(scene, assets, input);
+    REQUIRE(engine->Start());
+    REQUIRE(transform->position.x == Catch::Approx(1.0f));
+
+    const auto scriptPath = temp.Path() / relativePath;
+    const auto initialTime = assets.GetLastWriteTime(script);
+    REQUIRE(initialTime);
+
+    REQUIRE(Janus::FileSystem::WriteText(
+        scriptPath,
+        "local Script = { this is invalid lua\n"));
+    std::error_code error;
+    std::filesystem::last_write_time(
+        scriptPath,
+        initialTime.Value() + std::chrono::seconds(2),
+        error);
+    REQUIRE_FALSE(error);
+
+    const auto failedReload = engine->ReloadChangedScripts();
+    REQUIRE_FALSE(failedReload);
+    REQUIRE(failedReload.GetError().code == Janus::ErrorCode::ScriptCompileFailed);
+    REQUIRE(engine->InstanceCount() == 0);
+    // Old instance was deterministically torn down before the failed reload.
+    REQUIRE(transform->position.x == Catch::Approx(11.0f));
+
+    REQUIRE(Janus::FileSystem::WriteText(
+        scriptPath,
+        R"lua(
+local Script = {}
+function Script.OnCreate(self)
+    local x, y = self.entity:get_position()
+    self.entity:set_position(x + 100, y)
+end
+return Script
+)lua"));
+    std::filesystem::last_write_time(
+        scriptPath,
+        initialTime.Value() + std::chrono::seconds(4),
+        error);
+    REQUIRE_FALSE(error);
+
+    REQUIRE(engine->ReloadChangedScripts());
+    REQUIRE(engine->InstanceCount() == 1);
+    REQUIRE(transform->position.x == Catch::Approx(111.0f));
+    REQUIRE(engine->Stop());
 }

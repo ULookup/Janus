@@ -29,6 +29,7 @@ public:
     ScriptEngine& operator=(ScriptEngine&&) = delete;
 
     [[nodiscard]] Result<void> Start();
+    [[nodiscard]] Result<void> ReloadChangedScripts();
     [[nodiscard]] Result<void> Update(TimeStep timeStep);
     [[nodiscard]] Result<void> Stop();
 

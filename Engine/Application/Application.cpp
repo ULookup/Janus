@@ -13,6 +13,7 @@
 #include "Scene/Scene.h"
 #include "Scene/SceneDeserializer.h"
 #include "Scene/SceneRenderer.h"
+#include "Scripting/ScriptEngine.h"
 
 #include <filesystem>
 #include <memory>
@@ -275,6 +276,27 @@ Result<void> Application::Run(ApplicationClient& client)
 
     m_ClientInitialized = true;
 
+    auto scriptEngineResult = ScriptEngine::Create(
+        *m_Scene,
+        *m_AssetService,
+        m_Input);
+    if (!scriptEngineResult)
+    {
+        Error error = std::move(scriptEngineResult.GetError());
+        Cleanup(&client, true);
+        return Result<void>::Failure(std::move(error));
+    }
+
+    m_ScriptEngine = std::move(scriptEngineResult).Value();
+
+    auto scriptStartResult = m_ScriptEngine->Start();
+    if (!scriptStartResult)
+    {
+        Error error = std::move(scriptStartResult.GetError());
+        Cleanup(&client, true);
+        return Result<void>::Failure(std::move(error));
+    }
+
     while (!m_ExitRequested && !m_Window->ShouldClose())
     {
         m_Input.BeginFrame();
@@ -297,6 +319,39 @@ Result<void> Application::Run(ApplicationClient& client)
                 .ClampedTo(m_Config.maximumFrameTime);
 
         client.OnUpdate(timeStep, *this);
+
+        const auto reloadResult = m_ScriptEngine->ReloadChangedScripts();
+        if (!reloadResult)
+        {
+            Error error = reloadResult.GetError();
+            JANUS_CORE_ERROR("Lua hot reload failed: {}", error.message);
+
+            if (diskBackedProject)
+            {
+                Cleanup(&client, true);
+                return Result<void>::Failure(std::move(error));
+            }
+
+            RequestExit();
+        }
+        else
+        {
+            const auto scriptUpdateResult =
+                m_ScriptEngine->Update(timeStep);
+            if (!scriptUpdateResult)
+            {
+                Error error = scriptUpdateResult.GetError();
+                JANUS_CORE_ERROR("Lua update failed: {}", error.message);
+
+                if (diskBackedProject)
+                {
+                    Cleanup(&client, true);
+                    return Result<void>::Failure(std::move(error));
+                }
+
+                RequestExit();
+            }
+        }
 
         const Viewport viewport{
             m_Window->GetWidth(),
@@ -364,6 +419,20 @@ void Application::Cleanup(
     {
         client->OnShutdown(*this);
         m_ClientInitialized = false;
+    }
+
+    // Script callbacks can resolve Scene entities during OnDestroy, so the
+    // ScriptEngine must stop and release its VM before Scene teardown.
+    if (m_ScriptEngine != nullptr)
+    {
+        const auto stopped = m_ScriptEngine->Stop();
+        if (!stopped)
+        {
+            JANUS_CORE_ERROR(
+                "Lua shutdown failed: {}",
+                stopped.GetError().message);
+        }
+        m_ScriptEngine.reset();
     }
 
     // AssetService owns runtime GPU resources, so it must be destroyed before
