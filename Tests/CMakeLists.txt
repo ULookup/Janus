@@ -32,6 +32,7 @@ add_executable(
     Scene/SceneRenderTests.cpp
     Scene/LuaScriptSerializationTests.cpp
     Scripting/LuaVirtualMachineTests.cpp
+    Scripting/ScriptEngineTests.cpp
 )
 
 
