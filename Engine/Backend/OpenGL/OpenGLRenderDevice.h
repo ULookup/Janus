@@ -41,6 +41,8 @@ public:
     Result<FramebufferHandle> CreateFramebuffer(
         const FramebufferDesc& desc) override;
     void DestroyFramebuffer(FramebufferHandle handle) override;
+    Result<void> BindFramebuffer(FramebufferHandle handle) override;
+    void BindDefaultFramebuffer() override;
 
     void SetViewport(Viewport viewport) override;
     void SetViewProjection(const Mat4& matrix) override;
