@@ -17,6 +17,7 @@ add_executable(
     Application/ApplicationTests.cpp
     Application/ProjectRuntimeTests.cpp
     Editor/ProjectSessionTests.cpp
+    Editor/RuntimeSessionTests.cpp
     Renderer/RendererTypesTests.cpp
     Renderer/RenderQueueTests.cpp
     Renderer/BatchRendererTests.cpp
@@ -27,6 +28,7 @@ add_executable(
     ECS/ViewTests.cpp
     Scene/SceneIdentityTests.cpp
     Scene/HierarchyTests.cpp
+    Scene/SceneCloneTests.cpp
     Scene/TransformTests.cpp
     Scene/SceneSerializationTests.cpp
     Scene/SceneHierarchySerializationTests.cpp

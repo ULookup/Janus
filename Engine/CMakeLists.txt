@@ -36,6 +36,7 @@ target_sources(
         ECS/Registry.cpp
 
         Scene/Scene.cpp
+        Scene/SceneCloner.cpp
         Scene/SceneSerializer.cpp
         Scene/SceneDeserializer.cpp
         Scene/SceneRenderer.cpp
@@ -105,6 +106,7 @@ target_sources(
         Scene/Components.h
         Scene/SceneMetadata.h
         Scene/Scene.h
+        Scene/SceneCloner.h
         Scene/SceneSerializer.h
         Scene/SceneDeserializer.h
         Scene/SceneRenderer.h

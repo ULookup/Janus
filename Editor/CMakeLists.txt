@@ -3,6 +3,7 @@ add_library(
     STATIC
 
     ProjectSession.cpp
+    RuntimeSession.cpp
 )
 
 target_include_directories(
