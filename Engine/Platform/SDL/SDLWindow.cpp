@@ -76,6 +76,18 @@ namespace Janus
                 + SDL_GetError());
         }
 
+#if defined(JANUS_DEBUG)
+        if (!SDL_GL_SetAttribute(
+                SDL_GL_CONTEXT_FLAGS,
+                SDL_GL_CONTEXT_DEBUG_FLAG))
+        {
+            return Result<std::unique_ptr<Window>>::Failure(
+                ErrorCode::WindowCreateFailed,
+                std::string("Failed to request an OpenGL debug context: ")
+                + SDL_GetError());
+        }
+#endif
+
         SDL_WindowFlags flags = SDL_WINDOW_OPENGL;
 
         if (config.resizable)
