@@ -9,6 +9,12 @@
 namespace Janus
 {
 
+enum class ApplicationExecutionMode
+{
+    ManagedRuntime,
+    ClientDriven
+};
+
 struct ProjectRuntimeConfig
 {
     std::filesystem::path root;
@@ -20,6 +26,8 @@ struct ApplicationConfig
 {
     WindowConfig window;
     TimeStep maximumFrameTime = TimeStep::FromMilliseconds(250.0);
+    ApplicationExecutionMode executionMode =
+        ApplicationExecutionMode::ManagedRuntime;
     std::optional<ProjectRuntimeConfig> project;
 };
 

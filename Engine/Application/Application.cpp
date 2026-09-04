@@ -204,67 +204,74 @@ Result<void> Application::Run(ApplicationClient& client)
 
     m_Renderer2D = std::move(rendererResult).Value();
 
-    std::filesystem::path projectRoot = std::filesystem::current_path();
-    const bool diskBackedProject = m_Config.project.has_value();
+    const bool managedRuntime =
+        m_Config.executionMode == ApplicationExecutionMode::ManagedRuntime;
+    const bool diskBackedProject =
+        managedRuntime && m_Config.project.has_value();
 
-    if (diskBackedProject)
+    if (managedRuntime)
     {
-        const ProjectRuntimeConfig& project = *m_Config.project;
-        projectRoot = project.root;
+        std::filesystem::path projectRoot = std::filesystem::current_path();
 
-        auto registryPath = ResolveProjectFile(
-            project,
-            project.assetRegistryPath,
-            "Asset registry path");
-        if (!registryPath)
+        if (diskBackedProject)
         {
-            Error error = std::move(registryPath.GetError());
-            Cleanup(&client, false);
-            return Result<void>::Failure(std::move(error));
+            const ProjectRuntimeConfig& project = *m_Config.project;
+            projectRoot = project.root;
+
+            auto registryPath = ResolveProjectFile(
+                project,
+                project.assetRegistryPath,
+                "Asset registry path");
+            if (!registryPath)
+            {
+                Error error = std::move(registryPath.GetError());
+                Cleanup(&client, false);
+                return Result<void>::Failure(std::move(error));
+            }
+
+            auto scenePath = ResolveProjectFile(
+                project,
+                project.startupScenePath,
+                "Startup Scene path");
+            if (!scenePath)
+            {
+                Error error = std::move(scenePath.GetError());
+                Cleanup(&client, false);
+                return Result<void>::Failure(std::move(error));
+            }
+
+            auto registryResult = AssetRegistry::Load(registryPath.Value());
+            if (!registryResult)
+            {
+                Error error = std::move(registryResult.GetError());
+                Cleanup(&client, false);
+                return Result<void>::Failure(std::move(error));
+            }
+
+            auto sceneResult = SceneDeserializer::Load(scenePath.Value());
+            if (!sceneResult)
+            {
+                Error error = std::move(sceneResult.GetError());
+                Cleanup(&client, false);
+                return Result<void>::Failure(std::move(error));
+            }
+
+            m_AssetRegistry = std::make_unique<AssetRegistry>(
+                std::move(registryResult).Value());
+            m_Scene = std::move(sceneResult).Value();
+        }
+        else
+        {
+            m_AssetRegistry = std::make_unique<AssetRegistry>();
+            m_Scene = m_Dependencies.createScene();
         }
 
-        auto scenePath = ResolveProjectFile(
-            project,
-            project.startupScenePath,
-            "Startup Scene path");
-        if (!scenePath)
-        {
-            Error error = std::move(scenePath.GetError());
-            Cleanup(&client, false);
-            return Result<void>::Failure(std::move(error));
-        }
-
-        auto registryResult = AssetRegistry::Load(registryPath.Value());
-        if (!registryResult)
-        {
-            Error error = std::move(registryResult.GetError());
-            Cleanup(&client, false);
-            return Result<void>::Failure(std::move(error));
-        }
-
-        auto sceneResult = SceneDeserializer::Load(scenePath.Value());
-        if (!sceneResult)
-        {
-            Error error = std::move(sceneResult.GetError());
-            Cleanup(&client, false);
-            return Result<void>::Failure(std::move(error));
-        }
-
-        m_AssetRegistry = std::make_unique<AssetRegistry>(
-            std::move(registryResult).Value());
-        m_Scene = std::move(sceneResult).Value();
+        m_AssetService = std::make_unique<AssetService>(
+            projectRoot,
+            *m_AssetRegistry,
+            *m_Renderer2D);
+        m_SceneRenderer = std::make_unique<SceneRenderer>();
     }
-    else
-    {
-        m_AssetRegistry = std::make_unique<AssetRegistry>();
-        m_Scene = m_Dependencies.createScene();
-    }
-
-    m_AssetService = std::make_unique<AssetService>(
-        projectRoot,
-        *m_AssetRegistry,
-        *m_Renderer2D);
-    m_SceneRenderer = std::make_unique<SceneRenderer>();
 
     auto initializeResult = client.OnInitialize(*this);
     if (!initializeResult)
@@ -276,25 +283,28 @@ Result<void> Application::Run(ApplicationClient& client)
 
     m_ClientInitialized = true;
 
-    auto scriptEngineResult = ScriptEngine::Create(
-        *m_Scene,
-        *m_AssetService,
-        m_Input);
-    if (!scriptEngineResult)
+    if (managedRuntime)
     {
-        Error error = std::move(scriptEngineResult.GetError());
-        Cleanup(&client, true);
-        return Result<void>::Failure(std::move(error));
-    }
+        auto scriptEngineResult = ScriptEngine::Create(
+            *m_Scene,
+            *m_AssetService,
+            m_Input);
+        if (!scriptEngineResult)
+        {
+            Error error = std::move(scriptEngineResult.GetError());
+            Cleanup(&client, true);
+            return Result<void>::Failure(std::move(error));
+        }
 
-    m_ScriptEngine = std::move(scriptEngineResult).Value();
+        m_ScriptEngine = std::move(scriptEngineResult).Value();
 
-    auto scriptStartResult = m_ScriptEngine->Start();
-    if (!scriptStartResult)
-    {
-        Error error = std::move(scriptStartResult.GetError());
-        Cleanup(&client, true);
-        return Result<void>::Failure(std::move(error));
+        auto scriptStartResult = m_ScriptEngine->Start();
+        if (!scriptStartResult)
+        {
+            Error error = std::move(scriptStartResult.GetError());
+            Cleanup(&client, true);
+            return Result<void>::Failure(std::move(error));
+        }
     }
 
     while (!m_ExitRequested && !m_Window->ShouldClose())
@@ -320,28 +330,13 @@ Result<void> Application::Run(ApplicationClient& client)
 
         client.OnUpdate(timeStep, *this);
 
-        const auto reloadResult = m_ScriptEngine->ReloadChangedScripts();
-        if (!reloadResult)
+        if (managedRuntime)
         {
-            Error error = reloadResult.GetError();
-            JANUS_CORE_ERROR("Lua hot reload failed: {}", error.message);
-
-            if (diskBackedProject)
+            const auto reloadResult = m_ScriptEngine->ReloadChangedScripts();
+            if (!reloadResult)
             {
-                Cleanup(&client, true);
-                return Result<void>::Failure(std::move(error));
-            }
-
-            RequestExit();
-        }
-        else
-        {
-            const auto scriptUpdateResult =
-                m_ScriptEngine->Update(timeStep);
-            if (!scriptUpdateResult)
-            {
-                Error error = scriptUpdateResult.GetError();
-                JANUS_CORE_ERROR("Lua update failed: {}", error.message);
+                Error error = reloadResult.GetError();
+                JANUS_CORE_ERROR("Lua hot reload failed: {}", error.message);
 
                 if (diskBackedProject)
                 {
@@ -351,30 +346,48 @@ Result<void> Application::Run(ApplicationClient& client)
 
                 RequestExit();
             }
-        }
-
-        const Viewport viewport{
-            m_Window->GetWidth(),
-            m_Window->GetHeight()};
-
-        const auto renderResult = m_SceneRenderer->Render(
-            *m_Scene,
-            *m_AssetService,
-            *m_Renderer2D,
-            viewport);
-
-        if (!renderResult)
-        {
-            Error error = renderResult.GetError();
-            JANUS_CORE_ERROR("Scene render failed: {}", error.message);
-
-            if (diskBackedProject)
+            else
             {
-                Cleanup(&client, true);
-                return Result<void>::Failure(std::move(error));
+                const auto scriptUpdateResult =
+                    m_ScriptEngine->Update(timeStep);
+                if (!scriptUpdateResult)
+                {
+                    Error error = scriptUpdateResult.GetError();
+                    JANUS_CORE_ERROR("Lua update failed: {}", error.message);
+
+                    if (diskBackedProject)
+                    {
+                        Cleanup(&client, true);
+                        return Result<void>::Failure(std::move(error));
+                    }
+
+                    RequestExit();
+                }
             }
 
-            RequestExit();
+            const Viewport viewport{
+                m_Window->GetWidth(),
+                m_Window->GetHeight()};
+
+            const auto renderResult = m_SceneRenderer->Render(
+                *m_Scene,
+                *m_AssetService,
+                *m_Renderer2D,
+                viewport);
+
+            if (!renderResult)
+            {
+                Error error = renderResult.GetError();
+                JANUS_CORE_ERROR("Scene render failed: {}", error.message);
+
+                if (diskBackedProject)
+                {
+                    Cleanup(&client, true);
+                    return Result<void>::Failure(std::move(error));
+                }
+
+                RequestExit();
+            }
         }
 
         m_GraphicsContext->Present();
@@ -393,6 +406,14 @@ void Application::RequestExit() noexcept
 const InputState& Application::GetInput() const noexcept
 {
     return m_Input;
+}
+
+Window& Application::GetWindow() noexcept
+{
+    JANUS_CORE_ASSERT(
+        m_Window != nullptr,
+        "Window is not available before Application::Run.");
+    return *m_Window;
 }
 
 Renderer2D& Application::GetRenderer2D() noexcept

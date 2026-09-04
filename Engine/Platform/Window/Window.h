@@ -16,6 +16,7 @@ namespace Janus
     {
     public:
         using EventCallback = std::function<void(const Event&)>;
+        using NativeEventCallback = std::function<void(const void*)>;
 
         Window() = default;
 
@@ -39,6 +40,13 @@ namespace Janus
         // --------------------------------------------------------
 
         virtual void PollEvents(const EventCallback& callback) = 0;
+
+        // Optional backend event tap for integration layers such as Dear ImGui.
+        // The pointer is only valid for the duration of the callback.
+        virtual void SetNativeEventCallback(NativeEventCallback callback)
+        {
+            (void)callback;
+        }
 
         // --------------------------------------------------------
         // Window State

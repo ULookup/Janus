@@ -442,3 +442,41 @@ TEST_CASE("Application rejects a second run", "[application]")
     REQUIRE_FALSE(secondRun);
     REQUIRE(secondRun.GetError().code == Janus::ErrorCode::InvalidState);
 }
+
+
+TEST_CASE(
+    "Application client-driven mode leaves project runtime ownership to the client",
+    "[application][v0.6][client-driven]")
+{
+    TestState state;
+    RecordingClient client(state);
+
+    Janus::ApplicationConfig config;
+    config.executionMode =
+        Janus::ApplicationExecutionMode::ClientDriven;
+
+    auto application = Janus::Detail::ApplicationTestAccess::Create(
+        config,
+        MakeDependencies(state));
+
+    REQUIRE(application->Run(client));
+    REQUIRE(state.order == std::vector<std::string>{
+        "platform.initialize",
+        "window.create",
+        "context.create",
+        "context.make_current",
+        "context.swap_interval",
+        "renderer.create",
+        "client.initialize",
+        "window.poll",
+        "client.event.resize",
+        "client.update",
+        "context.present",
+        "client.shutdown",
+        "context.destroy",
+        "window.destroy",
+        "platform.shutdown"});
+    REQUIRE(
+        std::ranges::count(state.order, "scene.create")
+        == 0);
+}

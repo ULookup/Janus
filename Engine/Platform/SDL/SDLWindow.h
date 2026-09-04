@@ -25,6 +25,7 @@ namespace Janus
         // --------------------------------------------------------
 
         void PollEvents(const EventCallback& callback) override;
+        void SetNativeEventCallback(NativeEventCallback callback) override;
 
         // --------------------------------------------------------
         // Window State
@@ -57,6 +58,7 @@ namespace Janus
         u32 m_Height = 0;
 
         bool m_ShouldClose = false;
+        NativeEventCallback m_NativeEventCallback;
     };
 
 } // namespace Janus

@@ -29,6 +29,12 @@ option(
 )
 
 option(
+    JANUS_BUILD_EDITOR
+    "Build Janus Editor"
+    ON
+)
+
+option(
     JANUS_BUILD_TESTS
     "Build Janus tests"
     OFF
@@ -286,11 +292,40 @@ if(UNIX)
 endif()
 
 
+# ------------------------------------------------------------
+# Dear ImGui
+# ------------------------------------------------------------
+
+if(JANUS_BUILD_EDITOR)
+    FetchContent_Declare(
+        imgui
+
+        GIT_REPOSITORY
+            https://github.com/ocornut/imgui.git
+
+        GIT_TAG
+            v1.92.9b
+
+        GIT_SHALLOW
+            TRUE
+    )
+
+    FetchContent_MakeAvailable(imgui)
+endif()
+
+
 # ============================================================
 # Engine
 # ============================================================
 
 add_subdirectory(Engine)
+
+
+# ============================================================
+# Editor
+# ============================================================
+
+add_subdirectory(Editor)
 
 
 # ============================================================
