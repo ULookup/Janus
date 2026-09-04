@@ -14,6 +14,7 @@ class EditorApplication final : public ApplicationClient
 {
 public:
     explicit EditorApplication(std::filesystem::path projectRoot);
+    ~EditorApplication() override;
 
     [[nodiscard]] Result<void> OnInitialize(Application& application) override;
     void OnEvent(const Event& event, Application& application) override;
