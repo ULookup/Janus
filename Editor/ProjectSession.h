@@ -3,6 +3,7 @@
 #include "Application/ApplicationConfig.h"
 #include "Asset/AssetRegistry.h"
 #include "Core/Error/Result.h"
+#include "Core/Time/TimeStep.h"
 
 #include <filesystem>
 #include <memory>
@@ -11,11 +12,14 @@ namespace Janus
 {
 
 class AssetService;
+class InputState;
 class Renderer2D;
 class Scene;
 
 namespace Editor
 {
+
+class RuntimeSession;
 
 class ProjectSession final
 {
@@ -38,6 +42,14 @@ public:
     [[nodiscard]] Scene& GetEditorScene() noexcept;
     [[nodiscard]] const Scene& GetEditorScene() const noexcept;
 
+    [[nodiscard]] Result<void> StartRuntime(const InputState& input);
+    [[nodiscard]] Result<void> UpdateRuntime(TimeStep timeStep);
+    [[nodiscard]] Result<void> StopRuntime();
+
+    [[nodiscard]] bool IsPlaying() const noexcept;
+    [[nodiscard]] RuntimeSession* GetRuntimeSession() noexcept;
+    [[nodiscard]] const RuntimeSession* GetRuntimeSession() const noexcept;
+
 private:
     ProjectSession(
         std::filesystem::path projectRoot,
@@ -51,6 +63,7 @@ private:
     AssetRegistry m_AssetRegistry;
     std::unique_ptr<AssetService> m_AssetService;
     std::unique_ptr<Scene> m_EditorScene;
+    std::unique_ptr<RuntimeSession> m_RuntimeSession;
 };
 
 } // namespace Editor
