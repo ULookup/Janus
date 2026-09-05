@@ -4,6 +4,7 @@ add_library(
 
     EditorActions.cpp
     EditorCamera.cpp
+    EditorConsole.cpp
     EditorContext.cpp
     EditorViewSource.cpp
     ScenePicker.cpp
@@ -68,6 +69,7 @@ if(JANUS_BUILD_EDITOR)
         Main.cpp
         EditorApplication.cpp
         Panels/AssetBrowserPanel.cpp
+        Panels/ConsolePanel.cpp
         Panels/HierarchyPanel.cpp
         Panels/InspectorPanel.cpp
     )
