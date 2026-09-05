@@ -18,8 +18,10 @@ add_executable(
     Application/ProjectRuntimeTests.cpp
     Editor/EditorActionsTests.cpp
     Editor/EditorCameraTests.cpp
+    Editor/EditorConsoleTests.cpp
     Editor/EditorSelectionTests.cpp
     Editor/EditorViewSourceTests.cpp
+    Editor/EditorWorkflowTests.cpp
     Editor/ScenePickerTests.cpp
     Editor/ProjectSessionTests.cpp
     Editor/RuntimeSessionTests.cpp

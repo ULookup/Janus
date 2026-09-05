@@ -16,8 +16,10 @@ namespace Editor
 {
 
 class AssetBrowserPanel;
+class ConsolePanel;
 class EditorActions;
 class EditorCamera;
+class EditorConsole;
 struct EditorContext;
 class HierarchyPanel;
 class InspectorPanel;
@@ -42,6 +44,8 @@ private:
     std::unique_ptr<ProjectSession> m_ProjectSession;
     std::unique_ptr<EditorContext> m_EditorContext;
     std::unique_ptr<EditorActions> m_EditorActions;
+    std::unique_ptr<EditorConsole> m_EditorConsole;
+    std::unique_ptr<ConsolePanel> m_ConsolePanel;
     std::unique_ptr<AssetBrowserPanel> m_AssetBrowserPanel;
     std::unique_ptr<HierarchyPanel> m_HierarchyPanel;
     std::unique_ptr<InspectorPanel> m_InspectorPanel;
