@@ -12,6 +12,11 @@ namespace Janus
 
 class SceneRenderer;
 
+namespace MCP
+{
+class AllowAllMcpPermissionPolicy;
+}
+
 namespace Editor
 {
 
@@ -23,6 +28,7 @@ class EditorConsole;
 struct EditorContext;
 class HierarchyPanel;
 class InspectorPanel;
+class McpEditorHost;
 class ProjectSession;
 
 class EditorApplication final : public ApplicationClient
@@ -45,6 +51,8 @@ private:
     std::filesystem::path m_ProjectRoot;
     bool m_McpStdio = false;
     std::unique_ptr<ProjectSession> m_ProjectSession;
+    std::unique_ptr<MCP::AllowAllMcpPermissionPolicy> m_McpPermissionPolicy;
+    std::unique_ptr<McpEditorHost> m_McpHost;
     std::unique_ptr<EditorContext> m_EditorContext;
     std::unique_ptr<EditorActions> m_EditorActions;
     std::unique_ptr<EditorConsole> m_EditorConsole;
