@@ -4,6 +4,7 @@
 #include "EditorCamera.h"
 #include "EditorContext.h"
 #include "EditorViewSource.h"
+#include "Panels/AssetBrowserPanel.h"
 #include "Panels/HierarchyPanel.h"
 #include "Panels/InspectorPanel.h"
 #include "ProjectSession.h"
@@ -131,6 +132,10 @@ Result<void> EditorApplication::OnInitialize(Application& application)
     m_EditorContext->project = m_ProjectSession.get();
     m_EditorActions =
         std::make_unique<EditorActions>(*m_EditorContext);
+    m_AssetBrowserPanel =
+        std::make_unique<AssetBrowserPanel>(
+            *m_EditorContext,
+            *m_EditorActions);
     m_HierarchyPanel =
         std::make_unique<HierarchyPanel>(
             *m_EditorContext,
@@ -156,6 +161,7 @@ Result<void> EditorApplication::OnInitialize(Application& application)
         m_EditorCamera.reset();
         m_InspectorPanel.reset();
         m_HierarchyPanel.reset();
+        m_AssetBrowserPanel.reset();
         m_EditorActions.reset();
         m_EditorContext.reset();
         m_ProjectSession.reset();
@@ -187,6 +193,7 @@ Result<void> EditorApplication::OnInitialize(Application& application)
         m_EditorCamera.reset();
         m_InspectorPanel.reset();
         m_HierarchyPanel.reset();
+        m_AssetBrowserPanel.reset();
         m_EditorActions.reset();
         m_EditorContext.reset();
         m_ProjectSession.reset();
@@ -264,10 +271,38 @@ void EditorApplication::OnUpdate(
         }
 
         ImGui::SameLine();
+
+        const bool canSave =
+            !m_ProjectSession->IsPlaying()
+            && m_ProjectSession->IsDirty();
+
+        ImGui::BeginDisabled(!canSave);
+        if (ImGui::Button("Save"))
+        {
+            const auto saved =
+                m_ProjectSession->SaveCurrentScene();
+            if (!saved)
+            {
+                RecordError(saved.GetError());
+            }
+            else
+            {
+                m_LastError.clear();
+            }
+        }
+        ImGui::EndDisabled();
+
+        ImGui::SameLine();
         ImGui::TextUnformatted(
             m_ProjectSession->IsPlaying()
                 ? "Playing"
                 : "Editing");
+
+        if (m_ProjectSession->IsDirty())
+        {
+            ImGui::SameLine();
+            ImGui::TextDisabled("* Unsaved");
+        }
 
         ImGui::End();
     }
@@ -329,6 +364,16 @@ void EditorApplication::OnUpdate(
         if (inspectorError.has_value())
         {
             RecordError(*inspectorError);
+        }
+
+        if (m_AssetBrowserPanel != nullptr)
+        {
+            const auto assetError =
+                m_AssetBrowserPanel->Draw();
+            if (assetError.has_value())
+            {
+                RecordError(*assetError);
+            }
         }
     }
 
@@ -667,6 +712,7 @@ void EditorApplication::OnShutdown(Application& application) noexcept
 
     m_InspectorPanel.reset();
     m_HierarchyPanel.reset();
+    m_AssetBrowserPanel.reset();
     m_EditorActions.reset();
     m_EditorContext.reset();
 
