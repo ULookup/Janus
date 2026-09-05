@@ -13,21 +13,8 @@ ConsolePanel::ConsolePanel(
 {
 }
 
-void ConsolePanel::Draw()
+void ConsolePanel::DrawContents()
 {
-    const bool visible = ImGui::Begin(
-        "Console",
-        nullptr,
-        ImGuiWindowFlags_NoMove
-            | ImGuiWindowFlags_NoResize
-            | ImGuiWindowFlags_NoCollapse);
-
-    if (!visible)
-    {
-        ImGui::End();
-        return;
-    }
-
     if (ImGui::Button("Clear"))
     {
         m_Console.Clear();
@@ -69,7 +56,6 @@ void ConsolePanel::Draw()
     }
 
     ImGui::EndChild();
-    ImGui::End();
 }
 
 } // namespace Janus::Editor
