@@ -23,25 +23,11 @@ AssetBrowserPanel::AssetBrowserPanel(
 {
 }
 
-std::optional<Error> AssetBrowserPanel::Draw()
+std::optional<Error> AssetBrowserPanel::DrawContents()
 {
-    const bool visible = ImGui::Begin(
-        "Asset Browser",
-        nullptr,
-        ImGuiWindowFlags_NoMove
-            | ImGuiWindowFlags_NoResize
-            | ImGuiWindowFlags_NoCollapse);
-
-    if (!visible)
-    {
-        ImGui::End();
-        return std::nullopt;
-    }
-
     if (m_Context.project == nullptr)
     {
         ImGui::TextUnformatted("No project open.");
-        ImGui::End();
         return std::nullopt;
     }
 
@@ -122,7 +108,6 @@ std::optional<Error> AssetBrowserPanel::Draw()
     if (!m_SelectedAsset.IsValid())
     {
         ImGui::TextDisabled("Select an asset to inspect or assign.");
-        ImGui::End();
         return std::nullopt;
     }
 
@@ -134,7 +119,6 @@ std::optional<Error> AssetBrowserPanel::Draw()
     {
         m_SelectedAsset = {};
         ImGui::TextDisabled("Selected asset is no longer registered.");
-        ImGui::End();
         return std::nullopt;
     }
 
@@ -167,7 +151,6 @@ std::optional<Error> AssetBrowserPanel::Draw()
     {
         ImGui::TextDisabled(
             "Select an entity to assign this asset.");
-        ImGui::End();
         return std::nullopt;
     }
 
@@ -237,7 +220,6 @@ std::optional<Error> AssetBrowserPanel::Draw()
         ImGui::TextDisabled("Read-only in Play Mode.");
     }
 
-    ImGui::End();
     return error;
 }
 
