@@ -1,14 +1,20 @@
 #include "ProjectSession.h"
 
 #include "Application/ApplicationConfig.h"
+#include "Core/FileSystem/FileSystem.h"
+#include "Core/Input/InputState.h"
 #include "Renderer/Renderer2D.h"
 #include "Scene/Scene.h"
+#include "Scene/SceneDeserializer.h"
 
 #include "../Renderer/FakeRenderDevice.h"
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <chrono>
 #include <filesystem>
+#include <stdexcept>
+#include <string>
 #include <utility>
 
 namespace
@@ -20,6 +26,51 @@ std::filesystem::path SandboxProjectRoot()
         .parent_path()
         / "SandboxProject";
 }
+
+class ProjectTempDirectory final
+{
+public:
+    ProjectTempDirectory()
+    {
+        const auto leaf =
+            "janus-editor-project-"
+            + std::to_string(
+                std::chrono::steady_clock::now()
+                    .time_since_epoch()
+                    .count());
+
+        m_Path =
+            std::filesystem::temp_directory_path()
+            / leaf;
+
+        std::error_code error;
+        std::filesystem::copy(
+            SandboxProjectRoot(),
+            m_Path,
+            std::filesystem::copy_options::recursive,
+            error);
+
+        if (error)
+        {
+            throw std::runtime_error(
+                "Failed to copy SandboxProject for Editor tests.");
+        }
+    }
+
+    ~ProjectTempDirectory()
+    {
+        std::error_code error;
+        std::filesystem::remove_all(m_Path, error);
+    }
+
+    [[nodiscard]] const std::filesystem::path& Path() const noexcept
+    {
+        return m_Path;
+    }
+
+private:
+    std::filesystem::path m_Path;
+};
 
 } // namespace
 
@@ -89,4 +140,131 @@ TEST_CASE(
         *renderer);
 
     REQUIRE_FALSE(result);
+}
+
+
+TEST_CASE(
+    "ProjectSession saves dirty authoring Scene and clears dirty state",
+    "[editor][project-session][save][v0.6]")
+{
+    ProjectTempDirectory temp;
+
+    Janus::Test::FakeRenderDevice device;
+    auto renderer =
+        Janus::Detail::Renderer2DTestAccess::Create(device);
+
+    Janus::ProjectRuntimeConfig config;
+    config.root = temp.Path();
+
+    auto opened =
+        Janus::Editor::ProjectSession::Open(
+            config,
+            *renderer);
+    REQUIRE(opened);
+
+    auto session = std::move(opened).Value();
+    REQUIRE_FALSE(session->IsDirty());
+
+    session->GetEditorScene().SetName("Saved Battle");
+    session->MarkDirty();
+    REQUIRE(session->IsDirty());
+
+    REQUIRE(session->SaveCurrentScene());
+    REQUIRE_FALSE(session->IsDirty());
+
+    auto loaded =
+        Janus::SceneDeserializer::Load(
+            temp.Path() / "Scenes/Battle.scene");
+    REQUIRE(loaded);
+    REQUIRE(
+        loaded.Value()->GetMetadata().name
+        == "Saved Battle");
+}
+
+TEST_CASE(
+    "ProjectSession preserves dirty state when Scene save fails",
+    "[editor][project-session][save][v0.6][errors]")
+{
+    ProjectTempDirectory temp;
+
+    Janus::Test::FakeRenderDevice device;
+    auto renderer =
+        Janus::Detail::Renderer2DTestAccess::Create(device);
+
+    Janus::ProjectRuntimeConfig config;
+    config.root = temp.Path();
+
+    auto opened =
+        Janus::Editor::ProjectSession::Open(
+            config,
+            *renderer);
+    REQUIRE(opened);
+
+    auto session = std::move(opened).Value();
+    session->MarkDirty();
+
+    std::error_code error;
+    std::filesystem::remove_all(
+        temp.Path() / "Scenes",
+        error);
+    REQUIRE_FALSE(error);
+
+    REQUIRE(
+        Janus::FileSystem::WriteText(
+            temp.Path() / "Scenes",
+            "not-a-directory"));
+
+    const auto saved =
+        session->SaveCurrentScene();
+
+    REQUIRE_FALSE(saved);
+    REQUIRE(session->IsDirty());
+}
+
+TEST_CASE(
+    "RuntimeSession changes never dirty the authoring Scene",
+    "[editor][project-session][dirty][runtime][v0.6]")
+{
+    Janus::Test::FakeRenderDevice device;
+    auto renderer =
+        Janus::Detail::Renderer2DTestAccess::Create(device);
+
+    Janus::ProjectRuntimeConfig config;
+    config.root = SandboxProjectRoot();
+
+    auto opened =
+        Janus::Editor::ProjectSession::Open(
+            config,
+            *renderer);
+    REQUIRE(opened);
+
+    auto session = std::move(opened).Value();
+    REQUIRE_FALSE(session->IsDirty());
+
+    Janus::InputState input;
+    input.BeginFrame();
+    input.Apply(
+        Janus::KeyPressedEvent{
+            Janus::KeyCode::D,
+            false});
+
+    REQUIRE(session->StartRuntime(input));
+    REQUIRE(
+        session->UpdateRuntime(
+            Janus::TimeStep::FromSeconds(0.25)));
+    REQUIRE_FALSE(session->IsDirty());
+
+    session->MarkDirty();
+    REQUIRE(session->IsDirty());
+
+    const auto saveDuringPlay =
+        session->SaveCurrentScene();
+    REQUIRE_FALSE(saveDuringPlay);
+    REQUIRE(
+        saveDuringPlay.GetError().code
+        == Janus::ErrorCode::InvalidState);
+    REQUIRE(session->IsDirty());
+
+    REQUIRE(session->StopRuntime());
+    REQUIRE(session->IsDirty());
 }
