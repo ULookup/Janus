@@ -474,3 +474,52 @@ TEST_CASE(
         session.GetEra()
         == McpProtocolEra::Modern2026);
 }
+
+
+TEST_CASE(
+    "Legacy MCP drops modern notifications after era pinning",
+    "[mcp][protocol][v0.8]")
+{
+    using namespace Janus::MCP;
+
+    McpProtocolSession session;
+    int notifications = 0;
+
+    session.SetNotificationHandler(
+        [&notifications](
+            std::string_view,
+            const Json&,
+            McpProtocolEra) -> Janus::Result<void>
+        {
+            ++notifications;
+            return Janus::Result<void>::Success();
+        });
+
+    REQUIRE(
+        RequireResponse(
+            session,
+            LegacyInitialize())
+            .contains("result"));
+
+    REQUIRE(
+        session.HandleMessage(
+            Json{
+                {"jsonrpc", "2.0"},
+                {"method", "notifications/initialized"}}
+                .dump()));
+
+    auto dropped =
+        session.HandleMessage(
+            Json{
+                {"jsonrpc", "2.0"},
+                {"method", "notifications/progress"},
+                {"params", ModernParams()}}
+                .dump());
+
+    REQUIRE(dropped);
+    REQUIRE_FALSE(dropped.Value().has_value());
+    REQUIRE(notifications == 0);
+    REQUIRE(
+        session.GetEra()
+        == McpProtocolEra::Legacy2025);
+}
