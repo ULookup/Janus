@@ -261,6 +261,7 @@ Json BuildPropertyMutationSchema(
 
     return Json{
         {"$schema", std::string{McpJsonSchema202012}},
+        {"type", "object"},
         {"oneOf", std::move(branches)}};
 }
 
