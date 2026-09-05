@@ -25,7 +25,12 @@ HierarchyPanel::HierarchyPanel(
 
 std::optional<Error> HierarchyPanel::Draw()
 {
-    const bool visible = ImGui::Begin("Hierarchy");
+    const bool visible = ImGui::Begin(
+        "Hierarchy",
+        nullptr,
+        ImGuiWindowFlags_NoMove
+            | ImGuiWindowFlags_NoResize
+            | ImGuiWindowFlags_NoCollapse);
 
     if (!visible)
     {

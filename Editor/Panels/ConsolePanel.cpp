@@ -15,7 +15,12 @@ ConsolePanel::ConsolePanel(
 
 void ConsolePanel::Draw()
 {
-    const bool visible = ImGui::Begin("Console");
+    const bool visible = ImGui::Begin(
+        "Console",
+        nullptr,
+        ImGuiWindowFlags_NoMove
+            | ImGuiWindowFlags_NoResize
+            | ImGuiWindowFlags_NoCollapse);
 
     if (!visible)
     {

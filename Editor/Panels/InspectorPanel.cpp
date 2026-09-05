@@ -26,7 +26,12 @@ InspectorPanel::InspectorPanel(
 
 std::optional<Error> InspectorPanel::Draw()
 {
-    const bool visible = ImGui::Begin("Inspector");
+    const bool visible = ImGui::Begin(
+        "Inspector",
+        nullptr,
+        ImGuiWindowFlags_NoMove
+            | ImGuiWindowFlags_NoResize
+            | ImGuiWindowFlags_NoCollapse);
 
     if (!visible)
     {
