@@ -9,14 +9,14 @@
 namespace
 {
 
-const Janus::MCP::Json& RequireJson(
+Janus::MCP::Json RequireJson(
     const Janus::MCP::McpDispatchResult& result)
 {
     REQUIRE(std::holds_alternative<Janus::MCP::Json>(result));
     return std::get<Janus::MCP::Json>(result);
 }
 
-const Janus::MCP::McpDispatchError& RequireError(
+Janus::MCP::McpDispatchError RequireError(
     const Janus::MCP::McpDispatchResult& result)
 {
     REQUIRE(std::holds_alternative<Janus::MCP::McpDispatchError>(result));
@@ -183,7 +183,7 @@ TEST_CASE(
                 "engine://entity/{uuid}",
                 "entity")));
 
-    const Json& resources =
+    const Json resources =
         RequireJson(
             registry.HandleList(
                 Json::object(),
@@ -198,7 +198,7 @@ TEST_CASE(
         resources.at("cacheScope")
         == "private");
 
-    const Json& templates =
+    const Json templates =
         RequireJson(
             registry.HandleTemplatesList(
                 Json::object(),
@@ -213,7 +213,7 @@ TEST_CASE(
         templates.at("cacheScope")
         == "private");
 
-    const Json& legacy =
+    const Json legacy =
         RequireJson(
             registry.HandleTemplatesList(
                 Json::object(),
@@ -243,7 +243,7 @@ TEST_CASE(
                 "engine://entity/{uuid}",
                 "entity")));
 
-    const Json& concrete =
+    const Json concrete =
         RequireJson(
             registry.HandleRead(
                 Json{
@@ -261,7 +261,7 @@ TEST_CASE(
         concrete.at("cacheScope")
         == "private");
 
-    const Json& templated =
+    const Json templated =
         RequireJson(
             registry.HandleRead(
                 Json{
