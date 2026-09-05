@@ -526,6 +526,60 @@ void EditorApplication::OnUpdate(
         ImGui::EndDisabled();
 
         ImGui::SameLine();
+
+        const bool canUndo =
+            m_EditorActions != nullptr
+            && m_EditorActions->CanUndo();
+
+        ImGui::BeginDisabled(!canUndo);
+        if (ImGui::Button("Undo"))
+        {
+            const auto undone =
+                m_EditorActions->Undo();
+            if (!undone)
+            {
+                RecordError(undone.GetError());
+            }
+            else
+            {
+                m_LastError.clear();
+                if (m_EditorConsole != nullptr)
+                {
+                    m_EditorConsole->PushInfo(
+                        "Authoring command undone.");
+                }
+            }
+        }
+        ImGui::EndDisabled();
+
+        ImGui::SameLine();
+
+        const bool canRedo =
+            m_EditorActions != nullptr
+            && m_EditorActions->CanRedo();
+
+        ImGui::BeginDisabled(!canRedo);
+        if (ImGui::Button("Redo"))
+        {
+            const auto redone =
+                m_EditorActions->Redo();
+            if (!redone)
+            {
+                RecordError(redone.GetError());
+            }
+            else
+            {
+                m_LastError.clear();
+                if (m_EditorConsole != nullptr)
+                {
+                    m_EditorConsole->PushInfo(
+                        "Authoring command redone.");
+                }
+            }
+        }
+        ImGui::EndDisabled();
+
+        ImGui::SameLine();
         ImGui::TextUnformatted(
             m_ProjectSession->IsPlaying()
                 ? "Playing"
