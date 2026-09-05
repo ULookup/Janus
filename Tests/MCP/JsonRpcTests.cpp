@@ -156,10 +156,15 @@ TEST_CASE(
 
     SECTION("error code must fit 32 bits")
     {
-        const auto decoded = DecodeJsonRpcMessage(
+        const auto signedDecoded = DecodeJsonRpcMessage(
             R"json({"jsonrpc":"2.0","id":null,"error":{"code":9223372036854775807,"message":"bad"}})json");
-        const auto& error = RequireDecodeError(decoded);
-        REQUIRE(error.code == JsonRpcInvalidRequest);
+        const auto& signedError = RequireDecodeError(signedDecoded);
+        REQUIRE(signedError.code == JsonRpcInvalidRequest);
+
+        const auto unsignedDecoded = DecodeJsonRpcMessage(
+            R"json({"jsonrpc":"2.0","id":null,"error":{"code":18446744073709551615,"message":"bad"}})json");
+        const auto& unsignedError = RequireDecodeError(unsignedDecoded);
+        REQUIRE(unsignedError.code == JsonRpcInvalidRequest);
     }
 }
 
