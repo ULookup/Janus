@@ -3,7 +3,9 @@ add_library(
     STATIC
 
     EditorCamera.cpp
+    EditorContext.cpp
     EditorViewSource.cpp
+    ScenePicker.cpp
     ProjectSession.cpp
     RuntimeSession.cpp
 )
