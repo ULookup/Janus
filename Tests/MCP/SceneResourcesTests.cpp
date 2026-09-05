@@ -62,7 +62,7 @@ const Janus::MCP::Json* FindHierarchyEntity(
     for (const Janus::MCP::Json& entity
          : hierarchy.at("entities"))
     {
-        if (entity.at("uuid") == uuid)
+        if (entity.at("uuid") == std::string{uuid})
         {
             return &entity;
         }
