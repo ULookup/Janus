@@ -300,7 +300,7 @@ PropertyDescriptor SpriteTextureDescriptor()
         true,
         true,
         true,
-        "Texture",
+        "texture",
         [](const void* component)
         {
             const auto* sprite =
@@ -556,7 +556,7 @@ PropertyDescriptor LuaScriptAssetDescriptor()
         true,
         true,
         true,
-        "LuaScript",
+        "lua-script",
         [](const void* component)
         {
             const auto* script =
@@ -785,8 +785,8 @@ Result<void> RegisterBuiltinSceneReflection(
     return registry.RegisterComponent(
         ComponentDescriptor{
             LuaScript,
-            "LuaScript",
-            "LuaScript",
+            "lua-script",
+            "lua-script",
             true,
             true,
             {
