@@ -1,6 +1,7 @@
 #include "Protocol/JsonRpc.h"
 
 #include <limits>
+#include <type_traits>
 #include <utility>
 
 namespace Janus::MCP
@@ -15,11 +16,6 @@ std::optional<JsonRpcId> ParseId(const Json& value)
         return JsonRpcId{value.get<std::string>()};
     }
 
-    if (value.is_number_integer())
-    {
-        return JsonRpcId{value.get<i64>()};
-    }
-
     if (value.is_number_unsigned())
     {
         const u64 raw = value.get<u64>();
@@ -27,6 +23,13 @@ std::optional<JsonRpcId> ParseId(const Json& value)
         {
             return JsonRpcId{static_cast<i64>(raw)};
         }
+
+        return std::nullopt;
+    }
+
+    if (value.is_number_integer())
+    {
+        return JsonRpcId{value.get<i64>()};
     }
 
     return std::nullopt;
@@ -215,6 +218,14 @@ JsonRpcDecodeResult DecodeResponse(const Json& root)
             "JSON-RPC error requires integer code and string message.");
     }
 
+    const i64 rawCode = codeIt->get<i64>();
+    if (rawCode < static_cast<i64>(std::numeric_limits<i32>::min())
+        || rawCode > static_cast<i64>(std::numeric_limits<i32>::max()))
+    {
+        return InvalidRequest(
+            "JSON-RPC error code is outside the supported 32-bit range.");
+    }
+
     Json data = nullptr;
     if (const auto dataIt = error.find("data");
         dataIt != error.end())
@@ -226,7 +237,7 @@ JsonRpcDecodeResult DecodeResponse(const Json& root)
         JsonRpcErrorResponse{
             id,
             JsonRpcError{
-                codeIt->get<i32>(),
+                static_cast<i32>(rawCode),
                 messageIt->get<std::string>(),
                 std::move(data)}}};
 }
@@ -295,7 +306,7 @@ JsonRpcDecodeResult DecodeJsonRpcMessage(
     const auto versionIt = root.find("jsonrpc");
     if (versionIt == root.end()
         || !versionIt->is_string()
-        || versionIt->get<std::string_view>() != "2.0")
+        || versionIt->get_ref<const std::string&>() != "2.0")
     {
         return InvalidRequest(
             "JSON-RPC version must be exactly '2.0'.");
