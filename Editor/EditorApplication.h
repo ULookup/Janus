@@ -1,13 +1,21 @@
 #pragma once
 
 #include "Application/ApplicationClient.h"
+#include "Renderer/RendererTypes.h"
 
 #include <filesystem>
 #include <memory>
+#include <string>
 
-namespace Janus::Editor
+namespace Janus
 {
 
+class SceneRenderer;
+
+namespace Editor
+{
+
+class EditorCamera;
 class ProjectSession;
 
 class EditorApplication final : public ApplicationClient
@@ -22,13 +30,25 @@ public:
     void OnShutdown(Application& application) noexcept override;
 
 private:
+    void RecordError(const Error& error);
     void ShutdownImGui(Application& application) noexcept;
 
     std::filesystem::path m_ProjectRoot;
     std::unique_ptr<ProjectSession> m_ProjectSession;
+    std::unique_ptr<EditorCamera> m_EditorCamera;
+    std::unique_ptr<SceneRenderer> m_SceneRenderer;
+
+    RenderTargetHandle m_SceneViewTarget;
+    RenderTargetHandle m_GameViewTarget;
+    Viewport m_SceneViewViewport{640, 360};
+    Viewport m_GameViewViewport{640, 360};
+
+    std::string m_LastError;
+
     bool m_ImGuiContextCreated = false;
     bool m_ImGuiPlatformInitialized = false;
     bool m_ImGuiRendererInitialized = false;
 };
 
-} // namespace Janus::Editor
+} // namespace Editor
+} // namespace Janus
