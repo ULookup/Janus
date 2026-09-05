@@ -1,5 +1,6 @@
 #include "Registry/ToolRegistry.h"
 
+#include <algorithm>
 #include <charconv>
 #include <utility>
 
