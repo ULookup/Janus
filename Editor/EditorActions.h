@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Asset/AssetHandle.h"
 #include "Core/Error/Result.h"
 #include "Core/Math/Vector2.h"
 #include "Core/UUID/UUID.h"
@@ -43,6 +44,9 @@ public:
         Color color,
         i32 layer,
         bool enabled);
+    [[nodiscard]] Result<void> SetSpriteTexture(
+        UUID id,
+        AssetHandle texture);
 
     [[nodiscard]] Result<void> AddCamera(UUID id);
     [[nodiscard]] Result<void> RemoveCamera(UUID id);
@@ -56,6 +60,9 @@ public:
     [[nodiscard]] Result<void> SetLuaScriptEnabled(
         UUID id,
         bool enabled);
+    [[nodiscard]] Result<void> SetLuaScriptAsset(
+        UUID id,
+        AssetHandle script);
 
 private:
     [[nodiscard]] Result<Scene*> GetEditableScene();

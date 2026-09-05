@@ -67,6 +67,7 @@ if(JANUS_BUILD_EDITOR)
 
         Main.cpp
         EditorApplication.cpp
+        Panels/AssetBrowserPanel.cpp
         Panels/HierarchyPanel.cpp
         Panels/InspectorPanel.cpp
     )

@@ -47,6 +47,10 @@ public:
     [[nodiscard]] Result<void> StopRuntime();
 
     [[nodiscard]] bool IsPlaying() const noexcept;
+    [[nodiscard]] bool IsDirty() const noexcept;
+    void MarkDirty() noexcept;
+    [[nodiscard]] Result<void> SaveCurrentScene();
+
     [[nodiscard]] RuntimeSession* GetRuntimeSession() noexcept;
     [[nodiscard]] const RuntimeSession* GetRuntimeSession() const noexcept;
 
@@ -64,6 +68,7 @@ private:
     std::unique_ptr<AssetService> m_AssetService;
     std::unique_ptr<Scene> m_EditorScene;
     std::unique_ptr<RuntimeSession> m_RuntimeSession;
+    bool m_Dirty = false;
 };
 
 } // namespace Editor

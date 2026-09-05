@@ -15,6 +15,7 @@ class SceneRenderer;
 namespace Editor
 {
 
+class AssetBrowserPanel;
 class EditorActions;
 class EditorCamera;
 struct EditorContext;
@@ -41,6 +42,7 @@ private:
     std::unique_ptr<ProjectSession> m_ProjectSession;
     std::unique_ptr<EditorContext> m_EditorContext;
     std::unique_ptr<EditorActions> m_EditorActions;
+    std::unique_ptr<AssetBrowserPanel> m_AssetBrowserPanel;
     std::unique_ptr<HierarchyPanel> m_HierarchyPanel;
     std::unique_ptr<InspectorPanel> m_InspectorPanel;
     std::unique_ptr<EditorCamera> m_EditorCamera;

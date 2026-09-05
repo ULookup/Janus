@@ -218,3 +218,122 @@ TEST_CASE(
     REQUIRE(
         scene.GetComponent<Janus::CameraComponent>(entity)->primary);
 }
+
+
+TEST_CASE(
+    "EditorActions mark ProjectSession dirty only after successful mutation",
+    "[editor][actions][dirty][v0.6]")
+{
+    Janus::Test::FakeRenderDevice device;
+    auto renderer =
+        Janus::Detail::Renderer2DTestAccess::Create(device);
+    auto project = OpenProject(*renderer);
+
+    Janus::Editor::EditorContext context;
+    context.project = project.get();
+    Janus::Editor::EditorActions actions(context);
+
+    REQUIRE_FALSE(project->IsDirty());
+
+    const auto invalidRename =
+        actions.RenameEntity(
+            Janus::UUID::Random(),
+            "Missing");
+    REQUIRE_FALSE(invalidRename);
+    REQUIRE_FALSE(project->IsDirty());
+
+    const auto created =
+        actions.CreateEntity("Dirty");
+    REQUIRE(created);
+    REQUIRE(project->IsDirty());
+}
+
+TEST_CASE(
+    "EditorActions assign only registered assets of the matching type",
+    "[editor][actions][assets][v0.6]")
+{
+    Janus::Test::FakeRenderDevice device;
+    auto renderer =
+        Janus::Detail::Renderer2DTestAccess::Create(device);
+    auto project = OpenProject(*renderer);
+
+    Janus::Editor::EditorContext context;
+    context.project = project.get();
+    Janus::Editor::EditorActions actions(context);
+
+    const auto created =
+        actions.CreateEntity("AssetTarget");
+    REQUIRE(created);
+    REQUIRE(actions.AddSpriteRenderer(created.Value()));
+    REQUIRE(actions.AddLuaScript(created.Value()));
+
+    const auto assets =
+        project->GetAssetRegistry().GetAssets();
+
+    Janus::AssetHandle texture;
+    Janus::AssetHandle script;
+
+    for (const auto& asset : assets)
+    {
+        if (asset.type == Janus::AssetType::Texture)
+        {
+            texture = asset.handle;
+        }
+        else if (asset.type == Janus::AssetType::LuaScript)
+        {
+            script = asset.handle;
+        }
+    }
+
+    REQUIRE(texture.IsValid());
+    REQUIRE(script.IsValid());
+
+    REQUIRE(
+        actions.SetSpriteTexture(
+            created.Value(),
+            texture));
+    REQUIRE(
+        actions.SetLuaScriptAsset(
+            created.Value(),
+            script));
+
+    auto& scene = project->GetEditorScene();
+    const auto entity =
+        scene.FindEntity(created.Value());
+
+    REQUIRE(
+        scene.GetComponent<Janus::SpriteRendererComponent>(
+            entity)->texture
+        == texture);
+    REQUIRE(
+        scene.GetComponent<Janus::LuaScriptComponent>(
+            entity)->script
+        == script);
+
+    const auto wrongTexture =
+        actions.SetSpriteTexture(
+            created.Value(),
+            script);
+    REQUIRE_FALSE(wrongTexture);
+    REQUIRE(
+        wrongTexture.GetError().code
+        == Janus::ErrorCode::AssetTypeMismatch);
+
+    const auto wrongScript =
+        actions.SetLuaScriptAsset(
+            created.Value(),
+            texture);
+    REQUIRE_FALSE(wrongScript);
+    REQUIRE(
+        wrongScript.GetError().code
+        == Janus::ErrorCode::AssetTypeMismatch);
+
+    const auto missing =
+        actions.SetSpriteTexture(
+            created.Value(),
+            Janus::AssetHandle::Random());
+    REQUIRE_FALSE(missing);
+    REQUIRE(
+        missing.GetError().code
+        == Janus::ErrorCode::AssetNotFound);
+}
