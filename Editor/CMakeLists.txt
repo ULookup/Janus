@@ -3,6 +3,7 @@ add_library(
     STATIC
 
     EditorCamera.cpp
+    EditorViewSource.cpp
     ProjectSession.cpp
     RuntimeSession.cpp
 )
