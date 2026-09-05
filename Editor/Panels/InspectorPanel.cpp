@@ -11,10 +11,43 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdio>
 #include <string>
+#include <utility>
 
 namespace Janus::Editor
 {
+namespace
+{
+
+Error TypeMismatch(
+    const PropertyDescriptor& property)
+{
+    return Error{
+        ErrorCode::InvalidState,
+        "Inspector reflected value does not match property type for '"
+            + property.name
+            + "'."};
+}
+
+void CopyStringToBuffer(
+    std::string_view value,
+    std::array<char, 256>& buffer)
+{
+    buffer.fill('\0');
+
+    const std::size_t count =
+        std::min(
+            value.size(),
+            buffer.size() - 1);
+
+    std::copy_n(
+        value.data(),
+        count,
+        buffer.data());
+}
+
+} // namespace
 
 InspectorPanel::InspectorPanel(
     EditorContext& context,
@@ -62,17 +95,30 @@ std::optional<Error> InspectorPanel::Draw()
     const ECS::Entity entity =
         scene.FindEntity(id);
 
-    auto* identity =
-        scene.GetComponent<EntityIdentityComponent>(entity);
-    auto* transform =
-        scene.GetComponent<TransformComponent>(entity);
-
-    if (identity == nullptr || transform == nullptr)
+    const auto* identity =
+        scene.GetComponent<EntityIdentityComponent>(
+            entity);
+    if (identity == nullptr)
     {
         m_Context.selection.Clear();
-        ImGui::TextUnformatted("Selected entity is incomplete.");
+        ImGui::TextUnformatted(
+            "Selected entity is missing persistent identity.");
         ImGui::End();
         return std::nullopt;
+    }
+
+    auto model = BuildInspectorModel(
+        scene,
+        id,
+        m_Context.project->GetReflectionRegistry());
+    if (!model)
+    {
+        const Error error = model.GetError();
+        ImGui::TextWrapped(
+            "Inspector unavailable: %s",
+            error.message.c_str());
+        ImGui::End();
+        return error;
     }
 
     const bool readOnly =
@@ -85,17 +131,25 @@ std::optional<Error> InspectorPanel::Draw()
         ImGui::Separator();
     }
 
-    SyncNameBuffer(id, identity->name.c_str());
+    SyncNameBuffer(
+        id,
+        identity->name.c_str());
+    SyncPropertyBuffers(id);
 
     std::optional<Error> error;
 
     ImGui::BeginDisabled(readOnly);
 
-    if (ImGui::InputText(
+    const bool renameCommitted =
+        ImGui::InputText(
             "Name",
             m_NameBuffer.data(),
             m_NameBuffer.size(),
-            ImGuiInputTextFlags_EnterReturnsTrue))
+            ImGuiInputTextFlags_EnterReturnsTrue);
+
+    m_NameEditing = ImGui::IsItemActive();
+
+    if (renameCommitted)
     {
         const auto renamed =
             m_Actions.RenameEntity(
@@ -107,264 +161,92 @@ std::optional<Error> InspectorPanel::Draw()
         }
     }
 
-    if (ImGui::CollapsingHeader(
-            "Transform",
-            ImGuiTreeNodeFlags_DefaultOpen))
+    ImGui::Separator();
+
+    for (const InspectorComponentModel& componentModel :
+         model.Value())
     {
-        float position[]{
-            transform->position.x,
-            transform->position.y};
-        float rotation =
-            transform->rotationRadians;
-        float scale[]{
-            transform->scale.x,
-            transform->scale.y};
-
-        bool changed = false;
-        changed |= ImGui::DragFloat2(
-            "Position",
-            position,
-            0.5f);
-        changed |= ImGui::DragFloat(
-            "Rotation",
-            &rotation,
-            0.01f);
-        changed |= ImGui::DragFloat2(
-            "Scale",
-            scale,
-            0.01f);
-
-        if (changed && !error.has_value())
+        const ComponentDescriptor* component =
+            componentModel.descriptor;
+        if (component == nullptr)
         {
-            const auto updated =
-                m_Actions.SetTransform(
-                    id,
-                    Vector2{position[0], position[1]},
-                    rotation,
-                    Vector2{scale[0], scale[1]});
-            if (!updated)
-            {
-                error = updated.GetError();
-            }
+            continue;
         }
 
-        ImGui::TextDisabled(
-            "World: (%.2f, %.2f)",
-            transform->worldPosition.x,
-            transform->worldPosition.y);
-    }
+        ImGui::PushID(component->name.c_str());
 
-    auto* sprite =
-        scene.GetComponent<SpriteRendererComponent>(entity);
-
-    if (sprite != nullptr)
-    {
-        if (ImGui::CollapsingHeader(
-                "SpriteRenderer",
-                ImGuiTreeNodeFlags_DefaultOpen))
+        if (!componentModel.present)
         {
-            const std::string handle =
-                sprite->texture.IsValid()
-                    ? sprite->texture.ToString()
-                    : std::string{"<none>"};
-
-            ImGui::TextWrapped(
-                "Texture: %s",
-                handle.c_str());
-
-            float size[]{
-                sprite->size.x,
-                sprite->size.y};
-            float color[]{
-                sprite->color.r,
-                sprite->color.g,
-                sprite->color.b,
-                sprite->color.a};
-            int layer = sprite->layer;
-            bool enabled = sprite->enabled;
-
-            bool changed = false;
-            changed |= ImGui::DragFloat2(
-                "Size##Sprite",
-                size,
-                0.5f);
-            changed |= ImGui::ColorEdit4(
-                "Color##Sprite",
-                color);
-            changed |= ImGui::InputInt(
-                "Layer##Sprite",
-                &layer);
-            changed |= ImGui::Checkbox(
-                "Enabled##Sprite",
-                &enabled);
-
-            if (changed && !error.has_value())
+            if (component->removable
+                && ImGui::Button(
+                    ("Add " + component->name).c_str()))
             {
-                const auto updated =
-                    m_Actions.SetSpriteRenderer(
+                const auto added =
+                    m_Actions.AddComponent(
                         id,
-                        Vector2{size[0], size[1]},
-                        Color{
-                            color[0],
-                            color[1],
-                            color[2],
-                            color[3]},
-                        layer,
-                        enabled);
-                if (!updated)
+                        component->id);
+                if (!added)
                 {
-                    error = updated.GetError();
+                    error = added.GetError();
                 }
             }
 
-            if (ImGui::Button("Remove SpriteRenderer")
-                && !error.has_value())
+            ImGui::PopID();
+
+            if (error.has_value())
             {
-                const auto removed =
-                    m_Actions.RemoveSpriteRenderer(id);
-                if (!removed)
-                {
-                    error = removed.GetError();
-                }
+                break;
             }
+
+            continue;
         }
-    }
-    else if (ImGui::Button("Add SpriteRenderer")
-        && !error.has_value())
-    {
-        const auto added =
-            m_Actions.AddSpriteRenderer(id);
-        if (!added)
+
+        const bool open =
+            ImGui::CollapsingHeader(
+                component->name.c_str(),
+                ImGuiTreeNodeFlags_DefaultOpen);
+
+        if (open)
         {
-            error = added.GetError();
-        }
-    }
-
-    auto* camera =
-        scene.GetComponent<CameraComponent>(entity);
-
-    if (camera != nullptr)
-    {
-        if (ImGui::CollapsingHeader(
-                "Camera",
-                ImGuiTreeNodeFlags_DefaultOpen))
-        {
-            float zoom = camera->zoom;
-            bool primary = camera->primary;
-
-            bool changed = false;
-            changed |= ImGui::DragFloat(
-                "Zoom##Camera",
-                &zoom,
-                0.05f,
-                0.05f,
-                20.0f);
-            changed |= ImGui::Checkbox(
-                "Primary##Camera",
-                &primary);
-
-            if (changed && !error.has_value())
+            for (const InspectorPropertyModel& property :
+                 componentModel.properties)
             {
-                const auto updated =
-                    m_Actions.SetCamera(
+                const auto propertyError =
+                    DrawProperty(
                         id,
-                        zoom,
-                        primary);
-                if (!updated)
+                        component->id,
+                        property);
+                if (propertyError.has_value())
                 {
-                    error = updated.GetError();
+                    error = propertyError;
+                    break;
                 }
             }
 
-            if (ImGui::Button("Remove Camera")
-                && !error.has_value())
+            if (!error.has_value()
+                && component->removable)
             {
-                const auto removed =
-                    m_Actions.RemoveCamera(id);
-                if (!removed)
+                ImGui::Separator();
+                if (ImGui::Button(
+                        ("Remove " + component->name).c_str()))
                 {
-                    error = removed.GetError();
-                }
-            }
-        }
-    }
-    else if (ImGui::Button("Add Camera")
-        && !error.has_value())
-    {
-        const auto added =
-            m_Actions.AddCamera(id);
-        if (!added)
-        {
-            error = added.GetError();
-        }
-    }
-
-    auto* script =
-        scene.GetComponent<LuaScriptComponent>(entity);
-
-    if (script != nullptr)
-    {
-        if (ImGui::CollapsingHeader(
-                "LuaScript",
-                ImGuiTreeNodeFlags_DefaultOpen))
-        {
-            const std::string handle =
-                script->script.IsValid()
-                    ? script->script.ToString()
-                    : std::string{"<none>"};
-
-            ImGui::TextWrapped(
-                "Script: %s",
-                handle.c_str());
-
-            bool enabled = script->enabled;
-
-            ImGui::BeginDisabled(
-                !script->script.IsValid());
-            const bool enabledChanged =
-                ImGui::Checkbox(
-                    "Enabled##Lua",
-                    &enabled);
-            ImGui::EndDisabled();
-
-            if (enabledChanged && !error.has_value())
-            {
-                const auto updated =
-                    m_Actions.SetLuaScriptEnabled(
-                        id,
-                        enabled);
-                if (!updated)
-                {
-                    error = updated.GetError();
-                }
-            }
-
-            if (!script->script.IsValid())
-            {
-                ImGui::TextDisabled(
-                    "Script assignment is completed by Asset Browser (#36).");
-            }
-
-            if (ImGui::Button("Remove LuaScript")
-                && !error.has_value())
-            {
-                const auto removed =
-                    m_Actions.RemoveLuaScript(id);
-                if (!removed)
-                {
-                    error = removed.GetError();
+                    const auto removed =
+                        m_Actions.RemoveComponent(
+                            id,
+                            component->id);
+                    if (!removed)
+                    {
+                        error = removed.GetError();
+                    }
                 }
             }
         }
-    }
-    else if (ImGui::Button("Add LuaScript")
-        && !error.has_value())
-    {
-        const auto added =
-            m_Actions.AddLuaScript(id);
-        if (!added)
+
+        ImGui::PopID();
+
+        if (error.has_value())
         {
-            error = added.GetError();
+            break;
         }
     }
 
@@ -374,11 +256,307 @@ std::optional<Error> InspectorPanel::Draw()
     return error;
 }
 
+std::optional<Error> InspectorPanel::DrawProperty(
+    UUID entity,
+    ComponentTypeId component,
+    const InspectorPropertyModel& propertyModel)
+{
+    const PropertyDescriptor* descriptor =
+        propertyModel.descriptor;
+    if (descriptor == nullptr)
+    {
+        return Error{
+            ErrorCode::InvalidState,
+            "Inspector property metadata is missing."};
+    }
+
+    const u64 key = descriptor->id.value;
+
+    ImGui::PushID(descriptor->name.c_str());
+    ImGui::BeginDisabled(!descriptor->editable);
+
+    bool changed = false;
+    bool commit = false;
+    PropertyValue desired = propertyModel.value;
+
+    if (descriptor->type == PropertyType::String)
+    {
+        const auto* current =
+            std::get_if<std::string>(
+                &propertyModel.value);
+        if (current == nullptr)
+        {
+            ImGui::EndDisabled();
+            ImGui::PopID();
+            return TypeMismatch(*descriptor);
+        }
+
+        auto& buffer =
+            m_StringBuffers[key];
+
+        if (m_ActiveProperty != key)
+        {
+            CopyStringToBuffer(
+                *current,
+                buffer);
+        }
+
+        changed =
+            ImGui::InputText(
+                descriptor->name.c_str(),
+                buffer.data(),
+                buffer.size(),
+                ImGuiInputTextFlags_EnterReturnsTrue);
+
+        if (ImGui::IsItemActivated())
+        {
+            m_ActiveProperty = key;
+        }
+
+        commit =
+            changed
+            || ImGui::IsItemDeactivatedAfterEdit();
+
+        desired =
+            PropertyValue{
+                std::string{buffer.data()}};
+    }
+    else if (descriptor->type
+             == PropertyType::AssetReference)
+    {
+        const auto* reference =
+            std::get_if<AssetReferenceValue>(
+                &propertyModel.value);
+        if (reference == nullptr)
+        {
+            ImGui::EndDisabled();
+            ImGui::PopID();
+            return TypeMismatch(*descriptor);
+        }
+
+        const std::string value =
+            reference->id.IsValid()
+                ? reference->id.ToString()
+                : std::string{"<none>"};
+
+        ImGui::TextWrapped(
+            "%s: %s",
+            descriptor->name.c_str(),
+            value.c_str());
+
+        if (!descriptor->referenceConstraint.empty())
+        {
+            ImGui::SameLine();
+            ImGui::TextDisabled(
+                "(%s)",
+                descriptor->referenceConstraint.c_str());
+        }
+    }
+    else
+    {
+        auto [bufferIt, inserted] =
+            m_PropertyBuffers.try_emplace(
+                key,
+                propertyModel.value);
+
+        if (!inserted
+            && m_ActiveProperty != key)
+        {
+            bufferIt->second =
+                propertyModel.value;
+        }
+
+        PropertyValue& buffer =
+            bufferIt->second;
+
+        switch (descriptor->type)
+        {
+        case PropertyType::Bool:
+        {
+            auto* value =
+                std::get_if<bool>(&buffer);
+            if (value == nullptr)
+            {
+                ImGui::EndDisabled();
+                ImGui::PopID();
+                return TypeMismatch(*descriptor);
+            }
+
+            changed =
+                ImGui::Checkbox(
+                    descriptor->name.c_str(),
+                    value);
+            break;
+        }
+
+        case PropertyType::Int32:
+        {
+            auto* value =
+                std::get_if<i32>(&buffer);
+            if (value == nullptr)
+            {
+                ImGui::EndDisabled();
+                ImGui::PopID();
+                return TypeMismatch(*descriptor);
+            }
+
+            int edited =
+                static_cast<int>(*value);
+            changed =
+                ImGui::InputInt(
+                    descriptor->name.c_str(),
+                    &edited);
+            if (changed)
+            {
+                *value =
+                    static_cast<i32>(edited);
+            }
+            break;
+        }
+
+        case PropertyType::Float32:
+        {
+            auto* value =
+                std::get_if<f32>(&buffer);
+            if (value == nullptr)
+            {
+                ImGui::EndDisabled();
+                ImGui::PopID();
+                return TypeMismatch(*descriptor);
+            }
+
+            changed =
+                ImGui::DragFloat(
+                    descriptor->name.c_str(),
+                    value,
+                    0.05f);
+            break;
+        }
+
+        case PropertyType::Vector2:
+        {
+            auto* value =
+                std::get_if<Vector2>(&buffer);
+            if (value == nullptr)
+            {
+                ImGui::EndDisabled();
+                ImGui::PopID();
+                return TypeMismatch(*descriptor);
+            }
+
+            float edited[]{
+                value->x,
+                value->y};
+
+            changed =
+                ImGui::DragFloat2(
+                    descriptor->name.c_str(),
+                    edited,
+                    0.1f);
+            if (changed)
+            {
+                *value =
+                    Vector2{
+                        edited[0],
+                        edited[1]};
+            }
+            break;
+        }
+
+        case PropertyType::Color:
+        {
+            auto* value =
+                std::get_if<ColorValue>(&buffer);
+            if (value == nullptr)
+            {
+                ImGui::EndDisabled();
+                ImGui::PopID();
+                return TypeMismatch(*descriptor);
+            }
+
+            float edited[]{
+                value->r,
+                value->g,
+                value->b,
+                value->a};
+
+            changed =
+                ImGui::ColorEdit4(
+                    descriptor->name.c_str(),
+                    edited);
+            if (changed)
+            {
+                *value =
+                    ColorValue{
+                        edited[0],
+                        edited[1],
+                        edited[2],
+                        edited[3]};
+            }
+            break;
+        }
+
+        case PropertyType::Unknown:
+        case PropertyType::String:
+        case PropertyType::AssetReference:
+        default:
+            ImGui::TextDisabled(
+                "%s: <unsupported>",
+                descriptor->name.c_str());
+            break;
+        }
+
+        if (ImGui::IsItemActivated())
+        {
+            m_ActiveProperty = key;
+        }
+
+        commit =
+            ImGui::IsItemDeactivatedAfterEdit();
+
+        if (descriptor->type == PropertyType::Bool
+            && changed
+            && !ImGui::IsItemActive())
+        {
+            commit = true;
+        }
+
+        desired = buffer;
+    }
+
+    ImGui::EndDisabled();
+
+    if (descriptor->editable
+        && commit)
+    {
+        const auto updated =
+            m_Actions.SetProperty(
+                entity,
+                component,
+                descriptor->id,
+                std::move(desired));
+
+        m_ActiveProperty.reset();
+        m_PropertyBuffers.erase(key);
+        m_StringBuffers.erase(key);
+
+        if (!updated)
+        {
+            ImGui::PopID();
+            return updated.GetError();
+        }
+    }
+
+    ImGui::PopID();
+    return std::nullopt;
+}
+
 void InspectorPanel::SyncNameBuffer(
     UUID id,
     const char* name)
 {
-    if (m_NameBufferEntity == id)
+    if (m_NameBufferEntity == id
+        && m_NameEditing)
     {
         return;
     }
@@ -387,19 +565,25 @@ void InspectorPanel::SyncNameBuffer(
 
     if (name != nullptr)
     {
-        const std::string value{name};
-        const std::size_t count =
-            std::min(
-                value.size(),
-                m_NameBuffer.size() - 1);
-
-        std::copy_n(
-            value.data(),
-            count,
-            m_NameBuffer.data());
+        CopyStringToBuffer(
+            name,
+            m_NameBuffer);
     }
 
     m_NameBufferEntity = id;
+}
+
+void InspectorPanel::SyncPropertyBuffers(UUID id)
+{
+    if (m_PropertyBufferEntity == id)
+    {
+        return;
+    }
+
+    m_PropertyBufferEntity = id;
+    m_ActiveProperty.reset();
+    m_PropertyBuffers.clear();
+    m_StringBuffers.clear();
 }
 
 } // namespace Janus::Editor
