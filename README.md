@@ -2,7 +2,7 @@
 
 Janus 是一个面向 Human Developer 与 AI Agent 的 C++20 2D 游戏引擎。项目希望让 Editor、Game 和 Agent 通过同一套 Engine Capability 理解、修改、运行并验证游戏世界。
 
-项目已完成 **v0.1 Engine Foundation**、**v0.2 Renderer2D**、**v0.3 ECS + Scene**、**v0.4 Asset + Serialization** 和 **v0.5 Lua Gameplay Runtime**。当前引擎能够从磁盘加载 AssetRegistry / Scene / Lua Script，通过稳定 UUID / AssetHandle 恢复 World 和 Gameplay，在运行时读取输入、修改 Transform、渲染结果，并对已加载 Lua 文件进行基础热重载。下一里程碑为 **v0.6 Editor Foundation**。
+项目已完成 **v0.1 Engine Foundation**、**v0.2 Renderer2D**、**v0.3 ECS + Scene**、**v0.4 Asset + Serialization**、**v0.5 Lua Gameplay Runtime** 和 **v0.6 Editor Foundation**。当前 Janus 已具备磁盘项目加载、稳定 UUID / AssetHandle、Lua Gameplay、离屏 Scene/Game View、Hierarchy、Inspector、CPU Picking、Asset Browser、Scene Save 与 Edit/Play 世界隔离。下一里程碑为 **v0.7 Reflection + Command**。
 
 ## 环境要求
 
@@ -33,6 +33,40 @@ ctest --preset windows-msvc-debug-tests
 ```
 
 生成内容位于 `out/`。不要提交 `out/`、`.vs/`、二进制或本地 IDE 设置。
+
+## v0.6 Editor 工作流
+
+构建后可以启动 `JanusEditor` 打开 `SandboxProject`。Editor 的核心 authoring loop 为：
+
+```text
+ProjectSession
+    ↓
+EditorScene
+    ├── Hierarchy
+    ├── Inspector
+    ├── Asset Browser
+    └── Scene View + EditorCamera
+            ↓
+        Edit + Save
+            ↓
+           Play
+            ↓
+Clone EditorScene -> RuntimeScene
+            ↓
+     ScriptEngine / Lua
+            ↓
+         Game View
+            ↓
+           Stop
+            ↓
+Discard RuntimeScene
+```
+
+Scene View 始终显示 `EditorScene`，并使用独立 EditorCamera；Game View 在 Edit 状态预览 EditorScene 的主 Camera，进入 Play 后切换到隔离的 `RuntimeScene`。Play 期间作者态修改被 `EditorActions` 拒绝，Stop 后运行时改动不会回写 EditorScene。
+
+Hierarchy 与 Scene View 共用 UUID-backed selection。Inspector 在 v0.6 手工支持 Transform、SpriteRenderer、Camera 和 LuaScript 等内置组件；Asset Browser 从 AssetRegistry 的确定性元数据枚举中选择 Texture / LuaScript 并进行类型安全赋值。所有成功的作者态修改都会标记 Scene dirty，Save 使用现有 atomic SceneSerializer 路径持久化。
+
+v0.6 的 Inspector mutation 被集中在 `EditorActions` seam；这是临时的 authoring capability 边界。v0.7 会把其内部实现替换为 Reflection + CommandBus，从而加入通用属性元数据和 Undo/Redo，而不要求重写 Editor panels。
 
 ## v0.5 磁盘项目与 Lua Gameplay 工作流
 
@@ -83,8 +117,9 @@ Scene 文件只保存 authoring/persistent state，不保存 ECS index/generatio
 ```text
 Janus/
 ├── Engine/          引擎静态库与公共 API
-├── Sandbox/         最小引擎客户端和运行验证程序
-├── SandboxProject/  v0.5 磁盘项目、资源与 Lua Gameplay Fixture
+├── Editor/          JanusEditor、EditorCore 与 authoring panels
+├── Sandbox/         最小运行时客户端和验证程序
+├── SandboxProject/  v0.6 Editor / Lua / Asset workflow fixture
 ├── Tests/           自动测试
 ├── docs/            PRD、技术架构和版本路线图
 └── AGENTS.md        代码 Agent 的仓库级工作规则
