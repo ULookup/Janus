@@ -72,10 +72,14 @@ private:
     std::filesystem::path m_ProjectRoot;
     std::filesystem::path m_CurrentScenePath;
     ReflectionRegistry m_ReflectionRegistry;
-    CommandBus m_CommandBus;
     AssetRegistry m_AssetRegistry;
     std::unique_ptr<AssetService> m_AssetService;
     std::unique_ptr<Scene> m_EditorScene;
+
+    // Commands retain references into the authoring capability graph.
+    // Keep history after those dependencies in declaration order so it
+    // is destroyed before Scene, AssetRegistry, and ReflectionRegistry.
+    CommandBus m_CommandBus;
     std::unique_ptr<RuntimeSession> m_RuntimeSession;
     bool m_Dirty = false;
 };
