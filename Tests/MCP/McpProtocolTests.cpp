@@ -212,12 +212,13 @@ TEST_CASE(
     session.SetRequestHandler(
         [&callCount](
             std::string_view method,
-            const Json&,
+            const Json& params,
             McpProtocolEra era) -> McpDispatchResult
         {
             ++callCount;
             REQUIRE(method == "tools/list");
             REQUIRE(era == McpProtocolEra::Modern2026);
+            REQUIRE_FALSE(params.contains("_meta"));
 
             return Json{
                 {"tools", Json::array()}};
@@ -523,4 +524,55 @@ TEST_CASE(
     REQUIRE(
         session.GetEra()
         == McpProtocolEra::Legacy2025);
+}
+
+
+TEST_CASE(
+    "Modern MCP lifts reserved metadata but preserves application metadata",
+    "[mcp][protocol][v0.8]")
+{
+    using namespace Janus::MCP;
+
+    McpProtocolSession session;
+    bool dispatched = false;
+
+    session.SetRequestHandler(
+        [&dispatched](
+            std::string_view,
+            const Json& params,
+            McpProtocolEra) -> McpDispatchResult
+        {
+            dispatched = true;
+            REQUIRE(params.contains("_meta"));
+            REQUIRE(params.at("_meta").at("trace") == "keep");
+            REQUIRE_FALSE(
+                params.at("_meta").contains(
+                    std::string{McpProtocolVersionMetaKey}));
+            REQUIRE_FALSE(
+                params.at("_meta").contains(
+                    std::string{McpClientInfoMetaKey}));
+            REQUIRE_FALSE(
+                params.at("_meta").contains(
+                    std::string{McpClientCapabilitiesMetaKey}));
+            REQUIRE_FALSE(
+                params.at("_meta").contains(
+                    std::string{McpLogLevelMetaKey}));
+
+            return Json{{"ok", true}};
+        });
+
+    Json params = ModernParams();
+    params["_meta"]["trace"] = "keep";
+    params["_meta"][std::string{McpLogLevelMetaKey}] = "info";
+
+    const Json response = RequireResponse(
+        session,
+        Json{
+            {"jsonrpc", "2.0"},
+            {"id", 20},
+            {"method", "custom/test"},
+            {"params", std::move(params)}});
+
+    REQUIRE(dispatched);
+    REQUIRE(response.at("result").at("ok") == true);
 }
