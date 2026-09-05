@@ -23,6 +23,8 @@ inline constexpr std::string_view McpClientInfoMetaKey =
     "io.modelcontextprotocol/clientInfo";
 inline constexpr std::string_view McpClientCapabilitiesMetaKey =
     "io.modelcontextprotocol/clientCapabilities";
+inline constexpr std::string_view McpLogLevelMetaKey =
+    "io.modelcontextprotocol/logLevel";
 inline constexpr std::string_view McpServerInfoMetaKey =
     "io.modelcontextprotocol/serverInfo";
 
