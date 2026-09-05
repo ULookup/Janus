@@ -164,6 +164,16 @@ const ReflectionRegistry& ProjectSession::GetReflectionRegistry() const noexcept
     return m_ReflectionRegistry;
 }
 
+CommandBus& ProjectSession::GetCommandBus() noexcept
+{
+    return m_CommandBus;
+}
+
+const CommandBus& ProjectSession::GetCommandBus() const noexcept
+{
+    return m_CommandBus;
+}
+
 AssetService& ProjectSession::GetAssetService() noexcept
 {
     return *m_AssetService;
