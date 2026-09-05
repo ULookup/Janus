@@ -186,3 +186,64 @@ TEST_CASE("AssetRegistry rejects malformed and unsupported registry files", "[as
     REQUIRE_FALSE(Janus::AssetRegistry::Load(versionPath));
     REQUIRE_FALSE(Janus::AssetRegistry::Load(duplicatePath));
 }
+
+
+TEST_CASE(
+    "AssetRegistry enumerates metadata deterministically",
+    "[asset][registry][enumeration][v0.6]")
+{
+    Janus::AssetRegistry registry;
+
+    const Janus::AssetHandle zHandle =
+        Janus::AssetHandle::Random();
+    const Janus::AssetHandle aHandle =
+        Janus::AssetHandle::Random();
+    const Janus::AssetHandle mHandle =
+        Janus::AssetHandle::Random();
+
+    REQUIRE(registry.Register(Janus::AssetMetadata{
+        zHandle,
+        Janus::AssetType::Texture,
+        "Assets/z.png"}));
+    REQUIRE(registry.Register(Janus::AssetMetadata{
+        aHandle,
+        Janus::AssetType::LuaScript,
+        "Scripts/a.lua"}));
+    REQUIRE(registry.Register(Janus::AssetMetadata{
+        mHandle,
+        Janus::AssetType::ShaderSource,
+        "Assets/m.glsl"}));
+
+    const auto assets = registry.GetAssets();
+
+    REQUIRE(assets.size() == 3);
+    REQUIRE(
+        assets[0].relativePath
+        == std::filesystem::path("Assets/m.glsl"));
+    REQUIRE(assets[0].handle == mHandle);
+    REQUIRE(assets[0].type == Janus::AssetType::ShaderSource);
+
+    REQUIRE(
+        assets[1].relativePath
+        == std::filesystem::path("Assets/z.png"));
+    REQUIRE(assets[1].handle == zHandle);
+    REQUIRE(assets[1].type == Janus::AssetType::Texture);
+
+    REQUIRE(
+        assets[2].relativePath
+        == std::filesystem::path("Scripts/a.lua"));
+    REQUIRE(assets[2].handle == aHandle);
+    REQUIRE(assets[2].type == Janus::AssetType::LuaScript);
+
+    const auto again = registry.GetAssets();
+    REQUIRE(again.size() == assets.size());
+
+    for (Janus::usize index = 0; index < assets.size(); ++index)
+    {
+        REQUIRE(again[index].handle == assets[index].handle);
+        REQUIRE(again[index].type == assets[index].type);
+        REQUIRE(
+            again[index].relativePath
+            == assets[index].relativePath);
+    }
+}
