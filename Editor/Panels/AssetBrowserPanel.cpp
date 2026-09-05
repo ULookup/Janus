@@ -25,7 +25,12 @@ AssetBrowserPanel::AssetBrowserPanel(
 
 std::optional<Error> AssetBrowserPanel::Draw()
 {
-    const bool visible = ImGui::Begin("Asset Browser");
+    const bool visible = ImGui::Begin(
+        "Asset Browser",
+        nullptr,
+        ImGuiWindowFlags_NoMove
+            | ImGuiWindowFlags_NoResize
+            | ImGuiWindowFlags_NoCollapse);
 
     if (!visible)
     {
