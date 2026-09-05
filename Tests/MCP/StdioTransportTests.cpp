@@ -195,7 +195,7 @@ TEST_CASE(
             .at("result")
             .at("supportedVersions")
             .at(0)
-        == McpModernProtocolVersion);
+        == std::string{McpModernProtocolVersion});
 
     for (const Json& message : messages)
     {
@@ -214,20 +214,21 @@ TEST_CASE(
     const std::string valid =
         ModernDiscoverRequest(9).dump();
 
-    std::istringstream input(
-        std::string(64, 'x')
-        + "\n"
-        + valid
-        + "\n");
     std::ostringstream output;
 
     McpServerConfig config;
-    config.limits.maxMessageBytes = 48;
+    config.limits.maxMessageBytes = 1024;
+
+    std::istringstream boundedInput(
+        std::string(2048, 'x')
+        + "\n"
+        + valid
+        + "\n");
 
     McpProtocolSession session(
         config);
     StdioTransport transport(
-        input,
+        boundedInput,
         output,
         config.limits.maxMessageBytes);
 
