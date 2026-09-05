@@ -7,6 +7,7 @@
 #include "Renderer/Renderer2D.h"
 #include "Scene/Components.h"
 #include "Scene/Scene.h"
+#include "Scene/SceneReflection.h"
 
 #include "../Renderer/FakeRenderDevice.h"
 
@@ -16,6 +17,7 @@
 #include <chrono>
 #include <filesystem>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <utility>
 
