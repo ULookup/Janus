@@ -13,6 +13,8 @@ target_sources(
         Registry/ToolRegistry.cpp
         Registry/ResourceRegistry.cpp
         Registry/McpCapabilityRouter.cpp
+        Resources/SceneResources.cpp
+        Schema/ReflectionJsonCodec.cpp
         Schema/ReflectionSchemaAdapter.cpp
         Transport/StdioTransport.cpp
 
@@ -23,7 +25,9 @@ target_sources(
         Registry/ToolRegistry.h
         Registry/ResourceRegistry.h
         Registry/McpCapabilityRouter.h
+        Resources/SceneResources.h
         Schema/JsonSchema.h
+        Schema/ReflectionJsonCodec.h
         Schema/ReflectionSchemaAdapter.h
         Transport/StdioTransport.h
 )
