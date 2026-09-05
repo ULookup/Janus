@@ -198,7 +198,7 @@ TEST_CASE(
 
     auto hostResult =
         Janus::Editor::McpEditorHost::Create(
-            *project,
+            project,
             input,
             output,
             policy);
@@ -272,7 +272,7 @@ TEST_CASE(
 
     auto hostResult =
         Janus::Editor::McpEditorHost::Create(
-            *project,
+            project,
             input,
             output,
             policy);
@@ -344,7 +344,7 @@ TEST_CASE(
 
     auto hostResult =
         Janus::Editor::McpEditorHost::Create(
-            *project,
+            project,
             input,
             output,
             policy);
@@ -435,7 +435,7 @@ TEST_CASE(
 
     auto hostResult =
         Janus::Editor::McpEditorHost::Create(
-            *project,
+            project,
             input,
             output,
             policy);
@@ -506,7 +506,7 @@ TEST_CASE(
 
     auto hostResult =
         Janus::Editor::McpEditorHost::Create(
-            *project,
+            project,
             input,
             output,
             policy,
@@ -559,7 +559,7 @@ TEST_CASE(
 
     auto hostResult =
         Janus::Editor::McpEditorHost::Create(
-            *project,
+            project,
             input,
             output,
             policy);
