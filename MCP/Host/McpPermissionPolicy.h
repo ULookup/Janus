@@ -9,6 +9,8 @@
 namespace Janus::MCP
 {
 
+inline constexpr i32 McpPermissionDenied = -32003;
+
 enum class McpOperation
 {
     ProjectRead,
