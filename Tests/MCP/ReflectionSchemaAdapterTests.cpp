@@ -4,6 +4,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
