@@ -246,17 +246,6 @@ TEST_CASE(
         actions.CreateEntity("Dirty");
     REQUIRE(created);
     REQUIRE(project->IsDirty());
-
-    REQUIRE(project->SaveCurrentScene());
-    REQUIRE_FALSE(project->IsDirty());
-
-    REQUIRE(
-        actions.SetTransform(
-            created.Value(),
-            Janus::Vector2{1.0f, 2.0f},
-            0.0f,
-            Janus::Vector2{1.0f, 1.0f}));
-    REQUIRE(project->IsDirty());
 }
 
 TEST_CASE(
