@@ -10,12 +10,21 @@ target_sources(
 
         Protocol/JsonRpc.cpp
         Protocol/McpProtocol.cpp
+        Registry/ToolRegistry.cpp
+        Registry/ResourceRegistry.cpp
+        Registry/McpCapabilityRouter.cpp
+        Schema/ReflectionSchemaAdapter.cpp
         Transport/StdioTransport.cpp
 
     PUBLIC
 
         Protocol/JsonRpc.h
         Protocol/McpProtocol.h
+        Registry/ToolRegistry.h
+        Registry/ResourceRegistry.h
+        Registry/McpCapabilityRouter.h
+        Schema/JsonSchema.h
+        Schema/ReflectionSchemaAdapter.h
         Transport/StdioTransport.h
 )
 
