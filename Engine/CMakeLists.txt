@@ -83,6 +83,7 @@ target_sources(
         Core/Error/Result.h
 
         Core/Log/Log.h
+        Core/Log/LogOutput.h
 
         Core/FileSystem/FileSystem.h
         Core/UUID/UUID.h
