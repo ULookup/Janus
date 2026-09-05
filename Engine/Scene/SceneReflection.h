@@ -80,6 +80,8 @@ enum class PropertyMutationState
 
 [[nodiscard]] Result<void> RegisterBuiltinSceneReflection(
     ReflectionRegistry& registry);
+[[nodiscard]] Result<ReflectionRegistry>
+CreateBuiltinSceneReflectionRegistry();
 
 class SceneReflection final
 {
