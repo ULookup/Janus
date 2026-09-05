@@ -8,6 +8,8 @@ target_sources(
 
     PRIVATE
 
+        Host/McpMainThreadDispatcher.cpp
+        Host/McpPermissionPolicy.cpp
         Protocol/JsonRpc.cpp
         Protocol/McpProtocol.cpp
         Registry/ToolRegistry.cpp
@@ -21,6 +23,8 @@ target_sources(
 
     PUBLIC
 
+        Host/McpMainThreadDispatcher.h
+        Host/McpPermissionPolicy.h
         Protocol/JsonRpc.h
         Protocol/McpProtocol.h
         Registry/ToolRegistry.h
