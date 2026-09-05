@@ -212,8 +212,16 @@ TEST_CASE(
             RequireProperty(
                 registry,
                 "texture"));
-    REQUIRE(asset.at("type") == "string");
-    REQUIRE(asset.at("format") == "uuid");
+    REQUIRE(asset.at("oneOf").size() == 2);
+    REQUIRE(
+        asset.at("oneOf").at(0).at("type")
+        == "string");
+    REQUIRE(
+        asset.at("oneOf").at(0).at("format")
+        == "uuid");
+    REQUIRE(
+        asset.at("oneOf").at(1).at("type")
+        == "null");
     REQUIRE(
         asset.at("x-janus-asset-type")
         == "texture");
@@ -362,8 +370,16 @@ TEST_CASE(
             foundTexture = true;
             REQUIRE(
                 properties.at("value")
+                    .at("oneOf")
+                    .at(0)
                     .at("format")
                 == "uuid");
+            REQUIRE(
+                properties.at("value")
+                    .at("oneOf")
+                    .at(1)
+                    .at("type")
+                == "null");
             REQUIRE(
                 properties.at("value")
                     .at("x-janus-asset-type")
