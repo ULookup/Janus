@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Core/Log/LogOutput.h"
 #include "Core/Time/TimeStep.h"
 #include "Platform/Window/WindowConfig.h"
 
@@ -28,6 +29,8 @@ struct ApplicationConfig
     TimeStep maximumFrameTime = TimeStep::FromMilliseconds(250.0);
     ApplicationExecutionMode executionMode =
         ApplicationExecutionMode::ManagedRuntime;
+    LogOutput logOutput =
+        LogOutput::StandardOutput;
     std::optional<ProjectRuntimeConfig> project;
 };
 
