@@ -492,15 +492,13 @@ Result<Json> BuildSceneHierarchy(
             return left.uuid < right.uuid;
         });
 
-    Json roots =
-        Json::array();
-    usize rootOrder = 0;
+    std::vector<std::string> rootUuids;
 
     for (const EntityRecord& record : records)
     {
         if (record.root)
         {
-            roots.push_back(
+            rootUuids.push_back(
                 record.uuid);
         }
     }
@@ -516,11 +514,11 @@ Result<Json> BuildSceneHierarchy(
         {
             const auto rootIt =
                 std::find(
-                    roots.begin(),
-                    roots.end(),
+                    rootUuids.begin(),
+                    rootUuids.end(),
                     record.uuid);
 
-            if (rootIt == roots.end())
+            if (rootIt == rootUuids.end())
             {
                 return Result<Json>::Failure(
                     ErrorCode::InvalidState,
@@ -530,7 +528,7 @@ Result<Json> BuildSceneHierarchy(
             order =
                 static_cast<usize>(
                     std::distance(
-                        roots.begin(),
+                        rootUuids.begin(),
                         rootIt));
         }
 
@@ -548,17 +546,11 @@ Result<Json> BuildSceneHierarchy(
         entities.push_back(
             std::move(structure).Value());
 
-        if (record.root)
-        {
-            ++rootOrder;
-        }
     }
-
-    (void)rootOrder;
 
     return Result<Json>::Success(
         Json{
-            {"roots", std::move(roots)},
+            {"roots", rootUuids},
             {"entities", std::move(entities)}});
 }
 
