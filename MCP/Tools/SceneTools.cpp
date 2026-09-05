@@ -11,6 +11,7 @@
 #include "Scene/Scene.h"
 #include "Scene/SceneReflection.h"
 
+#include <algorithm>
 #include <initializer_list>
 #include <memory>
 #include <string>
@@ -256,20 +257,49 @@ Json BasicOutputSchema(
     Json required)
 {
     properties["ok"] =
-        Json{{"type", "boolean"}};
-
+        Json{{"const", true}};
     required.push_back("ok");
 
-    return Json{
-        {"$schema",
-         std::string{
-             McpJsonSchema202012}},
+    Json success = {
         {"type", "object"},
         {"properties",
          std::move(properties)},
         {"required",
          std::move(required)},
         {"additionalProperties", false}};
+
+    Json failure = {
+        {"type", "object"},
+        {"properties",
+         Json{
+             {"ok",
+              Json{{"const", false}}},
+             {"error",
+              Json{
+                  {"type", "object"},
+                  {"properties",
+                   Json{
+                       {"code",
+                        Json{{"type", "integer"}}},
+                       {"message",
+                        Json{{"type", "string"}}}}},
+                  {"required",
+                   Json::array(
+                       {"code", "message"})},
+                  {"additionalProperties", false}}}}},
+        {"required",
+         Json::array(
+             {"ok", "error"})},
+        {"additionalProperties", false}};
+
+    return Json{
+        {"$schema",
+         std::string{
+             McpJsonSchema202012}},
+        {"oneOf",
+         Json::array(
+             {std::move(success),
+              std::move(failure)})}};
 }
 
 Json SetPropertyInputSchema(
