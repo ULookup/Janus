@@ -67,6 +67,8 @@ if(JANUS_BUILD_EDITOR)
 
         Main.cpp
         EditorApplication.cpp
+        Panels/HierarchyPanel.cpp
+        Panels/InspectorPanel.cpp
     )
 
     target_link_libraries(
