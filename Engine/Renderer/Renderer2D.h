@@ -18,6 +18,14 @@ namespace Detail
 struct Renderer2DTestAccess;
 }
 
+struct RenderFrameDesc
+{
+    OrthographicCamera camera;
+    Viewport viewport;
+    RenderTargetHandle target;
+    Color clearColor = Color::White();
+};
+
 class Renderer2D
 {
 public:
@@ -30,6 +38,7 @@ public:
 
     void SetViewport(Viewport viewport);
     void BeginFrame(const OrthographicCamera& camera);
+    [[nodiscard]] Result<void> BeginFrame(const RenderFrameDesc& desc);
     void SubmitSprite(const Sprite& sprite);
 
     [[nodiscard]] Result<void> EndFrame();
@@ -40,6 +49,20 @@ public:
         const TextureDesc& desc);
 
     void DestroyTexture(TextureHandle handle);
+
+    [[nodiscard]] Result<RenderTargetHandle> CreateRenderTarget(
+        const RenderTargetDesc& desc);
+    [[nodiscard]] Result<void> ResizeRenderTarget(
+        RenderTargetHandle handle,
+        u32 width,
+        u32 height);
+    [[nodiscard]] Result<void> DestroyRenderTarget(
+        RenderTargetHandle handle);
+    [[nodiscard]] Result<TextureHandle> GetRenderTargetColorTexture(
+        RenderTargetHandle handle) const;
+    [[nodiscard]] Result<TexturePresentationHandle>
+        GetRenderTargetPresentationHandle(
+            RenderTargetHandle handle) const;
 
 private:
     explicit Renderer2D(std::unique_ptr<RenderDevice> device);
