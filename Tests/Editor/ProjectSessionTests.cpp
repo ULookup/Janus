@@ -97,6 +97,7 @@ TEST_CASE(
         session->GetCurrentScenePath()
         == std::filesystem::path("Scenes/Battle.scene"));
     REQUIRE(session->GetAssetRegistry().Size() == 2);
+    REQUIRE(session->GetReflectionRegistry().GetComponentCount() == 4);
     REQUIRE(session->GetEditorScene().GetMetadata().name == "Battle");
     REQUIRE(session->GetEditorScene().GetEntities().size() == 4);
 }
@@ -174,7 +175,8 @@ TEST_CASE(
 
     auto loaded =
         Janus::SceneDeserializer::Load(
-            temp.Path() / "Scenes/Battle.scene");
+            temp.Path() / "Scenes/Battle.scene",
+            session->GetReflectionRegistry());
     REQUIRE(loaded);
     REQUIRE(
         loaded.Value()->GetMetadata().name

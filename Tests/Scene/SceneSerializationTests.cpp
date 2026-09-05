@@ -1,6 +1,7 @@
 #include "Scene/SceneDeserializer.h"
 #include "Scene/SceneSerializer.h"
 #include "Scene/Scene.h"
+#include "Scene/SceneReflection.h"
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -16,6 +17,16 @@ namespace
 Janus::UUID ParseUUID(const char* text)
 {
     return Janus::UUID::Parse(text).Value();
+}
+
+Janus::ReflectionRegistry MakeReflectionRegistry()
+{
+    auto result = Janus::CreateBuiltinSceneReflectionRegistry();
+    if (!result)
+    {
+        throw std::runtime_error(result.GetError().message);
+    }
+    return std::move(result).Value();
 }
 
 class SceneTempDirectory final
@@ -56,6 +67,7 @@ private:
 TEST_CASE("Scene serialization round trips persistent authoring state",
           "[scene][serialization]")
 {
+    auto reflection = MakeReflectionRegistry();
     const Janus::UUID sceneId =
         ParseUUID("10000000-0000-4000-8000-000000000001");
     const Janus::UUID rootId =
@@ -99,11 +111,12 @@ TEST_CASE("Scene serialization round trips persistent authoring state",
                 Janus::Vector2{0.8f, 0.9f}},
             false});
 
-    auto serialized = Janus::SceneSerializer::Serialize(scene);
+    auto serialized = Janus::SceneSerializer::Serialize(scene, reflection);
     REQUIRE(serialized);
 
     const std::string& text = serialized.Value();
     REQUIRE(text.find("\"schema\": \"janus.scene\"") != std::string::npos);
+    REQUIRE(text.find("\"version\": 1") != std::string::npos);
     REQUIRE(text.find("worldPosition") == std::string::npos);
     REQUIRE(text.find("worldScale") == std::string::npos);
     REQUIRE(text.find("dirty") == std::string::npos);
@@ -111,7 +124,7 @@ TEST_CASE("Scene serialization round trips persistent authoring state",
     REQUIRE(text.find("generation") == std::string::npos);
     REQUIRE(text.find("\"index\"") == std::string::npos);
 
-    auto loadedResult = Janus::SceneDeserializer::Deserialize(text);
+    auto loadedResult = Janus::SceneDeserializer::Deserialize(text, reflection);
     REQUIRE(loadedResult);
     auto loaded = std::move(loadedResult).Value();
 
@@ -162,7 +175,7 @@ TEST_CASE("Scene serialization round trips persistent authoring state",
     REQUIRE(loaded->GetComponent<Janus::HierarchyComponent>(loadedGrandchild)->parent
             == loadedChild);
 
-    auto second = Janus::SceneSerializer::Serialize(*loaded);
+    auto second = Janus::SceneSerializer::Serialize(*loaded, reflection);
     REQUIRE(second);
     REQUIRE(second.Value() == text);
 }
@@ -170,14 +183,15 @@ TEST_CASE("Scene serialization round trips persistent authoring state",
 TEST_CASE("Scene serializer round trips an empty Scene and file IO",
           "[scene][serialization]")
 {
+    auto reflection = MakeReflectionRegistry();
     Janus::Scene scene(Janus::SceneMetadata{
         ParseUUID("11000000-0000-4000-8000-000000000001"),
         "Empty"});
     SceneTempDirectory temp;
     const auto path = temp.Path() / "Empty.scene";
 
-    REQUIRE(Janus::SceneSerializer::Save(scene, path));
-    auto loaded = Janus::SceneDeserializer::Load(path);
+    REQUIRE(Janus::SceneSerializer::Save(scene, reflection, path));
+    auto loaded = Janus::SceneDeserializer::Load(path, reflection);
     REQUIRE(loaded);
     REQUIRE(loaded.Value()->GetMetadata().name == "Empty");
     REQUIRE(loaded.Value()->GetEntities().empty());
@@ -186,6 +200,7 @@ TEST_CASE("Scene serializer round trips an empty Scene and file IO",
 TEST_CASE("Scene deserializer resolves a parent declared after its child",
           "[scene][serialization]")
 {
+    auto reflection = MakeReflectionRegistry();
     const std::string text = R"json({
   "schema": "janus.scene",
   "version": 1,
@@ -223,7 +238,7 @@ TEST_CASE("Scene deserializer resolves a parent declared after its child",
   ]
 })json";
 
-    auto loaded = Janus::SceneDeserializer::Deserialize(text);
+    auto loaded = Janus::SceneDeserializer::Deserialize(text, reflection);
     REQUIRE(loaded);
 
     const auto parent = loaded.Value()->FindEntity(
@@ -237,6 +252,7 @@ TEST_CASE("Scene deserializer resolves a parent declared after its child",
 TEST_CASE("Scene deserializer rejects duplicate and missing hierarchy identities",
           "[scene][serialization]")
 {
+    auto reflection = MakeReflectionRegistry();
     SECTION("duplicate entity UUID")
     {
         const std::string text = R"json({
@@ -247,7 +263,7 @@ TEST_CASE("Scene deserializer rejects duplicate and missing hierarchy identities
             {"id":"23000000-0000-4000-8000-000000000001","name":"B","parent":null,"components":{"Transform":{"position":[0,0],"rotation":0,"scale":[1,1]}}}
           ]
         })json";
-        REQUIRE_FALSE(Janus::SceneDeserializer::Deserialize(text));
+        REQUIRE_FALSE(Janus::SceneDeserializer::Deserialize(text, reflection));
     }
 
     SECTION("missing parent UUID")
@@ -259,7 +275,7 @@ TEST_CASE("Scene deserializer rejects duplicate and missing hierarchy identities
             {"id":"23000000-0000-4000-8000-000000000002","name":"Child","parent":"23000000-0000-4000-8000-000000000099","components":{"Transform":{"position":[0,0],"rotation":0,"scale":[1,1]}}}
           ]
         })json";
-        const auto loaded = Janus::SceneDeserializer::Deserialize(text);
+        const auto loaded = Janus::SceneDeserializer::Deserialize(text, reflection);
         REQUIRE_FALSE(loaded);
         REQUIRE(loaded.GetError().code == Janus::ErrorCode::EntityNotFound);
     }
@@ -268,6 +284,7 @@ TEST_CASE("Scene deserializer rejects duplicate and missing hierarchy identities
 TEST_CASE("Scene deserializer rejects invalid persistent references and schema",
           "[scene][serialization]")
 {
+    auto reflection = MakeReflectionRegistry();
     SECTION("invalid entity UUID")
     {
         const std::string text = R"json({
@@ -275,7 +292,7 @@ TEST_CASE("Scene deserializer rejects invalid persistent references and schema",
           "scene":{"id":"14000000-0000-4000-8000-000000000001","name":"Bad"},
           "entities":[{"id":"not-a-uuid","name":"Entity","parent":null,"components":{"Transform":{"position":[0,0],"rotation":0,"scale":[1,1]}}}]
         })json";
-        REQUIRE_FALSE(Janus::SceneDeserializer::Deserialize(text));
+        REQUIRE_FALSE(Janus::SceneDeserializer::Deserialize(text, reflection));
     }
 
     SECTION("invalid AssetHandle")
@@ -288,7 +305,7 @@ TEST_CASE("Scene deserializer rejects invalid persistent references and schema",
             "SpriteRenderer":{"texture":"bad-handle","size":[1,1],"color":[1,1,1,1],"layer":0,"uvMin":[0,0],"uvMax":[1,1],"enabled":true}
           }}]
         })json";
-        REQUIRE_FALSE(Janus::SceneDeserializer::Deserialize(text));
+        REQUIRE_FALSE(Janus::SceneDeserializer::Deserialize(text, reflection));
     }
 
     SECTION("unsupported version")
@@ -298,7 +315,7 @@ TEST_CASE("Scene deserializer rejects invalid persistent references and schema",
           "scene":{"id":"14000000-0000-4000-8000-000000000003","name":"Future"},
           "entities":[]
         })json";
-        REQUIRE_FALSE(Janus::SceneDeserializer::Deserialize(text));
+        REQUIRE_FALSE(Janus::SceneDeserializer::Deserialize(text, reflection));
     }
 
     SECTION("unsupported schema")
@@ -308,11 +325,121 @@ TEST_CASE("Scene deserializer rejects invalid persistent references and schema",
           "scene":{"id":"14000000-0000-4000-8000-000000000004","name":"Other"},
           "entities":[]
         })json";
-        REQUIRE_FALSE(Janus::SceneDeserializer::Deserialize(text));
+        REQUIRE_FALSE(Janus::SceneDeserializer::Deserialize(text, reflection));
     }
 
     SECTION("malformed JSON")
     {
-        REQUIRE_FALSE(Janus::SceneDeserializer::Deserialize("{broken"));
+        REQUIRE_FALSE(Janus::SceneDeserializer::Deserialize("{broken", reflection));
+    }
+}
+
+
+TEST_CASE("Scene v1 reflected component schema remains strict",
+          "[scene][serialization][reflection][v0.7]")
+{
+    auto reflection = MakeReflectionRegistry();
+
+    SECTION("unknown component is rejected")
+    {
+        const std::string text = R"json({
+          "schema":"janus.scene","version":1,
+          "scene":{"id":"15000000-0000-4000-8000-000000000001","name":"Strict"},
+          "entities":[{
+            "id":"25000000-0000-4000-8000-000000000001",
+            "name":"Entity","parent":null,
+            "components":{
+              "Transform":{"position":[0,0],"rotation":0,"scale":[1,1]},
+              "FutureComponent":{"value":1}
+            }
+          }]
+        })json";
+
+        const auto loaded =
+            Janus::SceneDeserializer::Deserialize(
+                text,
+                reflection);
+        REQUIRE_FALSE(loaded);
+        REQUIRE(
+            loaded.GetError().code
+            == Janus::ErrorCode::InvalidArgument);
+    }
+
+    SECTION("unknown reflected property is rejected")
+    {
+        const std::string text = R"json({
+          "schema":"janus.scene","version":1,
+          "scene":{"id":"15000000-0000-4000-8000-000000000002","name":"Strict"},
+          "entities":[{
+            "id":"25000000-0000-4000-8000-000000000002",
+            "name":"Entity","parent":null,
+            "components":{
+              "Transform":{
+                "position":[0,0],
+                "rotation":0,
+                "scale":[1,1],
+                "futureValue":42
+              }
+            }
+          }]
+        })json";
+
+        const auto loaded =
+            Janus::SceneDeserializer::Deserialize(
+                text,
+                reflection);
+        REQUIRE_FALSE(loaded);
+        REQUIRE(
+            loaded.GetError().code
+            == Janus::ErrorCode::InvalidArgument);
+    }
+
+    SECTION("missing reflected property is rejected")
+    {
+        const std::string text = R"json({
+          "schema":"janus.scene","version":1,
+          "scene":{"id":"15000000-0000-4000-8000-000000000003","name":"Strict"},
+          "entities":[{
+            "id":"25000000-0000-4000-8000-000000000003",
+            "name":"Entity","parent":null,
+            "components":{
+              "Transform":{"position":[0,0],"rotation":0}
+            }
+          }]
+        })json";
+
+        const auto loaded =
+            Janus::SceneDeserializer::Deserialize(
+                text,
+                reflection);
+        REQUIRE_FALSE(loaded);
+        REQUIRE(
+            loaded.GetError().code
+            == Janus::ErrorCode::InvalidArgument);
+    }
+
+    SECTION("component validator rejects invalid restored state")
+    {
+        const std::string text = R"json({
+          "schema":"janus.scene","version":1,
+          "scene":{"id":"15000000-0000-4000-8000-000000000004","name":"Strict"},
+          "entities":[{
+            "id":"25000000-0000-4000-8000-000000000004",
+            "name":"Camera","parent":null,
+            "components":{
+              "Transform":{"position":[0,0],"rotation":0,"scale":[1,1]},
+              "Camera":{"zoom":0,"primary":true}
+            }
+          }]
+        })json";
+
+        const auto loaded =
+            Janus::SceneDeserializer::Deserialize(
+                text,
+                reflection);
+        REQUIRE_FALSE(loaded);
+        REQUIRE(
+            loaded.GetError().code
+            == Janus::ErrorCode::InvalidArgument);
     }
 }

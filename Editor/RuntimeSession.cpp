@@ -14,10 +14,13 @@ namespace Janus::Editor
 
 Result<std::unique_ptr<RuntimeSession>> RuntimeSession::Start(
     const Scene& editorScene,
+    const ReflectionRegistry& reflection,
     AssetService& assets,
     const InputState& input)
 {
-    auto clonedScene = SceneCloner::Clone(editorScene);
+    auto clonedScene = SceneCloner::Clone(
+        editorScene,
+        reflection);
     if (!clonedScene)
     {
         return Result<std::unique_ptr<RuntimeSession>>::Failure(

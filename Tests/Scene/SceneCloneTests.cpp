@@ -3,16 +3,32 @@
 #include "Scene/Hierarchy.h"
 #include "Scene/Scene.h"
 #include "Scene/SceneCloner.h"
+#include "Scene/SceneReflection.h"
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <stdexcept>
 #include <utility>
+
+namespace
+{
+Janus::ReflectionRegistry MakeReflectionRegistry()
+{
+    auto result = Janus::CreateBuiltinSceneReflectionRegistry();
+    if (!result)
+    {
+        throw std::runtime_error(result.GetError().message);
+    }
+    return std::move(result).Value();
+}
+} // namespace
 
 TEST_CASE(
     "SceneCloner creates an independent authoring-state clone",
     "[scene][clone][v0.6]")
 {
+    auto reflection = MakeReflectionRegistry();
     Janus::Scene source;
     source.SetName("Authoring");
 
@@ -59,7 +75,7 @@ TEST_CASE(
     const Janus::UUID childId =
         source.GetComponent<Janus::EntityIdentityComponent>(child)->id;
 
-    auto clonedResult = Janus::SceneCloner::Clone(source);
+    auto clonedResult = Janus::SceneCloner::Clone(source, reflection);
     REQUIRE(clonedResult);
 
     auto cloned = std::move(clonedResult).Value();
@@ -125,6 +141,7 @@ TEST_CASE(
     "SceneCloner returns an explicit failure for unserializable authoring state",
     "[scene][clone][v0.6][errors]")
 {
+    auto reflection = MakeReflectionRegistry();
     Janus::Scene source;
     const auto entity = source.CreateEntity("BrokenScript");
 
@@ -134,7 +151,7 @@ TEST_CASE(
             Janus::AssetHandle{},
             true}) != nullptr);
 
-    const auto cloned = Janus::SceneCloner::Clone(source);
+    const auto cloned = Janus::SceneCloner::Clone(source, reflection);
 
     REQUIRE_FALSE(cloned);
     REQUIRE(cloned.GetError().code == Janus::ErrorCode::InvalidState);

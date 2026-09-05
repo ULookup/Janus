@@ -1,11 +1,14 @@
 #include "Scene/SceneSerializer.h"
 
 #include "Core/FileSystem/FileSystem.h"
+#include "Core/Reflection/ReflectionRegistry.h"
 #include "Scene/Components.h"
-#include "Scene/Hierarchy.h"
 #include "Scene/Scene.h"
+#include "Scene/SceneReflection.h"
 
 #include <nlohmann/json.hpp>
+
+#include <string>
 
 namespace Janus
 {
@@ -14,14 +17,63 @@ namespace
 
 using Json = nlohmann::json;
 
-Json Vector2Json(Vector2 value)
+Result<Json> PropertyValueJson(
+    const PropertyValue& value)
 {
-    return Json::array({value.x, value.y});
-}
+    switch (GetPropertyType(value))
+    {
+    case PropertyType::Bool:
+        return Result<Json>::Success(
+            Json(std::get<bool>(value)));
 
-Json ColorJson(Color value)
-{
-    return Json::array({value.r, value.g, value.b, value.a});
+    case PropertyType::Int32:
+        return Result<Json>::Success(
+            Json(std::get<i32>(value)));
+
+    case PropertyType::Float32:
+        return Result<Json>::Success(
+            Json(std::get<f32>(value)));
+
+    case PropertyType::String:
+        return Result<Json>::Success(
+            Json(std::get<std::string>(value)));
+
+    case PropertyType::Vector2:
+    {
+        const Vector2 vector = std::get<Vector2>(value);
+        return Result<Json>::Success(
+            Json::array({vector.x, vector.y}));
+    }
+
+    case PropertyType::Color:
+    {
+        const ColorValue color =
+            std::get<ColorValue>(value);
+        return Result<Json>::Success(
+            Json::array(
+                {color.r, color.g, color.b, color.a}));
+    }
+
+    case PropertyType::AssetReference:
+    {
+        const AssetReferenceValue reference =
+            std::get<AssetReferenceValue>(value);
+
+        if (!reference.id.IsValid())
+        {
+            return Result<Json>::Success(Json(nullptr));
+        }
+
+        return Result<Json>::Success(
+            Json(reference.id.ToString()));
+    }
+
+    case PropertyType::Unknown:
+    default:
+        return Result<Json>::Failure(
+            ErrorCode::InvalidState,
+            "Cannot serialize an unknown reflected PropertyValue type.");
+    }
 }
 
 usize SiblingOrder(
@@ -35,7 +87,8 @@ usize SiblingOrder(
     }
 
     const auto* parentHierarchy =
-        scene.GetComponent<HierarchyComponent>(hierarchy.parent);
+        scene.GetComponent<HierarchyComponent>(
+            hierarchy.parent);
     if (parentHierarchy == nullptr)
     {
         return 0;
@@ -66,7 +119,9 @@ usize SiblingOrder(
 
 } // namespace
 
-Result<std::string> SceneSerializer::Serialize(const Scene& scene)
+Result<std::string> SceneSerializer::Serialize(
+    const Scene& scene,
+    const ReflectionRegistry& reflectionRegistry)
 {
     const SceneMetadata& metadata = scene.GetMetadata();
     if (!metadata.id.IsValid())
@@ -75,6 +130,8 @@ Result<std::string> SceneSerializer::Serialize(const Scene& scene)
             ErrorCode::InvalidState,
             "Cannot serialize a Scene with a nil UUID.");
     }
+
+    SceneReflection reflection(reflectionRegistry);
 
     Json root;
     root["schema"] = "janus.scene";
@@ -87,105 +144,149 @@ Result<std::string> SceneSerializer::Serialize(const Scene& scene)
     for (const ECS::Entity entity : scene.GetEntities())
     {
         const auto* identity =
-            scene.GetComponent<EntityIdentityComponent>(entity);
+            scene.GetComponent<EntityIdentityComponent>(
+                entity);
         const auto* hierarchy =
-            scene.GetComponent<HierarchyComponent>(entity);
-        const auto* transform =
-            scene.GetComponent<TransformComponent>(entity);
+            scene.GetComponent<HierarchyComponent>(
+                entity);
 
-        if (identity == nullptr || hierarchy == nullptr || transform == nullptr)
+        if (identity == nullptr || hierarchy == nullptr)
         {
             return Result<std::string>::Failure(
                 ErrorCode::InvalidState,
-                "Scene entity is missing required persistent components.");
+                "Scene entity is missing required persistent structural components.");
         }
 
         Json entityJson;
         entityJson["id"] = identity->id.ToString();
         entityJson["name"] = identity->name;
         entityJson["parent"] = nullptr;
-        entityJson["siblingOrder"] = SiblingOrder(scene, entity, *hierarchy);
+        entityJson["siblingOrder"] =
+            SiblingOrder(scene, entity, *hierarchy);
 
         if (hierarchy->parent.IsValid())
         {
             const auto* parentIdentity =
-                scene.GetComponent<EntityIdentityComponent>(hierarchy->parent);
+                scene.GetComponent<EntityIdentityComponent>(
+                    hierarchy->parent);
             if (parentIdentity == nullptr)
             {
                 return Result<std::string>::Failure(
                     ErrorCode::InvalidState,
                     "Scene hierarchy references an entity without persistent identity.");
             }
-            entityJson["parent"] = parentIdentity->id.ToString();
+
+            entityJson["parent"] =
+                parentIdentity->id.ToString();
         }
 
-        Json components;
-        components["Transform"] = Json{
-            {"position", Vector2Json(transform->position)},
-            {"rotation", transform->rotationRadians},
-            {"scale", Vector2Json(transform->scale)}};
+        Json components = Json::object();
 
-        if (const auto* sprite =
-                scene.GetComponent<SpriteRendererComponent>(entity);
-            sprite != nullptr)
+        for (const ComponentDescriptor* component :
+             reflectionRegistry.GetComponents())
         {
-            Json spriteJson{
-                {"size", Vector2Json(sprite->size)},
-                {"color", ColorJson(sprite->color)},
-                {"layer", sprite->layer},
-                {"uvMin", Vector2Json(sprite->uv.min)},
-                {"uvMax", Vector2Json(sprite->uv.max)},
-                {"enabled", sprite->enabled}};
-
-            spriteJson["texture"] = sprite->texture.IsValid()
-                ? Json(sprite->texture.ToString())
-                : Json(nullptr);
-            components["SpriteRenderer"] = std::move(spriteJson);
-        }
-
-        if (const auto* camera = scene.GetComponent<CameraComponent>(entity);
-            camera != nullptr)
-        {
-            components["Camera"] = Json{
-                {"zoom", camera->zoom},
-                {"primary", camera->primary}};
-        }
-
-        if (const auto* script = scene.GetComponent<LuaScriptComponent>(entity);
-            script != nullptr)
-        {
-            if (script->enabled && !script->script.IsValid())
+            if (component == nullptr
+                || !component->serializable)
             {
-                return Result<std::string>::Failure(
-                    ErrorCode::InvalidState,
-                    "Enabled LuaScript component requires a valid Script AssetHandle.");
+                continue;
             }
 
-            Json scriptJson{{"enabled", script->enabled}};
-            scriptJson["script"] = script->script.IsValid()
-                ? Json(script->script.ToString())
-                : Json(nullptr);
-            components["LuaScript"] = std::move(scriptJson);
+            auto present = reflection.HasComponent(
+                scene,
+                identity->id,
+                component->id);
+            if (!present)
+            {
+                return Result<std::string>::Failure(
+                    present.GetError());
+            }
+
+            if (!present.Value())
+            {
+                if (!component->removable)
+                {
+                    return Result<std::string>::Failure(
+                        ErrorCode::InvalidState,
+                        "Scene entity is missing required reflected component '"
+                            + component->serializedName
+                            + "'.");
+                }
+
+                continue;
+            }
+
+            auto valid = reflection.ValidateComponent(
+                scene,
+                identity->id,
+                component->id);
+            if (!valid)
+            {
+                return Result<std::string>::Failure(
+                    valid.GetError());
+            }
+
+            Json componentJson = Json::object();
+
+            for (const PropertyDescriptor& property :
+                 component->properties)
+            {
+                if (!property.serializable)
+                {
+                    continue;
+                }
+
+                auto value = reflection.GetProperty(
+                    scene,
+                    identity->id,
+                    component->id,
+                    property.id);
+                if (!value)
+                {
+                    return Result<std::string>::Failure(
+                        value.GetError());
+                }
+
+                auto jsonValue =
+                    PropertyValueJson(value.Value());
+                if (!jsonValue)
+                {
+                    return Result<std::string>::Failure(
+                        jsonValue.GetError());
+                }
+
+                componentJson[property.serializedName] =
+                    std::move(jsonValue).Value();
+            }
+
+            components[component->serializedName] =
+                std::move(componentJson);
         }
 
-        entityJson["components"] = std::move(components);
-        root["entities"].push_back(std::move(entityJson));
+        entityJson["components"] =
+            std::move(components);
+        root["entities"].push_back(
+            std::move(entityJson));
     }
 
-    return Result<std::string>::Success(root.dump(2) + "\n");
+    return Result<std::string>::Success(
+        root.dump(2) + "\n");
 }
 
 Result<void> SceneSerializer::Save(
     const Scene& scene,
+    const ReflectionRegistry& reflection,
     const std::filesystem::path& path)
 {
-    auto serialized = Serialize(scene);
+    auto serialized = Serialize(scene, reflection);
     if (!serialized)
     {
-        return Result<void>::Failure(serialized.GetError());
+        return Result<void>::Failure(
+            serialized.GetError());
     }
 
-    return FileSystem::WriteTextAtomic(path, serialized.Value());
+    return FileSystem::WriteTextAtomic(
+        path,
+        serialized.Value());
 }
 
 } // namespace Janus

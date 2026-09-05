@@ -129,13 +129,18 @@ public:
         if (m_RoundTripPath.has_value())
         {
             const auto saveResult =
-                Janus::SceneSerializer::Save(scene, *m_RoundTripPath);
+                Janus::SceneSerializer::Save(
+                    scene,
+                    application.GetReflectionRegistry(),
+                    *m_RoundTripPath);
             if (!saveResult)
             {
                 return Janus::Result<void>::Failure(saveResult.GetError());
             }
 
-            auto loaded = Janus::SceneDeserializer::Load(*m_RoundTripPath);
+            auto loaded = Janus::SceneDeserializer::Load(
+                *m_RoundTripPath,
+                application.GetReflectionRegistry());
             if (!loaded)
             {
                 return Janus::Result<void>::Failure(loaded.GetError());

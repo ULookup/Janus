@@ -10,16 +10,23 @@ namespace Janus
 {
 
 Result<std::unique_ptr<Scene>> SceneCloner::Clone(
-    const Scene& source)
+    const Scene& source,
+    const ReflectionRegistry& reflection)
 {
-    auto serialized = SceneSerializer::Serialize(source);
+    auto serialized =
+        SceneSerializer::Serialize(
+            source,
+            reflection);
     if (!serialized)
     {
         return Result<std::unique_ptr<Scene>>::Failure(
             serialized.GetError());
     }
 
-    auto clone = SceneDeserializer::Deserialize(serialized.Value());
+    auto clone =
+        SceneDeserializer::Deserialize(
+            serialized.Value(),
+            reflection);
     if (!clone)
     {
         return Result<std::unique_ptr<Scene>>::Failure(

@@ -8,6 +8,7 @@
 #include "Scene/Scene.h"
 #include "Scene/SceneDeserializer.h"
 #include "Scene/SceneSerializer.h"
+#include "Scene/SceneReflection.h"
 
 #include <string>
 #include <string_view>
@@ -88,7 +89,16 @@ Result<std::unique_ptr<ProjectSession>> ProjectSession::Open(
             registry.GetError());
     }
 
-    auto scene = SceneDeserializer::Load(scenePath.Value());
+    auto reflection = CreateBuiltinSceneReflectionRegistry();
+    if (!reflection)
+    {
+        return Result<std::unique_ptr<ProjectSession>>::Failure(
+            reflection.GetError());
+    }
+
+    auto scene = SceneDeserializer::Load(
+        scenePath.Value(),
+        reflection.Value());
     if (!scene)
     {
         return Result<std::unique_ptr<ProjectSession>>::Failure(
@@ -99,6 +109,7 @@ Result<std::unique_ptr<ProjectSession>> ProjectSession::Open(
         new ProjectSession(
             config.root,
             config.startupScenePath.lexically_normal(),
+            std::move(reflection).Value(),
             std::move(registry).Value(),
             std::move(scene).Value(),
             renderer));
@@ -110,11 +121,13 @@ Result<std::unique_ptr<ProjectSession>> ProjectSession::Open(
 ProjectSession::ProjectSession(
     std::filesystem::path projectRoot,
     std::filesystem::path currentScenePath,
+    ReflectionRegistry reflectionRegistry,
     AssetRegistry assetRegistry,
     std::unique_ptr<Scene> editorScene,
     Renderer2D& renderer)
     : m_ProjectRoot(std::move(projectRoot)),
       m_CurrentScenePath(std::move(currentScenePath)),
+      m_ReflectionRegistry(std::move(reflectionRegistry)),
       m_AssetRegistry(std::move(assetRegistry)),
       m_AssetService(std::make_unique<AssetService>(
           m_ProjectRoot,
@@ -139,6 +152,16 @@ const std::filesystem::path& ProjectSession::GetCurrentScenePath() const noexcep
 const AssetRegistry& ProjectSession::GetAssetRegistry() const noexcept
 {
     return m_AssetRegistry;
+}
+
+ReflectionRegistry& ProjectSession::GetReflectionRegistry() noexcept
+{
+    return m_ReflectionRegistry;
+}
+
+const ReflectionRegistry& ProjectSession::GetReflectionRegistry() const noexcept
+{
+    return m_ReflectionRegistry;
 }
 
 AssetService& ProjectSession::GetAssetService() noexcept
@@ -167,6 +190,7 @@ Result<void> ProjectSession::StartRuntime(const InputState& input)
 
     auto runtime = RuntimeSession::Start(
         *m_EditorScene,
+        m_ReflectionRegistry,
         *m_AssetService,
         input);
     if (!runtime)
@@ -233,6 +257,7 @@ Result<void> ProjectSession::SaveCurrentScene()
     auto saved =
         SceneSerializer::Save(
             *m_EditorScene,
+            m_ReflectionRegistry,
             scenePath);
     if (!saved)
     {

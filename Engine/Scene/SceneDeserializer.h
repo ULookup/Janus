@@ -9,15 +9,19 @@
 namespace Janus
 {
 
+class ReflectionRegistry;
 class Scene;
 
 class SceneDeserializer
 {
 public:
     [[nodiscard]] static Result<std::unique_ptr<Scene>> Deserialize(
-        std::string_view text);
+        std::string_view text,
+        const ReflectionRegistry& reflection);
+
     [[nodiscard]] static Result<std::unique_ptr<Scene>> Load(
-        const std::filesystem::path& path);
+        const std::filesystem::path& path,
+        const ReflectionRegistry& reflection);
 };
 
 } // namespace Janus

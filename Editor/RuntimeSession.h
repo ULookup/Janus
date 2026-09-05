@@ -10,6 +10,7 @@ namespace Janus
 
 class AssetService;
 class InputState;
+class ReflectionRegistry;
 class Scene;
 class ScriptEngine;
 
@@ -21,6 +22,7 @@ class RuntimeSession final
 public:
     [[nodiscard]] static Result<std::unique_ptr<RuntimeSession>> Start(
         const Scene& editorScene,
+        const ReflectionRegistry& reflection,
         AssetService& assets,
         const InputState& input);
 
