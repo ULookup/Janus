@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Core/Log/LogOutput.h"
+
 #include <memory>
 
 #include <spdlog/logger.h>
@@ -12,7 +14,8 @@ namespace Janus
     public:
         Log() = delete;
 
-        static void Initialize();
+        static void Initialize(
+            LogOutput output = LogOutput::StandardOutput);
         static void Shutdown();
 
         [[nodiscard]]
