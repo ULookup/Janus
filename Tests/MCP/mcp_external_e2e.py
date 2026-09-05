@@ -118,7 +118,7 @@ class JanusStdioClient:
         request_id: int,
         method: str,
         params: dict[str, Any],
-        timeout_seconds: float = 20.0,
+        timeout_seconds: float = 10.0,
     ) -> dict[str, Any]:
         self._send(
             {
@@ -331,6 +331,7 @@ def run_modern(editor: Path, source_project: Path) -> None:
                     1,
                     "server/discover",
                     modern_params(),
+                    timeout_seconds=45.0,
                 ),
                 "server/discover",
             )
@@ -548,6 +549,7 @@ def run_legacy(editor: Path, source_project: Path) -> None:
                             "version": "0.8-test",
                         },
                     },
+                    timeout_seconds=45.0,
                 ),
                 "initialize",
             )
