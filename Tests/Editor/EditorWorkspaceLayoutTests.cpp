@@ -19,7 +19,7 @@ bool Overlaps(
 } // namespace
 
 TEST_CASE(
-    "Editor workspace gives Scene View the largest central region",
+    "Editor workspace prioritizes one central viewport",
     "[editor][workspace][v0.6]")
 {
     const auto layout =
@@ -29,37 +29,41 @@ TEST_CASE(
 
     REQUIRE(layout.toolbar.width == Catch::Approx(1440.0f));
     REQUIRE(layout.toolbar.y == Catch::Approx(0.0f));
-    REQUIRE(layout.toolbar.height >= 40.0f);
-    REQUIRE(layout.toolbar.height <= 52.0f);
+    REQUIRE(layout.toolbar.height >= 42.0f);
+    REQUIRE(layout.toolbar.height <= 50.0f);
 
-    REQUIRE(layout.sceneView.width > layout.hierarchy.width);
-    REQUIRE(layout.sceneView.width > layout.inspector.width);
-    REQUIRE(layout.sceneView.height > layout.gameView.height);
+    REQUIRE(layout.viewport.width > layout.hierarchy.width);
+    REQUIRE(layout.viewport.width > layout.inspector.width);
+    REQUIRE(layout.viewport.height > layout.utility.height);
 
     REQUIRE_FALSE(
         Overlaps(
             layout.hierarchy,
-            layout.sceneView));
+            layout.viewport));
     REQUIRE_FALSE(
         Overlaps(
-            layout.sceneView,
+            layout.viewport,
             layout.inspector));
     REQUIRE_FALSE(
         Overlaps(
             layout.hierarchy,
-            layout.assetBrowser));
+            layout.utility));
     REQUIRE_FALSE(
         Overlaps(
-            layout.sceneView,
-            layout.gameView));
+            layout.viewport,
+            layout.utility));
     REQUIRE_FALSE(
         Overlaps(
             layout.inspector,
-            layout.console));
+            layout.utility));
+
+    REQUIRE(
+        layout.utility.width
+        == Catch::Approx(1440.0f));
 }
 
 TEST_CASE(
-    "Editor workspace stays non-negative at compact window sizes",
+    "Editor workspace stays in bounds at compact window sizes",
     "[editor][workspace][v0.6]")
 {
     const auto layout =
@@ -70,11 +74,9 @@ TEST_CASE(
     const Janus::Editor::EditorPanelRect panels[] = {
         layout.toolbar,
         layout.hierarchy,
-        layout.assetBrowser,
-        layout.sceneView,
-        layout.gameView,
+        layout.viewport,
         layout.inspector,
-        layout.console};
+        layout.utility};
 
     for (const auto& panel : panels)
     {
@@ -85,4 +87,35 @@ TEST_CASE(
         REQUIRE(panel.x + panel.width <= 720.01f);
         REQUIRE(panel.y + panel.height <= 480.01f);
     }
+}
+
+TEST_CASE(
+    "Aspect fitting preserves 16 by 9 without cropping",
+    "[editor][workspace][game-view][v0.6]")
+{
+    const auto wide =
+        Janus::Editor::FitAspectRatio(
+            1000.0f,
+            400.0f,
+            16.0f / 9.0f);
+
+    REQUIRE(wide.height == Catch::Approx(400.0f));
+    REQUIRE(
+        wide.width / wide.height
+        == Catch::Approx(16.0f / 9.0f));
+    REQUIRE(wide.x > 0.0f);
+    REQUIRE(wide.y == Catch::Approx(0.0f));
+
+    const auto tall =
+        Janus::Editor::FitAspectRatio(
+            800.0f,
+            800.0f,
+            16.0f / 9.0f);
+
+    REQUIRE(tall.width == Catch::Approx(800.0f));
+    REQUIRE(
+        tall.width / tall.height
+        == Catch::Approx(16.0f / 9.0f));
+    REQUIRE(tall.x == Catch::Approx(0.0f));
+    REQUIRE(tall.y > 0.0f);
 }

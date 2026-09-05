@@ -18,7 +18,7 @@ public:
         EditorContext& context,
         EditorActions& actions) noexcept;
 
-    [[nodiscard]] std::optional<Error> Draw();
+    [[nodiscard]] std::optional<Error> DrawContents();
 
 private:
     EditorContext& m_Context;

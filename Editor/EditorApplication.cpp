@@ -30,6 +30,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <optional>
 #include <string>
 #include <utility>
@@ -85,10 +86,12 @@ void ApplyWorkspaceRect(
         ImGuiCond_Always);
 }
 
-constexpr ImGuiWindowFlags WorkspacePanelFlags =
-    ImGuiWindowFlags_NoMove
+constexpr ImGuiWindowFlags WorkspaceContainerFlags =
+    ImGuiWindowFlags_NoTitleBar
+    | ImGuiWindowFlags_NoMove
     | ImGuiWindowFlags_NoResize
-    | ImGuiWindowFlags_NoCollapse;
+    | ImGuiWindowFlags_NoCollapse
+    | ImGuiWindowFlags_NoSavedSettings;
 
 constexpr ImGuiWindowFlags ToolbarFlags =
     ImGuiWindowFlags_NoTitleBar
@@ -97,6 +100,43 @@ constexpr ImGuiWindowFlags ToolbarFlags =
     | ImGuiWindowFlags_NoCollapse
     | ImGuiWindowFlags_NoScrollbar
     | ImGuiWindowFlags_NoSavedSettings;
+
+
+void ConfigureEditorFont()
+{
+    ImGuiIO& io = ImGui::GetIO();
+
+#if defined(_WIN32)
+    if (const char* windowsDirectory = std::getenv("WINDIR");
+        windowsDirectory != nullptr)
+    {
+        const std::filesystem::path fontPath =
+            std::filesystem::path(windowsDirectory)
+            / "Fonts"
+            / "segoeui.ttf";
+
+        std::error_code error;
+        if (std::filesystem::exists(fontPath, error)
+            && !error)
+        {
+            if (ImFont* font =
+                    io.Fonts->AddFontFromFileTTF(
+                        fontPath.string().c_str(),
+                        16.0f);
+                font != nullptr)
+            {
+                io.FontDefault = font;
+                return;
+            }
+        }
+    }
+#endif
+
+    ImFontConfig fallback;
+    fallback.SizePixels = 16.0f;
+    io.FontDefault =
+        io.Fonts->AddFontDefaultVector(&fallback);
+}
 
 void DrawSceneGrid(
     const EditorCamera& camera,
@@ -220,13 +260,17 @@ Result<void> EditorApplication::OnInitialize(Application& application)
     ImGui::CreateContext();
     m_ImGuiContextCreated = true;
     ImGui::StyleColorsDark();
+    ConfigureEditorFont();
 
     ImGuiStyle& style = ImGui::GetStyle();
     style.WindowRounding = 0.0f;
     style.ChildRounding = 0.0f;
     style.FrameRounding = 3.0f;
+    style.TabRounding = 3.0f;
     style.WindowBorderSize = 1.0f;
     style.WindowPadding = ImVec2{8.0f, 8.0f};
+    style.FramePadding = ImVec2{8.0f, 5.0f};
+    style.ItemSpacing = ImVec2{8.0f, 6.0f};
 
     if (!ImGui_ImplSDL3_InitForOpenGL(nativeWindow, nullptr))
     {
@@ -427,6 +471,9 @@ void EditorApplication::OnUpdate(
                         m_EditorConsole->PushInfo(
                             "Play Mode started.");
                     }
+
+                    m_SelectGameViewTab = true;
+                    m_SelectSceneViewTab = false;
                 }
             }
         }
@@ -438,10 +485,16 @@ void EditorApplication::OnUpdate(
             {
                 RecordError(stopped.GetError());
             }
-            else if (m_EditorConsole != nullptr)
+            else
             {
-                m_EditorConsole->PushInfo(
-                    "Play Mode stopped.");
+                if (m_EditorConsole != nullptr)
+                {
+                    m_EditorConsole->PushInfo(
+                        "Play Mode stopped.");
+                }
+
+                m_SelectSceneViewTab = true;
+                m_SelectGameViewTab = false;
             }
         }
 
@@ -546,27 +599,44 @@ void EditorApplication::OnUpdate(
         {
             RecordError(*inspectorError);
         }
+    }
 
-        if (m_AssetBrowserPanel != nullptr)
+    if (m_AssetBrowserPanel != nullptr
+        && m_ConsolePanel != nullptr)
+    {
+        ApplyWorkspaceRect(
+            workspace.utility,
+            *mainViewport);
+
+        ImGui::Begin(
+            "##UtilityWorkspace",
+            nullptr,
+            WorkspaceContainerFlags);
+
+        if (ImGui::BeginTabBar("UtilityTabs"))
         {
-            ApplyWorkspaceRect(
-                workspace.assetBrowser,
-                *mainViewport);
-            const auto assetError =
-                m_AssetBrowserPanel->Draw();
-            if (assetError.has_value())
+            if (ImGui::BeginTabItem("Asset Browser"))
             {
-                RecordError(*assetError);
+                const auto assetError =
+                    m_AssetBrowserPanel->DrawContents();
+                if (assetError.has_value())
+                {
+                    RecordError(*assetError);
+                }
+
+                ImGui::EndTabItem();
             }
+
+            if (ImGui::BeginTabItem("Console"))
+            {
+                m_ConsolePanel->DrawContents();
+                ImGui::EndTabItem();
+            }
+
+            ImGui::EndTabBar();
         }
 
-        if (m_ConsolePanel != nullptr)
-        {
-            ApplyWorkspaceRect(
-                workspace.console,
-                *mainViewport);
-            m_ConsolePanel->Draw();
-        }
+        ImGui::End();
     }
 
     bool renderSceneView = false;
@@ -578,175 +648,218 @@ void EditorApplication::OnUpdate(
         && m_SceneRenderer != nullptr)
     {
         ApplyWorkspaceRect(
-            workspace.sceneView,
+            workspace.viewport,
             *mainViewport);
-        const bool sceneViewVisible =
-            ImGui::Begin(
-                "Scene View",
-                nullptr,
-                WorkspacePanelFlags);
 
-        if (sceneViewVisible)
+        ImGui::Begin(
+            "##ViewportWorkspace",
+            nullptr,
+            WorkspaceContainerFlags);
+
+        if (ImGui::BeginTabBar("ViewportTabs"))
         {
-            const ImVec2 available =
-                ImGui::GetContentRegionAvail();
+            const ImGuiTabItemFlags sceneTabFlags =
+                m_SelectSceneViewTab
+                    ? ImGuiTabItemFlags_SetSelected
+                    : ImGuiTabItemFlags_None;
 
-            if (HasUsableContentSize(available))
+            const bool sceneTabVisible =
+                ImGui::BeginTabItem(
+                    "Scene",
+                    nullptr,
+                    sceneTabFlags);
+
+            m_SelectSceneViewTab = false;
+
+            if (sceneTabVisible)
             {
-                const Viewport requested =
-                    ToViewport(available);
+                const ImVec2 available =
+                    ImGui::GetContentRegionAvail();
 
-                if (requested.width != m_SceneViewViewport.width
-                    || requested.height != m_SceneViewViewport.height)
+                if (HasUsableContentSize(available))
                 {
-                    const auto resized =
-                        renderer.ResizeRenderTarget(
-                            m_SceneViewTarget,
-                            requested.width,
-                            requested.height);
-                    if (resized)
+                    const Viewport requested =
+                        ToViewport(available);
+
+                    if (requested.width != m_SceneViewViewport.width
+                        || requested.height != m_SceneViewViewport.height)
                     {
-                        m_SceneViewViewport = requested;
+                        const auto resized =
+                            renderer.ResizeRenderTarget(
+                                m_SceneViewTarget,
+                                requested.width,
+                                requested.height);
+                        if (resized)
+                        {
+                            m_SceneViewViewport = requested;
+                        }
+                        else
+                        {
+                            RecordError(resized.GetError());
+                        }
+                    }
+
+                    const auto presentation =
+                        renderer.GetRenderTargetPresentationHandle(
+                            m_SceneViewTarget);
+
+                    if (presentation)
+                    {
+                        ImGui::Image(
+                            ToImGuiTexture(presentation.Value()),
+                            available,
+                            ImVec2{0.0f, 1.0f},
+                            ImVec2{1.0f, 0.0f});
+
+                        DrawSceneGrid(
+                            *m_EditorCamera,
+                            m_SceneViewViewport,
+                            ImGui::GetItemRectMin(),
+                            ImGui::GetItemRectMax());
+
+                        const bool hovered =
+                            ImGui::IsItemHovered();
+                        if (hovered)
+                        {
+                            const ImGuiIO& io = ImGui::GetIO();
+
+                            if (io.MouseWheel != 0.0f)
+                            {
+                                m_EditorCamera->Zoom(io.MouseWheel);
+                            }
+
+                            if (ImGui::IsMouseDragging(
+                                    ImGuiMouseButton_Middle))
+                            {
+                                m_EditorCamera->PanPixels(
+                                    Vector2{
+                                        io.MouseDelta.x,
+                                        io.MouseDelta.y});
+                            }
+
+                            if (ImGui::IsMouseClicked(
+                                    ImGuiMouseButton_Left))
+                            {
+                                const ImVec2 itemMin =
+                                    ImGui::GetItemRectMin();
+                                const ImVec2 mouse =
+                                    ImGui::GetMousePos();
+
+                                const f32 localX =
+                                    mouse.x - itemMin.x;
+                                const f32 localY =
+                                    mouse.y - itemMin.y;
+
+                                const f32 scaleX =
+                                    static_cast<f32>(
+                                        m_SceneViewViewport.width)
+                                    / available.x;
+                                const f32 scaleY =
+                                    static_cast<f32>(
+                                        m_SceneViewViewport.height)
+                                    / available.y;
+
+                                pendingScenePick =
+                                    Vector2{
+                                        localX * scaleX,
+                                        localY * scaleY};
+                            }
+                        }
+
+                        renderSceneView = true;
                     }
                     else
                     {
-                        RecordError(resized.GetError());
+                        RecordError(presentation.GetError());
                     }
                 }
 
-                const auto presentation =
-                    renderer.GetRenderTargetPresentationHandle(
-                        m_SceneViewTarget);
-
-                if (presentation)
-                {
-                    ImGui::Image(
-                        ToImGuiTexture(presentation.Value()),
-                        available,
-                        ImVec2{0.0f, 1.0f},
-                        ImVec2{1.0f, 0.0f});
-
-                    DrawSceneGrid(
-                        *m_EditorCamera,
-                        m_SceneViewViewport,
-                        ImGui::GetItemRectMin(),
-                        ImGui::GetItemRectMax());
-
-                    const bool hovered =
-                        ImGui::IsItemHovered();
-                    if (hovered)
-                    {
-                        const ImGuiIO& io = ImGui::GetIO();
-
-                        if (io.MouseWheel != 0.0f)
-                        {
-                            m_EditorCamera->Zoom(io.MouseWheel);
-                        }
-
-                        if (ImGui::IsMouseDragging(
-                                ImGuiMouseButton_Middle))
-                        {
-                            m_EditorCamera->PanPixels(
-                                Vector2{
-                                    io.MouseDelta.x,
-                                    io.MouseDelta.y});
-                        }
-
-                        if (ImGui::IsMouseClicked(
-                                ImGuiMouseButton_Left))
-                        {
-                            const ImVec2 itemMin =
-                                ImGui::GetItemRectMin();
-                            const ImVec2 mouse =
-                                ImGui::GetMousePos();
-
-                            const f32 localX =
-                                mouse.x - itemMin.x;
-                            const f32 localY =
-                                mouse.y - itemMin.y;
-
-                            const f32 scaleX =
-                                static_cast<f32>(
-                                    m_SceneViewViewport.width)
-                                / available.x;
-                            const f32 scaleY =
-                                static_cast<f32>(
-                                    m_SceneViewViewport.height)
-                                / available.y;
-
-                            pendingScenePick =
-                                Vector2{
-                                    localX * scaleX,
-                                    localY * scaleY};
-                        }
-                    }
-
-                    renderSceneView = true;
-                }
-                else
-                {
-                    RecordError(presentation.GetError());
-                }
+                ImGui::EndTabItem();
             }
-        }
 
-        ImGui::End();
+            const ImGuiTabItemFlags gameTabFlags =
+                m_SelectGameViewTab
+                    ? ImGuiTabItemFlags_SetSelected
+                    : ImGuiTabItemFlags_None;
 
-        ApplyWorkspaceRect(
-            workspace.gameView,
-            *mainViewport);
-        const bool gameViewVisible =
-            ImGui::Begin(
-                "Game View",
-                nullptr,
-                WorkspacePanelFlags);
+            const bool gameTabVisible =
+                ImGui::BeginTabItem(
+                    "Game",
+                    nullptr,
+                    gameTabFlags);
 
-        if (gameViewVisible)
-        {
-            const ImVec2 available =
-                ImGui::GetContentRegionAvail();
+            m_SelectGameViewTab = false;
 
-            if (HasUsableContentSize(available))
+            if (gameTabVisible)
             {
-                const Viewport requested =
-                    ToViewport(available);
+                const ImVec2 available =
+                    ImGui::GetContentRegionAvail();
+                const EditorPanelRect fitted =
+                    FitAspectRatio(
+                        available.x,
+                        available.y,
+                        16.0f / 9.0f);
 
-                if (requested.width != m_GameViewViewport.width
-                    || requested.height != m_GameViewViewport.height)
+                if (HasUsableContentSize(
+                        ImVec2{fitted.width, fitted.height}))
                 {
-                    const auto resized =
-                        renderer.ResizeRenderTarget(
-                            m_GameViewTarget,
-                            requested.width,
-                            requested.height);
-                    if (resized)
+                    const ImVec2 origin =
+                        ImGui::GetCursorPos();
+
+                    ImGui::SetCursorPos(
+                        ImVec2{
+                            origin.x + fitted.x,
+                            origin.y + fitted.y});
+
+                    const Viewport requested =
+                        ToViewport(
+                            ImVec2{
+                                fitted.width,
+                                fitted.height});
+
+                    if (requested.width != m_GameViewViewport.width
+                        || requested.height != m_GameViewViewport.height)
                     {
-                        m_GameViewViewport = requested;
+                        const auto resized =
+                            renderer.ResizeRenderTarget(
+                                m_GameViewTarget,
+                                requested.width,
+                                requested.height);
+                        if (resized)
+                        {
+                            m_GameViewViewport = requested;
+                        }
+                        else
+                        {
+                            RecordError(resized.GetError());
+                        }
+                    }
+
+                    const auto presentation =
+                        renderer.GetRenderTargetPresentationHandle(
+                            m_GameViewTarget);
+
+                    if (presentation)
+                    {
+                        ImGui::Image(
+                            ToImGuiTexture(presentation.Value()),
+                            ImVec2{
+                                fitted.width,
+                                fitted.height},
+                            ImVec2{0.0f, 1.0f},
+                            ImVec2{1.0f, 0.0f});
+                        renderGameView = true;
                     }
                     else
                     {
-                        RecordError(resized.GetError());
+                        RecordError(presentation.GetError());
                     }
                 }
 
-                const auto presentation =
-                    renderer.GetRenderTargetPresentationHandle(
-                        m_GameViewTarget);
-
-                if (presentation)
-                {
-                    ImGui::Image(
-                        ToImGuiTexture(presentation.Value()),
-                        available,
-                        ImVec2{0.0f, 1.0f},
-                        ImVec2{1.0f, 0.0f});
-                    renderGameView = true;
-                }
-                else
-                {
-                    RecordError(presentation.GetError());
-                }
+                ImGui::EndTabItem();
             }
+
+            ImGui::EndTabBar();
         }
 
         ImGui::End();

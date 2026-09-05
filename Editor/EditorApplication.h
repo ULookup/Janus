@@ -59,6 +59,9 @@ private:
 
     std::string m_LastError;
 
+    bool m_SelectSceneViewTab = false;
+    bool m_SelectGameViewTab = false;
+
     bool m_ImGuiContextCreated = false;
     bool m_ImGuiPlatformInitialized = false;
     bool m_ImGuiRendererInitialized = false;

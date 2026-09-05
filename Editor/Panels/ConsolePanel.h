@@ -11,7 +11,7 @@ public:
     explicit ConsolePanel(
         EditorConsole& console) noexcept;
 
-    void Draw();
+    void DrawContents();
 
 private:
     EditorConsole& m_Console;
