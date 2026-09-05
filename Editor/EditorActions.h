@@ -3,15 +3,17 @@
 #include "Asset/AssetHandle.h"
 #include "Core/Error/Result.h"
 #include "Core/Math/Vector2.h"
+#include "Core/Reflection/ReflectionTypes.h"
 #include "Core/UUID/UUID.h"
-#include "ECS/Entity.h"
 #include "Renderer/RendererTypes.h"
 
+#include <memory>
 #include <string>
 
 namespace Janus
 {
 
+class ICommand;
 class Scene;
 
 namespace Editor
@@ -30,6 +32,28 @@ public:
         UUID id,
         std::string name);
 
+    [[nodiscard]] Result<void> SetProperty(
+        UUID id,
+        ComponentTypeId component,
+        PropertyId property,
+        PropertyValue value);
+
+    [[nodiscard]] Result<void> AddComponent(
+        UUID id,
+        ComponentTypeId component);
+
+    [[nodiscard]] Result<void> RemoveComponent(
+        UUID id,
+        ComponentTypeId component);
+
+    [[nodiscard]] Result<void> Undo();
+    [[nodiscard]] Result<void> Redo();
+
+    [[nodiscard]] bool CanUndo() const noexcept;
+    [[nodiscard]] bool CanRedo() const noexcept;
+
+    // v0.6 compatibility helpers. These delegate to the generic
+    // reflected command path rather than mutating ECS state directly.
     [[nodiscard]] Result<void> SetTransform(
         UUID id,
         Vector2 position,
@@ -66,9 +90,13 @@ public:
 
 private:
     [[nodiscard]] Result<Scene*> GetEditableScene();
-    [[nodiscard]] Result<ECS::Entity> ResolveEntity(
+
+    [[nodiscard]] Result<void> ExecutePrepared(
         Scene& scene,
-        UUID id);
+        std::unique_ptr<ICommand> command);
+
+    void FinishSuccessfulMutation(
+        Scene& scene) noexcept;
 
     EditorContext& m_Context;
 };
