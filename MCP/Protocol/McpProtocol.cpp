@@ -346,18 +346,24 @@ McpProtocolSession::HandleNotification(
                 std::nullopt);
         }
 
-        if (const auto modernError =
-                ValidateModernParams(
-                    notification.params);
-            !modernError.has_value())
+        if (HasModernVersionClaim(notification.params))
         {
+            if (const auto modernError =
+                    ValidateModernParams(
+                        notification.params);
+                modernError.has_value())
+            {
+                return Result<std::optional<Json>>::Success(
+                    std::nullopt);
+            }
+
             m_Era =
                 McpProtocolEra::Modern2026;
         }
         else
         {
-            m_Era =
-                McpProtocolEra::Legacy2025;
+            return Result<std::optional<Json>>::Success(
+                std::nullopt);
         }
     }
 
@@ -431,7 +437,7 @@ McpProtocolSession::ValidateModernParams(
                 McpProtocolVersionMetaKey});
     if (versionIt == metaIt->end()
         || !versionIt->is_string()
-        || versionIt->get<std::string_view>()
+        || versionIt->get_ref<const std::string&>()
             != McpModernProtocolVersion)
     {
         return UnsupportedVersion(
