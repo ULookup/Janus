@@ -1,7 +1,6 @@
 #include "Scene/SceneRenderer.h"
 
 #include "Asset/AssetService.h"
-#include "Renderer/OrthographicCamera.h"
 #include "Renderer/Renderer2D.h"
 #include "Renderer/Sprite.h"
 #include "Scene/Components.h"
@@ -10,6 +9,8 @@
 
 #include <optional>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace Janus
 {
@@ -22,29 +23,53 @@ Result<void> SceneRenderer::Render(
 {
     UpdateTransforms(scene);
 
-    const auto cameraResult = FindCamera(scene);
-    if (!cameraResult)
+    const auto cameraEntity = FindCamera(scene);
+    if (!cameraEntity)
     {
-        return Result<void>::Failure(cameraResult.GetError());
+        return Result<void>::Failure(
+            cameraEntity.GetError());
     }
 
-    const ECS::Entity cameraEntity = cameraResult.Value();
-    const auto* cameraTransform =
-        scene.GetComponent<TransformComponent>(cameraEntity);
-    const auto* cameraComponent =
-        scene.GetComponent<CameraComponent>(cameraEntity);
+    return RenderPrepared(
+        SceneRenderRequest{
+            scene,
+            assets,
+            renderer,
+            BuildCamera(scene, cameraEntity.Value()),
+            viewport,
+            {}});
+}
 
-    OrthographicCamera camera;
-    camera.position = cameraTransform->worldPosition;
-    camera.rotationRadians = cameraTransform->worldRotationRadians;
-    camera.zoom = cameraComponent->zoom;
+Result<void> SceneRenderer::Render(
+    const SceneRenderRequest& request)
+{
+    UpdateTransforms(request.scene);
+    return RenderPrepared(request);
+}
 
-    renderer.SetViewport(viewport);
-    renderer.BeginFrame(camera);
+Result<OrthographicCamera> SceneRenderer::ResolvePrimaryCamera(
+    Scene& scene)
+{
+    UpdateTransforms(scene);
 
+    const auto cameraEntity = FindCamera(scene);
+    if (!cameraEntity)
+    {
+        return Result<OrthographicCamera>::Failure(
+            cameraEntity.GetError());
+    }
+
+    return Result<OrthographicCamera>::Success(
+        BuildCamera(scene, cameraEntity.Value()));
+}
+
+Result<void> SceneRenderer::RenderPrepared(
+    const SceneRenderRequest& request)
+{
+    std::vector<Sprite> sprites;
     std::optional<Error> extractionError;
 
-    scene.View<TransformComponent, SpriteRendererComponent>()
+    request.scene.View<TransformComponent, SpriteRendererComponent>()
         .ForEach(
             [&](ECS::Entity entity,
                 TransformComponent& transform,
@@ -58,11 +83,12 @@ Result<void> SceneRenderer::Render(
                 }
 
                 auto textureResult =
-                    assets.LoadTexture(spriteComponent.texture);
+                    request.assets.LoadTexture(spriteComponent.texture);
                 if (!textureResult)
                 {
                     const auto* identity =
-                        scene.GetComponent<EntityIdentityComponent>(entity);
+                        request.scene.GetComponent<EntityIdentityComponent>(
+                            entity);
                     const std::string entityLabel = identity == nullptr
                         ? std::string{"unknown entity"}
                         : identity->name + " (" + identity->id.ToString() + ")";
@@ -87,15 +113,32 @@ Result<void> SceneRenderer::Render(
                 sprite.uv = spriteComponent.uv;
                 sprite.blendMode = BlendMode::Alpha;
 
-                renderer.SubmitSprite(sprite);
+                sprites.push_back(sprite);
             });
 
     if (extractionError.has_value())
     {
-        return Result<void>::Failure(std::move(*extractionError));
+        return Result<void>::Failure(
+            std::move(*extractionError));
     }
 
-    return renderer.EndFrame();
+    RenderFrameDesc frame;
+    frame.camera = request.camera;
+    frame.viewport = request.viewport;
+    frame.target = request.target;
+
+    auto began = request.renderer.BeginFrame(frame);
+    if (!began)
+    {
+        return began;
+    }
+
+    for (const Sprite& sprite : sprites)
+    {
+        request.renderer.SubmitSprite(sprite);
+    }
+
+    return request.renderer.EndFrame();
 }
 
 void SceneRenderer::UpdateTransforms(Scene& scene)
@@ -207,6 +250,23 @@ Result<ECS::Entity> SceneRenderer::FindCamera(Scene& scene) const
     }
 
     return Result<ECS::Entity>::Success(firstCamera);
+}
+
+OrthographicCamera SceneRenderer::BuildCamera(
+    Scene& scene,
+    ECS::Entity entity) const
+{
+    const auto* cameraTransform =
+        scene.GetComponent<TransformComponent>(entity);
+    const auto* cameraComponent =
+        scene.GetComponent<CameraComponent>(entity);
+
+    OrthographicCamera camera;
+    camera.position = cameraTransform->worldPosition;
+    camera.rotationRadians =
+        cameraTransform->worldRotationRadians;
+    camera.zoom = cameraComponent->zoom;
+    return camera;
 }
 
 } // namespace Janus
