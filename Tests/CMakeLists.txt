@@ -33,6 +33,7 @@ add_executable(
     Editor/EditorLaunchOptionsTests.cpp
     Editor/EditorConsoleTests.cpp
     Editor/InspectorModelTests.cpp
+    Editor/McpEditorHostTests.cpp
     Editor/EditorSelectionTests.cpp
     Editor/EditorViewSourceTests.cpp
     Editor/EditorWorkflowTests.cpp
