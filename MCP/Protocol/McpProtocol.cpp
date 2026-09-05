@@ -57,6 +57,31 @@ bool HasModernVersionClaim(const Json& params)
     return versionIt != metaIt->end();
 }
 
+Json StripModernEnvelope(const Json& params)
+{
+    Json applicationParams = params;
+
+    auto metaIt =
+        applicationParams.find("_meta");
+    if (metaIt == applicationParams.end()
+        || !metaIt->is_object())
+    {
+        return applicationParams;
+    }
+
+    metaIt->erase(std::string{McpProtocolVersionMetaKey});
+    metaIt->erase(std::string{McpClientInfoMetaKey});
+    metaIt->erase(std::string{McpClientCapabilitiesMetaKey});
+    metaIt->erase(std::string{McpLogLevelMetaKey});
+
+    if (metaIt->empty())
+    {
+        applicationParams.erase("_meta");
+    }
+
+    return applicationParams;
+}
+
 bool IsValidImplementationInfo(const Json& value)
 {
     if (!value.is_object())
@@ -285,10 +310,15 @@ McpProtocolSession::HandleRequest(
                 "MCP method not found."));
     }
 
+    Json handlerParams =
+        m_Era == McpProtocolEra::Modern2026
+            ? StripModernEnvelope(request.params)
+            : request.params;
+
     McpDispatchResult dispatched =
         m_RequestHandler(
             request.method,
-            request.params,
+            handlerParams,
             m_Era);
 
     if (const auto* error =
@@ -403,10 +433,15 @@ McpProtocolSession::HandleNotification(
             std::nullopt);
     }
 
+    Json handlerParams =
+        m_Era == McpProtocolEra::Modern2026
+            ? StripModernEnvelope(notification.params)
+            : notification.params;
+
     auto handled =
         m_NotificationHandler(
             notification.method,
-            notification.params,
+            handlerParams,
             m_Era);
     if (!handled)
     {
