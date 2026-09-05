@@ -22,6 +22,7 @@ add_executable(
     Editor/EditorSelectionTests.cpp
     Editor/EditorViewSourceTests.cpp
     Editor/EditorWorkflowTests.cpp
+    Editor/EditorWorkspaceLayoutTests.cpp
     Editor/ScenePickerTests.cpp
     Editor/ProjectSessionTests.cpp
     Editor/RuntimeSessionTests.cpp
