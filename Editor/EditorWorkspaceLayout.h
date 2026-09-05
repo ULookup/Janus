@@ -17,15 +17,18 @@ struct EditorWorkspaceLayout
 {
     EditorPanelRect toolbar;
     EditorPanelRect hierarchy;
-    EditorPanelRect assetBrowser;
-    EditorPanelRect sceneView;
-    EditorPanelRect gameView;
+    EditorPanelRect viewport;
     EditorPanelRect inspector;
-    EditorPanelRect console;
+    EditorPanelRect utility;
 };
 
 [[nodiscard]] EditorWorkspaceLayout BuildEditorWorkspaceLayout(
     f32 width,
     f32 height) noexcept;
+
+[[nodiscard]] EditorPanelRect FitAspectRatio(
+    f32 availableWidth,
+    f32 availableHeight,
+    f32 aspectRatio) noexcept;
 
 } // namespace Janus::Editor
