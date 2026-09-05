@@ -19,6 +19,7 @@ target_sources(
         Core/Time/FrameClock.cpp
         Core/Input/InputState.cpp
         Core/Math/Mat4.cpp
+        Core/Command/CommandBus.cpp
         Core/Reflection/ReflectionRegistry.cpp
 
         Asset/AssetMetadata.cpp
@@ -41,6 +42,7 @@ target_sources(
         Scene/SceneSerializer.cpp
         Scene/SceneDeserializer.cpp
         Scene/SceneReflection.cpp
+        Scene/Command/SceneCommands.cpp
         Scene/SceneRenderer.cpp
 
         Scripting/LuaStackGuard.h
@@ -93,6 +95,9 @@ target_sources(
         Core/Math/Vector2.h
         Core/Math/Mat4.h
 
+        Core/Command/ICommand.h
+        Core/Command/CommandBus.h
+
         Core/Reflection/ReflectionTypes.h
         Core/Reflection/ReflectionRegistry.h
 
@@ -115,6 +120,7 @@ target_sources(
         Scene/SceneSerializer.h
         Scene/SceneDeserializer.h
         Scene/SceneReflection.h
+        Scene/Command/SceneCommands.h
         Scene/SceneRenderer.h
 
         Scripting/ScriptEngine.h

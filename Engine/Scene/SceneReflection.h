@@ -90,6 +90,11 @@ public:
         const ReflectionRegistry& registry,
         const AssetRegistry* assets = nullptr) noexcept;
 
+    [[nodiscard]] const ReflectionRegistry& GetRegistry() const noexcept
+    {
+        return m_Registry;
+    }
+
     [[nodiscard]] Result<bool> HasComponent(
         const Scene& scene,
         UUID entity,

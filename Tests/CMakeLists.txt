@@ -7,6 +7,7 @@ add_executable(
     Core/UUIDTests.cpp
     Core/EventInputTests.cpp
     Core/LogTests.cpp
+    Core/CommandTests.cpp
     Core/ReflectionTests.cpp
     Asset/AssetTypesTests.cpp
     Asset/AssetRegistryTests.cpp
@@ -42,6 +43,7 @@ add_executable(
     Scene/SceneSerializationTests.cpp
     Scene/SceneHierarchySerializationTests.cpp
     Scene/SceneReflectionTests.cpp
+    Scene/SceneCommandTests.cpp
     Scene/SceneRenderTests.cpp
     Scene/LuaScriptSerializationTests.cpp
     Scripting/LuaVirtualMachineTests.cpp
