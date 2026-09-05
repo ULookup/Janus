@@ -15,7 +15,11 @@ class SceneRenderer;
 namespace Editor
 {
 
+class EditorActions;
 class EditorCamera;
+struct EditorContext;
+class HierarchyPanel;
+class InspectorPanel;
 class ProjectSession;
 
 class EditorApplication final : public ApplicationClient
@@ -35,6 +39,10 @@ private:
 
     std::filesystem::path m_ProjectRoot;
     std::unique_ptr<ProjectSession> m_ProjectSession;
+    std::unique_ptr<EditorContext> m_EditorContext;
+    std::unique_ptr<EditorActions> m_EditorActions;
+    std::unique_ptr<HierarchyPanel> m_HierarchyPanel;
+    std::unique_ptr<InspectorPanel> m_InspectorPanel;
     std::unique_ptr<EditorCamera> m_EditorCamera;
     std::unique_ptr<SceneRenderer> m_SceneRenderer;
 

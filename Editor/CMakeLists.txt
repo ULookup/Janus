@@ -2,6 +2,7 @@ add_library(
     JanusEditorCore
     STATIC
 
+    EditorActions.cpp
     EditorCamera.cpp
     EditorContext.cpp
     EditorViewSource.cpp
@@ -66,6 +67,8 @@ if(JANUS_BUILD_EDITOR)
 
         Main.cpp
         EditorApplication.cpp
+        Panels/HierarchyPanel.cpp
+        Panels/InspectorPanel.cpp
     )
 
     target_link_libraries(
