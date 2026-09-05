@@ -1,8 +1,13 @@
 #include "EditorApplication.h"
 
+#include "EditorActions.h"
 #include "EditorCamera.h"
+#include "EditorContext.h"
 #include "EditorViewSource.h"
+#include "Panels/HierarchyPanel.h"
+#include "Panels/InspectorPanel.h"
 #include "ProjectSession.h"
+#include "ScenePicker.h"
 
 #include "Application/Application.h"
 #include "Core/Input/InputState.h"
@@ -21,6 +26,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -120,6 +126,20 @@ Result<void> EditorApplication::OnInitialize(Application& application)
     }
 
     m_ProjectSession = std::move(session).Value();
+
+    m_EditorContext = std::make_unique<EditorContext>();
+    m_EditorContext->project = m_ProjectSession.get();
+    m_EditorActions =
+        std::make_unique<EditorActions>(*m_EditorContext);
+    m_HierarchyPanel =
+        std::make_unique<HierarchyPanel>(
+            *m_EditorContext,
+            *m_EditorActions);
+    m_InspectorPanel =
+        std::make_unique<InspectorPanel>(
+            *m_EditorContext,
+            *m_EditorActions);
+
     m_EditorCamera = std::make_unique<EditorCamera>();
     m_SceneRenderer = std::make_unique<SceneRenderer>();
 
@@ -134,6 +154,10 @@ Result<void> EditorApplication::OnInitialize(Application& application)
         const Error error = sceneTarget.GetError();
         m_SceneRenderer.reset();
         m_EditorCamera.reset();
+        m_InspectorPanel.reset();
+        m_HierarchyPanel.reset();
+        m_EditorActions.reset();
+        m_EditorContext.reset();
         m_ProjectSession.reset();
         ShutdownImGui(application);
         return Result<void>::Failure(error);
@@ -161,6 +185,10 @@ Result<void> EditorApplication::OnInitialize(Application& application)
         m_SceneViewTarget = {};
         m_SceneRenderer.reset();
         m_EditorCamera.reset();
+        m_InspectorPanel.reset();
+        m_HierarchyPanel.reset();
+        m_EditorActions.reset();
+        m_EditorContext.reset();
         m_ProjectSession.reset();
         ShutdownImGui(application);
         return Result<void>::Failure(error);
@@ -279,8 +307,34 @@ void EditorApplication::OnUpdate(
 
     ImGui::End();
 
+    if (m_EditorContext != nullptr
+        && m_HierarchyPanel != nullptr
+        && m_InspectorPanel != nullptr)
+    {
+        if (m_ProjectSession != nullptr)
+        {
+            m_EditorContext->selection.Validate(
+                m_ProjectSession->GetEditorScene());
+        }
+
+        const auto hierarchyError =
+            m_HierarchyPanel->Draw();
+        if (hierarchyError.has_value())
+        {
+            RecordError(*hierarchyError);
+        }
+
+        const auto inspectorError =
+            m_InspectorPanel->Draw();
+        if (inspectorError.has_value())
+        {
+            RecordError(*inspectorError);
+        }
+    }
+
     bool renderSceneView = false;
     bool renderGameView = false;
+    std::optional<Vector2> pendingScenePick;
 
     if (m_ProjectSession != nullptr
         && m_EditorCamera != nullptr
@@ -347,6 +401,34 @@ void EditorApplication::OnUpdate(
                                 Vector2{
                                     io.MouseDelta.x,
                                     io.MouseDelta.y});
+                        }
+
+                        if (ImGui::IsMouseClicked(
+                                ImGuiMouseButton_Left))
+                        {
+                            const ImVec2 itemMin =
+                                ImGui::GetItemRectMin();
+                            const ImVec2 mouse =
+                                ImGui::GetMousePos();
+
+                            const f32 localX =
+                                mouse.x - itemMin.x;
+                            const f32 localY =
+                                mouse.y - itemMin.y;
+
+                            const f32 scaleX =
+                                static_cast<f32>(
+                                    m_SceneViewViewport.width)
+                                / available.x;
+                            const f32 scaleY =
+                                static_cast<f32>(
+                                    m_SceneViewViewport.height)
+                                / available.y;
+
+                            pendingScenePick =
+                                Vector2{
+                                    localX * scaleX,
+                                    localY * scaleY};
                         }
                     }
 
@@ -451,6 +533,25 @@ void EditorApplication::OnUpdate(
         if (!rendered)
         {
             RecordError(rendered.GetError());
+        }
+        else if (pendingScenePick.has_value()
+            && m_EditorContext != nullptr)
+        {
+            const auto picked =
+                PickSpriteEntity(
+                    scene,
+                    *m_EditorCamera,
+                    m_SceneViewViewport,
+                    *pendingScenePick);
+
+            if (picked.has_value())
+            {
+                m_EditorContext->selection.Select(*picked);
+            }
+            else
+            {
+                m_EditorContext->selection.Clear();
+            }
         }
     }
 
@@ -563,6 +664,11 @@ void EditorApplication::OnShutdown(Application& application) noexcept
         }
         m_GameViewTarget = {};
     }
+
+    m_InspectorPanel.reset();
+    m_HierarchyPanel.reset();
+    m_EditorActions.reset();
+    m_EditorContext.reset();
 
     // AssetService owns renderer-backed resources, so the project session must
     // disappear while Application still owns a live Renderer2D.
