@@ -17,6 +17,8 @@ using PropertyGetter =
     std::function<Result<PropertyValue>(const void*)>;
 using PropertySetter =
     std::function<Result<void>(void*, const PropertyValue&)>;
+using ComponentValidator =
+    std::function<Result<void>(const void*)>;
 
 struct PropertyDescriptor
 {
@@ -52,6 +54,10 @@ struct ComponentDescriptor
     bool serializable = true;
 
     std::vector<PropertyDescriptor> properties;
+    ComponentValidator validator;
+
+    [[nodiscard]] Result<void> Validate(
+        const void* component) const;
 
     [[nodiscard]] const PropertyDescriptor* FindProperty(
         PropertyId propertyId) const noexcept;
