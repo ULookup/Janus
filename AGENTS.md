@@ -2,7 +2,7 @@
 
 ## Mission
 
-Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.6 Editor Foundation**. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
+Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.7 Reflection + Command**. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
 
 This file applies to the entire repository. A more deeply nested `AGENTS.md` may add stricter rules for its subtree.
 
@@ -67,7 +67,7 @@ For a behavior change, run the narrowest relevant test first and then the full `
 
 ## Scope control
 
-- Do not add Renderer, ECS, Scene, Asset, Lua, Editor, or MCP work unless the task explicitly requests it.
+- Do not add Renderer, ECS, Scene, Asset, Lua, Editor, Reflection, Command, or MCP work unless the task explicitly requests it.
 - Do not add a dependency without explaining its role, boundary, version pin, and test impact.
 - Do not add speculative abstractions for Vulkan, 3D, jobs, networking, or plugins.
 - Do not edit generated dependency sources under `out/`.
