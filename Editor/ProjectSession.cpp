@@ -7,6 +7,7 @@
 #include "Renderer/Renderer2D.h"
 #include "Scene/Scene.h"
 #include "Scene/SceneDeserializer.h"
+#include "Scene/SceneSerializer.h"
 
 #include <string>
 #include <string_view>
@@ -205,6 +206,41 @@ bool ProjectSession::IsPlaying() const noexcept
 {
     return m_RuntimeSession != nullptr
         && m_RuntimeSession->IsRunning();
+}
+
+bool ProjectSession::IsDirty() const noexcept
+{
+    return m_Dirty;
+}
+
+void ProjectSession::MarkDirty() noexcept
+{
+    m_Dirty = true;
+}
+
+Result<void> ProjectSession::SaveCurrentScene()
+{
+    if (IsPlaying())
+    {
+        return Result<void>::Failure(
+            ErrorCode::InvalidState,
+            "Cannot save the authoring Scene while Play Mode is active.");
+    }
+
+    const std::filesystem::path scenePath =
+        m_ProjectRoot / m_CurrentScenePath;
+
+    auto saved =
+        SceneSerializer::Save(
+            *m_EditorScene,
+            scenePath);
+    if (!saved)
+    {
+        return saved;
+    }
+
+    m_Dirty = false;
+    return Result<void>::Success();
 }
 
 RuntimeSession* ProjectSession::GetRuntimeSession() noexcept
