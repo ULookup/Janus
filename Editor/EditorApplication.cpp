@@ -30,6 +30,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <optional>
 #include <string>
 #include <utility>
@@ -85,10 +86,12 @@ void ApplyWorkspaceRect(
         ImGuiCond_Always);
 }
 
-constexpr ImGuiWindowFlags WorkspacePanelFlags =
-    ImGuiWindowFlags_NoMove
+constexpr ImGuiWindowFlags WorkspaceContainerFlags =
+    ImGuiWindowFlags_NoTitleBar
+    | ImGuiWindowFlags_NoMove
     | ImGuiWindowFlags_NoResize
-    | ImGuiWindowFlags_NoCollapse;
+    | ImGuiWindowFlags_NoCollapse
+    | ImGuiWindowFlags_NoSavedSettings;
 
 constexpr ImGuiWindowFlags ToolbarFlags =
     ImGuiWindowFlags_NoTitleBar
@@ -97,6 +100,40 @@ constexpr ImGuiWindowFlags ToolbarFlags =
     | ImGuiWindowFlags_NoCollapse
     | ImGuiWindowFlags_NoScrollbar
     | ImGuiWindowFlags_NoSavedSettings;
+
+
+void ConfigureEditorFont()
+{
+    ImGuiIO& io = ImGui::GetIO();
+
+#if defined(_WIN32)
+    if (const char* windowsDirectory = std::getenv("WINDIR");
+        windowsDirectory != nullptr)
+    {
+        const std::filesystem::path fontPath =
+            std::filesystem::path(windowsDirectory)
+            / "Fonts"
+            / "segoeui.ttf";
+
+        std::error_code error;
+        if (std::filesystem::exists(fontPath, error)
+            && !error)
+        {
+            if (ImFont* font =
+                    io.Fonts->AddFontFromFileTTF(
+                        fontPath.string().c_str(),
+                        16.0f);
+                font != nullptr)
+            {
+                io.FontDefault = font;
+                return;
+            }
+        }
+    }
+#endif
+
+    io.FontGlobalScale = 1.15f;
+}
 
 void DrawSceneGrid(
     const EditorCamera& camera,
@@ -220,13 +257,17 @@ Result<void> EditorApplication::OnInitialize(Application& application)
     ImGui::CreateContext();
     m_ImGuiContextCreated = true;
     ImGui::StyleColorsDark();
+    ConfigureEditorFont();
 
     ImGuiStyle& style = ImGui::GetStyle();
     style.WindowRounding = 0.0f;
     style.ChildRounding = 0.0f;
     style.FrameRounding = 3.0f;
+    style.TabRounding = 3.0f;
     style.WindowBorderSize = 1.0f;
     style.WindowPadding = ImVec2{8.0f, 8.0f};
+    style.FramePadding = ImVec2{8.0f, 5.0f};
+    style.ItemSpacing = ImVec2{8.0f, 6.0f};
 
     if (!ImGui_ImplSDL3_InitForOpenGL(nativeWindow, nullptr))
     {
