@@ -24,6 +24,15 @@ Janus::UUID EntityId(
 } // namespace
 
 TEST_CASE(
+    "Builtin Scene reflection factory returns explicitly owned metadata",
+    "[scene][reflection][v0.7]")
+{
+    auto result = Janus::CreateBuiltinSceneReflectionRegistry();
+    REQUIRE(result);
+    REQUIRE(result.Value().GetComponentCount() == 4);
+}
+
+TEST_CASE(
     "Builtin Scene reflection exposes authoring metadata only",
     "[scene][reflection][v0.7]")
 {
