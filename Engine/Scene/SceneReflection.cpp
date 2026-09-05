@@ -806,6 +806,21 @@ Result<void> RegisterBuiltinSceneReflection(
             }});
 }
 
+Result<ReflectionRegistry>
+CreateBuiltinSceneReflectionRegistry()
+{
+    ReflectionRegistry registry;
+    auto registered = RegisterBuiltinSceneReflection(registry);
+    if (!registered)
+    {
+        return Result<ReflectionRegistry>::Failure(
+            registered.GetError());
+    }
+
+    return Result<ReflectionRegistry>::Success(
+        std::move(registry));
+}
+
 SceneReflection::SceneReflection(
     const ReflectionRegistry& registry,
     const AssetRegistry* assets) noexcept
