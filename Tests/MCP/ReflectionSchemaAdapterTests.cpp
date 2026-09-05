@@ -1,4 +1,5 @@
 #include "Schema/ReflectionSchemaAdapter.h"
+#include "Schema/JsonSchema.h"
 
 #include "Scene/SceneReflection.h"
 
