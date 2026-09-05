@@ -29,31 +29,33 @@ std::filesystem::path SandboxProjectRoot()
         / "SandboxProject";
 }
 
-std::unique_ptr<Janus::Editor::ProjectSession> OpenProject(
-    std::unique_ptr<Janus::Renderer2D>& renderer)
+struct ProjectFixture
 {
-    Janus::Test::FakeRenderDevice* device =
-        new Janus::Test::FakeRenderDevice();
+    Janus::Test::FakeRenderDevice device;
+    std::unique_ptr<Janus::Renderer2D> renderer;
+    std::unique_ptr<Janus::Editor::ProjectSession> project;
 
-    renderer =
-        Janus::Detail::Renderer2DTestAccess::Create(
-            *device);
+    ProjectFixture()
+    {
+        renderer =
+            Janus::Detail::Renderer2DTestAccess::Create(
+                device);
 
-    Janus::ProjectRuntimeConfig config;
-    config.root =
-        SandboxProjectRoot();
+        Janus::ProjectRuntimeConfig config;
+        config.root =
+            SandboxProjectRoot();
 
-    auto opened =
-        Janus::Editor::ProjectSession::Open(
-            config,
-            *renderer);
+        auto opened =
+            Janus::Editor::ProjectSession::Open(
+                config,
+                *renderer);
 
-    REQUIRE(opened);
+        REQUIRE(opened);
 
-    // Renderer2D does not own the fake device. The tests in this file
-    // intentionally keep it process-lifetime to keep the fixture compact.
-    return std::move(opened).Value();
-}
+        project =
+            std::move(opened).Value();
+    }
+};
 
 Janus::MCP::Json ModernMeta()
 {
@@ -172,12 +174,12 @@ TEST_CASE(
     "Live Editor MCP write marks dirty and shares Human undo history",
     "[editor][mcp][host][v0.8]")
 {
-    std::unique_ptr<Janus::Renderer2D> renderer;
-    auto project =
-        OpenProject(renderer);
+    ProjectFixture fixture;
+    auto& project =
+        *fixture.project;
 
     const Janus::usize beforeEntities =
-        project->GetEditorScene()
+        project.GetEditorScene()
             .GetEntities()
             .size();
 
@@ -220,22 +222,22 @@ TEST_CASE(
             .at("ok")
         == true);
 
-    REQUIRE(project->IsDirty());
+    REQUIRE(project.IsDirty());
     REQUIRE(
-        project->GetEditorScene()
+        project.GetEditorScene()
             .GetEntities()
             .size()
         == beforeEntities + 1);
     REQUIRE(
-        project->GetCommandBus()
+        project.GetCommandBus()
             .GetHistorySize()
         == 1);
 
     REQUIRE(
-        project->GetCommandBus().Undo());
+        project.GetCommandBus().Undo());
 
     REQUIRE(
-        project->GetEditorScene()
+        project.GetEditorScene()
             .GetEntities()
             .size()
         == beforeEntities);
@@ -245,12 +247,12 @@ TEST_CASE(
     "Live Editor MCP permission policy runs on main thread before handler",
     "[editor][mcp][host][permission][v0.8]")
 {
-    std::unique_ptr<Janus::Renderer2D> renderer;
-    auto project =
-        OpenProject(renderer);
+    ProjectFixture fixture;
+    auto& project =
+        *fixture.project;
 
     const Janus::usize beforeEntities =
-        project->GetEditorScene()
+        project.GetEditorScene()
             .GetEntities()
             .size();
 
@@ -293,38 +295,38 @@ TEST_CASE(
             .at("code")
         == Janus::MCP::McpPermissionDenied);
     REQUIRE(
-        project->GetEditorScene()
+        project.GetEditorScene()
             .GetEntities()
             .size()
         == beforeEntities);
     REQUIRE(
-        project->GetCommandBus()
+        project.GetCommandBus()
             .GetHistorySize()
         == 0);
-    REQUIRE_FALSE(project->IsDirty());
+    REQUIRE_FALSE(project.IsDirty());
 }
 
 TEST_CASE(
     "Live Editor MCP rejects writes during Play without moving history",
     "[editor][mcp][host][play][v0.8]")
 {
-    std::unique_ptr<Janus::Renderer2D> renderer;
-    auto project =
-        OpenProject(renderer);
+    ProjectFixture fixture;
+    auto& project =
+        *fixture.project;
 
     Janus::InputState inputState;
     inputState.BeginFrame();
 
     REQUIRE(
-        project->StartRuntime(
+        project.StartRuntime(
             inputState));
 
     const Janus::usize beforeEntities =
-        project->GetEditorScene()
+        project.GetEditorScene()
             .GetEntities()
             .size();
     const Janus::usize beforeHistory =
-        project->GetCommandBus()
+        project.GetCommandBus()
             .GetHistorySize();
 
     std::istringstream input(
@@ -372,28 +374,28 @@ TEST_CASE(
         == false);
 
     REQUIRE(
-        project->GetEditorScene()
+        project.GetEditorScene()
             .GetEntities()
             .size()
         == beforeEntities);
     REQUIRE(
-        project->GetCommandBus()
+        project.GetCommandBus()
             .GetHistorySize()
         == beforeHistory);
 
-    REQUIRE(project->StopRuntime());
+    REQUIRE(project.StopRuntime());
 }
 
 TEST_CASE(
     "Live Editor MCP resources remain authoring-only during Play",
     "[editor][mcp][host][play][resource][v0.8]")
 {
-    std::unique_ptr<Janus::Renderer2D> renderer;
-    auto project =
-        OpenProject(renderer);
+    ProjectFixture fixture;
+    auto& project =
+        *fixture.project;
 
     const Janus::usize authoringCount =
-        project->GetEditorScene()
+        project.GetEditorScene()
             .GetEntities()
             .size();
 
@@ -401,20 +403,20 @@ TEST_CASE(
     inputState.BeginFrame();
 
     REQUIRE(
-        project->StartRuntime(
+        project.StartRuntime(
             inputState));
 
     REQUIRE(
-        project->GetRuntimeSession()
+        project.GetRuntimeSession()
         != nullptr);
 
-    project->GetRuntimeSession()
+    project.GetRuntimeSession()
         ->GetScene()
         .CreateEntity(
             "RuntimeOnly");
 
     REQUIRE(
-        project->GetRuntimeSession()
+        project.GetRuntimeSession()
             ->GetScene()
             .GetEntities()
             .size()
@@ -467,16 +469,16 @@ TEST_CASE(
         payload.at("entityCount")
         == authoringCount);
 
-    REQUIRE(project->StopRuntime());
+    REQUIRE(project.StopRuntime());
 }
 
 TEST_CASE(
     "Live Editor MCP drains repeated requests through bounded frame pumps",
     "[editor][mcp][host][repeat][v0.8]")
 {
-    std::unique_ptr<Janus::Renderer2D> renderer;
-    auto project =
-        OpenProject(renderer);
+    ProjectFixture fixture;
+    auto& project =
+        *fixture.project;
 
     std::string messages;
     for (Janus::i32 id = 10;
@@ -523,22 +525,22 @@ TEST_CASE(
 
     REQUIRE(responses.size() == 3);
     REQUIRE(
-        project->GetCommandBus()
+        project.GetCommandBus()
             .GetHistorySize()
         == 3);
-    REQUIRE(project->IsDirty());
+    REQUIRE(project.IsDirty());
 }
 
 TEST_CASE(
     "Live Editor MCP stop releases a pending worker without main-thread execution",
     "[editor][mcp][host][shutdown][v0.8]")
 {
-    std::unique_ptr<Janus::Renderer2D> renderer;
-    auto project =
-        OpenProject(renderer);
+    ProjectFixture fixture;
+    auto& project =
+        *fixture.project;
 
     const Janus::usize beforeEntities =
-        project->GetEditorScene()
+        project.GetEditorScene()
             .GetEntities()
             .size();
 
@@ -572,12 +574,12 @@ TEST_CASE(
 
     REQUIRE_FALSE(host->IsRunning());
     REQUIRE(
-        project->GetEditorScene()
+        project.GetEditorScene()
             .GetEntities()
             .size()
         == beforeEntities);
     REQUIRE(
-        project->GetCommandBus()
+        project.GetCommandBus()
             .GetHistorySize()
         == 0);
 }
