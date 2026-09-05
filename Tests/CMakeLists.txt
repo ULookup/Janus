@@ -21,6 +21,7 @@ add_executable(
     Editor/EditorActionsTests.cpp
     Editor/EditorCameraTests.cpp
     Editor/EditorConsoleTests.cpp
+    Editor/InspectorModelTests.cpp
     Editor/EditorSelectionTests.cpp
     Editor/EditorViewSourceTests.cpp
     Editor/EditorWorkflowTests.cpp

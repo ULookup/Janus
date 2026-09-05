@@ -98,6 +98,8 @@ TEST_CASE(
         == std::filesystem::path("Scenes/Battle.scene"));
     REQUIRE(session->GetAssetRegistry().Size() == 2);
     REQUIRE(session->GetReflectionRegistry().GetComponentCount() == 4);
+    REQUIRE(session->GetCommandBus().GetHistorySize() == 0);
+    REQUIRE(session->GetCommandBus().GetCursor() == 0);
     REQUIRE(session->GetEditorScene().GetMetadata().name == "Battle");
     REQUIRE(session->GetEditorScene().GetEntities().size() == 4);
 }

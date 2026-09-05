@@ -7,14 +7,17 @@
 #include "Renderer/Renderer2D.h"
 #include "Scene/Components.h"
 #include "Scene/Scene.h"
+#include "Scene/SceneReflection.h"
 
 #include "../Renderer/FakeRenderDevice.h"
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <chrono>
 #include <filesystem>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -33,6 +36,68 @@ std::unique_ptr<Janus::Editor::ProjectSession> OpenProject(
 {
     Janus::ProjectRuntimeConfig config;
     config.root = SandboxProjectRoot();
+
+    auto opened =
+        Janus::Editor::ProjectSession::Open(
+            config,
+            renderer);
+    REQUIRE(opened);
+    return std::move(opened).Value();
+}
+
+class ProjectTempDirectory final
+{
+public:
+    ProjectTempDirectory()
+    {
+        const auto leaf =
+            "janus-editor-actions-"
+            + std::to_string(
+                std::chrono::steady_clock::now()
+                    .time_since_epoch()
+                    .count());
+
+        m_Path =
+            std::filesystem::temp_directory_path()
+            / leaf;
+
+        std::error_code error;
+        std::filesystem::copy(
+            SandboxProjectRoot(),
+            m_Path,
+            std::filesystem::copy_options::recursive,
+            error);
+
+        if (error)
+        {
+            throw std::runtime_error(
+                "Failed to copy SandboxProject for EditorActions tests.");
+        }
+    }
+
+    ~ProjectTempDirectory()
+    {
+        std::error_code error;
+        std::filesystem::remove_all(
+            m_Path,
+            error);
+    }
+
+    [[nodiscard]] const std::filesystem::path& Path() const noexcept
+    {
+        return m_Path;
+    }
+
+private:
+    std::filesystem::path m_Path;
+};
+
+std::unique_ptr<Janus::Editor::ProjectSession> OpenTempProject(
+    Janus::Renderer2D& renderer,
+    const std::filesystem::path& root)
+{
+    Janus::ProjectRuntimeConfig config;
+    config.root = root;
 
     auto opened =
         Janus::Editor::ProjectSession::Open(
@@ -336,4 +401,242 @@ TEST_CASE(
     REQUIRE(
         missing.GetError().code
         == Janus::ErrorCode::AssetNotFound);
+}
+
+
+TEST_CASE(
+    "EditorActions generic reflected property mutation is reversible",
+    "[editor][actions][command][reflection][v0.7]")
+{
+    Janus::Test::FakeRenderDevice device;
+    auto renderer =
+        Janus::Detail::Renderer2DTestAccess::Create(device);
+    auto project = OpenProject(*renderer);
+
+    Janus::Editor::EditorContext context;
+    context.project = project.get();
+    Janus::Editor::EditorActions actions(context);
+
+    const auto created =
+        actions.CreateEntity("Reflected");
+    REQUIRE(created);
+
+    auto& scene =
+        project->GetEditorScene();
+    const auto entity =
+        scene.FindEntity(created.Value());
+    REQUIRE(entity.IsValid());
+
+    REQUIRE(
+        actions.SetProperty(
+            created.Value(),
+            Janus::SceneReflectionIds::Transform,
+            Janus::SceneReflectionIds::TransformPosition,
+            Janus::PropertyValue{
+                Janus::Vector2{25.0f, 30.0f}}));
+
+    REQUIRE(actions.CanUndo());
+    REQUIRE_FALSE(actions.CanRedo());
+
+    auto* transform =
+        scene.GetComponent<Janus::TransformComponent>(
+            entity);
+    REQUIRE(transform != nullptr);
+    REQUIRE(transform->position.x == Catch::Approx(25.0f));
+    REQUIRE(transform->position.y == Catch::Approx(30.0f));
+
+    REQUIRE(actions.Undo());
+    REQUIRE(transform->position.x == Catch::Approx(0.0f));
+    REQUIRE(transform->position.y == Catch::Approx(0.0f));
+    REQUIRE(actions.CanRedo());
+
+    REQUIRE(actions.Redo());
+    REQUIRE(transform->position.x == Catch::Approx(25.0f));
+    REQUIRE(transform->position.y == Catch::Approx(30.0f));
+}
+
+TEST_CASE(
+    "EditorActions Undo and Redo mark a saved project dirty",
+    "[editor][actions][command][dirty][v0.7]")
+{
+    ProjectTempDirectory temp;
+
+    Janus::Test::FakeRenderDevice device;
+    auto renderer =
+        Janus::Detail::Renderer2DTestAccess::Create(device);
+    auto project =
+        OpenTempProject(
+            *renderer,
+            temp.Path());
+
+    Janus::Editor::EditorContext context;
+    context.project = project.get();
+    Janus::Editor::EditorActions actions(context);
+
+    const auto created =
+        actions.CreateEntity("DirtyHistory");
+    REQUIRE(created);
+    REQUIRE(project->IsDirty());
+
+    REQUIRE(project->SaveCurrentScene());
+    REQUIRE_FALSE(project->IsDirty());
+
+    REQUIRE(actions.Undo());
+    REQUIRE(project->IsDirty());
+    REQUIRE_FALSE(
+        project->GetEditorScene()
+            .FindEntity(created.Value())
+            .IsValid());
+
+    REQUIRE(project->SaveCurrentScene());
+    REQUIRE_FALSE(project->IsDirty());
+
+    REQUIRE(actions.Redo());
+    REQUIRE(project->IsDirty());
+    REQUIRE(
+        project->GetEditorScene()
+            .FindEntity(created.Value())
+            .IsValid());
+}
+
+TEST_CASE(
+    "EditorActions reject Undo and Redo during Play Mode",
+    "[editor][actions][command][play][v0.7]")
+{
+    Janus::Test::FakeRenderDevice device;
+    auto renderer =
+        Janus::Detail::Renderer2DTestAccess::Create(device);
+    auto project = OpenProject(*renderer);
+
+    Janus::Editor::EditorContext context;
+    context.project = project.get();
+    Janus::Editor::EditorActions actions(context);
+
+    const auto created =
+        actions.CreateEntity("History");
+    REQUIRE(created);
+    REQUIRE(actions.CanUndo());
+
+    const Janus::usize cursor =
+        project->GetCommandBus().GetCursor();
+
+    Janus::InputState input;
+    REQUIRE(project->StartRuntime(input));
+
+    REQUIRE_FALSE(actions.CanUndo());
+    REQUIRE_FALSE(actions.CanRedo());
+
+    const auto undone =
+        actions.Undo();
+    REQUIRE_FALSE(undone);
+    REQUIRE(
+        undone.GetError().code
+        == Janus::ErrorCode::InvalidState);
+    REQUIRE(
+        project->GetCommandBus().GetCursor()
+        == cursor);
+
+    const auto redone =
+        actions.Redo();
+    REQUIRE_FALSE(redone);
+    REQUIRE(
+        redone.GetError().code
+        == Janus::ErrorCode::InvalidState);
+    REQUIRE(
+        project->GetCommandBus().GetCursor()
+        == cursor);
+
+    REQUIRE(project->StopRuntime());
+    REQUIRE(actions.CanUndo());
+}
+
+TEST_CASE(
+    "EditorActions Undo restores contextual Camera primary mutation",
+    "[editor][actions][command][camera][v0.7]")
+{
+    Janus::Test::FakeRenderDevice device;
+    auto renderer =
+        Janus::Detail::Renderer2DTestAccess::Create(device);
+    auto project = OpenProject(*renderer);
+
+    Janus::Editor::EditorContext context;
+    context.project = project.get();
+    Janus::Editor::EditorActions actions(context);
+
+    auto& scene =
+        project->GetEditorScene();
+
+    Janus::ECS::Entity originalPrimary;
+    scene.View<Janus::CameraComponent>()
+        .ForEach(
+            [&](Janus::ECS::Entity entity,
+                Janus::CameraComponent& camera)
+            {
+                if (camera.primary)
+                {
+                    originalPrimary = entity;
+                }
+            });
+
+    REQUIRE(originalPrimary.IsValid());
+
+    const auto created =
+        actions.CreateEntity("SecondPrimary");
+    REQUIRE(created);
+    REQUIRE(actions.AddCamera(created.Value()));
+
+    REQUIRE(
+        actions.SetProperty(
+            created.Value(),
+            Janus::SceneReflectionIds::Camera,
+            Janus::SceneReflectionIds::CameraPrimary,
+            Janus::PropertyValue{true}));
+
+    const auto second =
+        scene.FindEntity(created.Value());
+    REQUIRE(second.IsValid());
+    REQUIRE(
+        scene.GetComponent<Janus::CameraComponent>(
+            second)->primary);
+    REQUIRE_FALSE(
+        scene.GetComponent<Janus::CameraComponent>(
+            originalPrimary)->primary);
+
+    REQUIRE(actions.Undo());
+
+    REQUIRE_FALSE(
+        scene.GetComponent<Janus::CameraComponent>(
+            second)->primary);
+    REQUIRE(
+        scene.GetComponent<Janus::CameraComponent>(
+            originalPrimary)->primary);
+}
+
+
+TEST_CASE(
+    "ProjectSession command history is scoped to one authoring session",
+    "[editor][actions][command][session][v0.7]")
+{
+    Janus::Test::FakeRenderDevice device;
+    auto renderer =
+        Janus::Detail::Renderer2DTestAccess::Create(device);
+
+    auto first = OpenProject(*renderer);
+
+    Janus::Editor::EditorContext firstContext;
+    firstContext.project = first.get();
+    Janus::Editor::EditorActions firstActions(firstContext);
+
+    REQUIRE(firstActions.CreateEntity("SessionOnly"));
+    REQUIRE(
+        first->GetCommandBus().GetHistorySize()
+        == 1);
+
+    auto second = OpenProject(*renderer);
+    REQUIRE(
+        second->GetCommandBus().GetHistorySize()
+        == 0);
+    REQUIRE(
+        second->GetCommandBus().GetCursor()
+        == 0);
 }

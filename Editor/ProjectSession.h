@@ -2,6 +2,7 @@
 
 #include "Application/ApplicationConfig.h"
 #include "Asset/AssetRegistry.h"
+#include "Core/Command/CommandBus.h"
 #include "Core/Error/Result.h"
 #include "Core/Reflection/ReflectionRegistry.h"
 #include "Core/Time/TimeStep.h"
@@ -41,6 +42,8 @@ public:
     [[nodiscard]] const AssetRegistry& GetAssetRegistry() const noexcept;
     [[nodiscard]] ReflectionRegistry& GetReflectionRegistry() noexcept;
     [[nodiscard]] const ReflectionRegistry& GetReflectionRegistry() const noexcept;
+    [[nodiscard]] CommandBus& GetCommandBus() noexcept;
+    [[nodiscard]] const CommandBus& GetCommandBus() const noexcept;
     [[nodiscard]] AssetService& GetAssetService() noexcept;
     [[nodiscard]] Scene& GetEditorScene() noexcept;
     [[nodiscard]] const Scene& GetEditorScene() const noexcept;
@@ -72,6 +75,11 @@ private:
     AssetRegistry m_AssetRegistry;
     std::unique_ptr<AssetService> m_AssetService;
     std::unique_ptr<Scene> m_EditorScene;
+
+    // Commands retain references into the authoring capability graph.
+    // Keep history after those dependencies in declaration order so it
+    // is destroyed before Scene, AssetRegistry, and ReflectionRegistry.
+    CommandBus m_CommandBus;
     std::unique_ptr<RuntimeSession> m_RuntimeSession;
     bool m_Dirty = false;
 };

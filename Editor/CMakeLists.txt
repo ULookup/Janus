@@ -6,6 +6,7 @@ add_library(
     EditorCamera.cpp
     EditorConsole.cpp
     EditorContext.cpp
+    InspectorModel.cpp
     EditorViewSource.cpp
     EditorWorkspaceLayout.cpp
     ScenePicker.cpp
