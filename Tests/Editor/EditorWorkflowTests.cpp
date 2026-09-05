@@ -1,5 +1,6 @@
 #include "EditorActions.h"
 #include "EditorContext.h"
+#include "InspectorModel.h"
 #include "ProjectSession.h"
 #include "RuntimeSession.h"
 
@@ -11,6 +12,7 @@
 #include "Scene/Scene.h"
 #include "Scene/SceneDeserializer.h"
 #include "Scene/SceneRenderer.h"
+#include "Scene/SceneReflection.h"
 
 #include "../Renderer/FakeRenderDevice.h"
 
@@ -284,4 +286,210 @@ TEST_CASE(
     REQUIRE(persistedSprite->texture == texture);
     REQUIRE(persistedScript->script == script);
     REQUIRE(persistedScript->enabled);
+}
+
+
+TEST_CASE(
+    "v0.7 reflection command authoring workflow survives undo save reload and play",
+    "[editor][workflow][v0.7][reflection][command][e2e]")
+{
+    EditorWorkflowTempProject temp;
+
+    Janus::Test::FakeRenderDevice device;
+    auto renderer =
+        Janus::Detail::Renderer2DTestAccess::Create(device);
+
+    Janus::ProjectRuntimeConfig config;
+    config.root = temp.Path();
+
+    auto opened =
+        Janus::Editor::ProjectSession::Open(
+            config,
+            *renderer);
+    REQUIRE(opened);
+
+    auto project =
+        std::move(opened).Value();
+
+    REQUIRE(
+        project->GetReflectionRegistry().GetComponentCount()
+        == 4);
+    REQUIRE(
+        project->GetCommandBus().GetHistorySize()
+        == 0);
+
+    Janus::Editor::EditorContext context;
+    context.project = project.get();
+    Janus::Editor::EditorActions actions(context);
+
+    const auto created =
+        actions.CreateEntity("V07Authored");
+    REQUIRE(created);
+
+    auto inspector =
+        Janus::Editor::BuildInspectorModel(
+            project->GetEditorScene(),
+            created.Value(),
+            project->GetReflectionRegistry());
+    REQUIRE(inspector);
+    REQUIRE(inspector.Value().size() == 4);
+
+    REQUIRE(
+        actions.AddComponent(
+            created.Value(),
+            Janus::SceneReflectionIds::SpriteRenderer));
+
+    REQUIRE(
+        actions.SetProperty(
+            created.Value(),
+            Janus::SceneReflectionIds::SpriteRenderer,
+            Janus::SceneReflectionIds::SpriteSize,
+            Janus::PropertyValue{
+                Janus::Vector2{48.0f, 64.0f}}));
+
+    REQUIRE(
+        actions.SetProperty(
+            created.Value(),
+            Janus::SceneReflectionIds::Transform,
+            Janus::SceneReflectionIds::TransformPosition,
+            Janus::PropertyValue{
+                Janus::Vector2{24.0f, -12.0f}}));
+
+    auto& editorScene =
+        project->GetEditorScene();
+    const auto editorEntity =
+        editorScene.FindEntity(
+            created.Value());
+    REQUIRE(editorEntity.IsValid());
+
+    auto* editorTransform =
+        editorScene.GetComponent<Janus::TransformComponent>(
+            editorEntity);
+    REQUIRE(editorTransform != nullptr);
+    REQUIRE(
+        editorTransform->position.x
+        == Catch::Approx(24.0f));
+    REQUIRE(
+        editorTransform->position.y
+        == Catch::Approx(-12.0f));
+
+    const Janus::usize historySize =
+        project->GetCommandBus().GetHistorySize();
+    const Janus::usize historyCursor =
+        project->GetCommandBus().GetCursor();
+
+    REQUIRE(historySize == 4);
+    REQUIRE(historyCursor == historySize);
+
+    REQUIRE(actions.Undo());
+    REQUIRE(
+        editorTransform->position.x
+        == Catch::Approx(0.0f));
+    REQUIRE(
+        editorTransform->position.y
+        == Catch::Approx(0.0f));
+
+    REQUIRE(actions.Redo());
+    REQUIRE(
+        editorTransform->position.x
+        == Catch::Approx(24.0f));
+    REQUIRE(
+        editorTransform->position.y
+        == Catch::Approx(-12.0f));
+
+    REQUIRE(project->IsDirty());
+    REQUIRE(project->SaveCurrentScene());
+    REQUIRE_FALSE(project->IsDirty());
+
+    auto reloaded =
+        Janus::SceneDeserializer::Load(
+            temp.Path() / "Scenes/Battle.scene",
+            project->GetReflectionRegistry());
+    REQUIRE(reloaded);
+
+    const auto persisted =
+        reloaded.Value()->FindEntity(
+            created.Value());
+    REQUIRE(persisted.IsValid());
+
+    const auto* persistedTransform =
+        reloaded.Value()
+            ->GetComponent<Janus::TransformComponent>(
+                persisted);
+    const auto* persistedSprite =
+        reloaded.Value()
+            ->GetComponent<Janus::SpriteRendererComponent>(
+                persisted);
+
+    REQUIRE(persistedTransform != nullptr);
+    REQUIRE(persistedSprite != nullptr);
+    REQUIRE(
+        persistedTransform->position.x
+        == Catch::Approx(24.0f));
+    REQUIRE(
+        persistedTransform->position.y
+        == Catch::Approx(-12.0f));
+    REQUIRE(
+        persistedSprite->size.x
+        == Catch::Approx(48.0f));
+    REQUIRE(
+        persistedSprite->size.y
+        == Catch::Approx(64.0f));
+
+    Janus::InputState input;
+    REQUIRE(project->StartRuntime(input));
+    REQUIRE(project->IsPlaying());
+
+    REQUIRE(
+        project->GetCommandBus().GetHistorySize()
+        == historySize);
+    REQUIRE(
+        project->GetCommandBus().GetCursor()
+        == historyCursor);
+    REQUIRE_FALSE(actions.CanUndo());
+
+    auto* runtime =
+        project->GetRuntimeSession();
+    REQUIRE(runtime != nullptr);
+
+    Janus::Scene& runtimeScene =
+        runtime->GetScene();
+    const auto runtimeEntity =
+        runtimeScene.FindEntity(
+            created.Value());
+    REQUIRE(runtimeEntity.IsValid());
+
+    auto* runtimeTransform =
+        runtimeScene.GetComponent<Janus::TransformComponent>(
+            runtimeEntity);
+    REQUIRE(runtimeTransform != nullptr);
+
+    runtimeTransform->position.x = 999.0f;
+    runtimeTransform->dirty = true;
+
+    REQUIRE(
+        editorTransform->position.x
+        == Catch::Approx(24.0f));
+    REQUIRE_FALSE(project->IsDirty());
+
+    REQUIRE(project->StopRuntime());
+    REQUIRE_FALSE(project->IsPlaying());
+
+    REQUIRE(
+        project->GetCommandBus().GetHistorySize()
+        == historySize);
+    REQUIRE(
+        project->GetCommandBus().GetCursor()
+        == historyCursor);
+    REQUIRE(actions.CanUndo());
+
+    REQUIRE(actions.Undo());
+    REQUIRE(
+        editorTransform->position.x
+        == Catch::Approx(0.0f));
+
+    REQUIRE(actions.Redo());
+    REQUIRE(
+        editorTransform->position.x
+        == Catch::Approx(24.0f));
 }
