@@ -176,6 +176,24 @@ Result<void> PropertyDescriptor::Set(
     return setter(component, value);
 }
 
+Result<void> ComponentDescriptor::Validate(
+    const void* component) const
+{
+    if (component == nullptr)
+    {
+        return Result<void>::Failure(
+            ErrorCode::InvalidArgument,
+            "Reflection component validation requires an instance.");
+    }
+
+    if (!validator)
+    {
+        return Result<void>::Success();
+    }
+
+    return validator(component);
+}
+
 const PropertyDescriptor* ComponentDescriptor::FindProperty(
     PropertyId propertyId) const noexcept
 {
