@@ -3,6 +3,7 @@
 #include "Application/ApplicationConfig.h"
 #include "Asset/AssetRegistry.h"
 #include "Core/Error/Result.h"
+#include "Core/Reflection/ReflectionRegistry.h"
 #include "Core/Time/TimeStep.h"
 
 #include <filesystem>
@@ -38,6 +39,8 @@ public:
     [[nodiscard]] const std::filesystem::path& GetProjectRoot() const noexcept;
     [[nodiscard]] const std::filesystem::path& GetCurrentScenePath() const noexcept;
     [[nodiscard]] const AssetRegistry& GetAssetRegistry() const noexcept;
+    [[nodiscard]] ReflectionRegistry& GetReflectionRegistry() noexcept;
+    [[nodiscard]] const ReflectionRegistry& GetReflectionRegistry() const noexcept;
     [[nodiscard]] AssetService& GetAssetService() noexcept;
     [[nodiscard]] Scene& GetEditorScene() noexcept;
     [[nodiscard]] const Scene& GetEditorScene() const noexcept;
@@ -58,12 +61,14 @@ private:
     ProjectSession(
         std::filesystem::path projectRoot,
         std::filesystem::path currentScenePath,
+        ReflectionRegistry reflectionRegistry,
         AssetRegistry assetRegistry,
         std::unique_ptr<Scene> editorScene,
         Renderer2D& renderer);
 
     std::filesystem::path m_ProjectRoot;
     std::filesystem::path m_CurrentScenePath;
+    ReflectionRegistry m_ReflectionRegistry;
     AssetRegistry m_AssetRegistry;
     std::unique_ptr<AssetService> m_AssetService;
     std::unique_ptr<Scene> m_EditorScene;

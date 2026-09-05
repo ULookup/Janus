@@ -1,14 +1,30 @@
 #include "Scene/SceneDeserializer.h"
 #include "Scene/SceneSerializer.h"
 #include "Scene/Scene.h"
+#include "Scene/SceneReflection.h"
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <stdexcept>
 #include <utility>
+
+namespace
+{
+Janus::ReflectionRegistry MakeReflectionRegistry()
+{
+    auto result = Janus::CreateBuiltinSceneReflectionRegistry();
+    if (!result)
+    {
+        throw std::runtime_error(result.GetError().message);
+    }
+    return std::move(result).Value();
+}
+} // namespace
 
 TEST_CASE("Scene serialization preserves sibling order deterministically",
           "[scene][serialization][hierarchy]")
 {
+    auto reflection = MakeReflectionRegistry();
     Janus::Scene scene;
     const auto parent = scene.CreateEntity("Parent");
     const auto first = scene.CreateEntity("First");
@@ -27,11 +43,11 @@ TEST_CASE("Scene serialization preserves sibling order deterministically",
     REQUIRE(scene.GetComponent<Janus::HierarchyComponent>(second)->nextSibling
             == first);
 
-    auto serialized = Janus::SceneSerializer::Serialize(scene);
+    auto serialized = Janus::SceneSerializer::Serialize(scene, reflection);
     REQUIRE(serialized);
 
     auto loadedResult =
-        Janus::SceneDeserializer::Deserialize(serialized.Value());
+        Janus::SceneDeserializer::Deserialize(serialized.Value(), reflection);
     REQUIRE(loadedResult);
     auto loaded = std::move(loadedResult).Value();
 
@@ -57,7 +73,7 @@ TEST_CASE("Scene serialization preserves sibling order deterministically",
     REQUIRE(loaded->GetComponent<Janus::HierarchyComponent>(loadedSecond)->nextSibling
             == loadedFirst);
 
-    auto reserialized = Janus::SceneSerializer::Serialize(*loaded);
+    auto reserialized = Janus::SceneSerializer::Serialize(*loaded, reflection);
     REQUIRE(reserialized);
     REQUIRE(reserialized.Value() == serialized.Value());
 }

@@ -76,6 +76,11 @@ TEST_CASE(
         registry.FindComponent(
             Janus::SceneReflectionIds::LuaScript);
     REQUIRE(script != nullptr);
+    REQUIRE(script->name == "LuaScript");
+    REQUIRE(script->serializedName == "LuaScript");
+    REQUIRE(
+        registry.FindComponentBySerializedName("LuaScript")
+        == script);
     REQUIRE(
         script->FindProperty(
             Janus::SceneReflectionIds::LuaScriptAsset)

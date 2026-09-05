@@ -2,9 +2,11 @@
 #include "Scene/Scene.h"
 #include "Scene/SceneDeserializer.h"
 #include "Scene/SceneSerializer.h"
+#include "Scene/SceneReflection.h"
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -21,11 +23,22 @@ Janus::AssetHandle ParseHandle(const char* text)
     return Janus::AssetHandle::Parse(text).Value();
 }
 
+Janus::ReflectionRegistry MakeReflectionRegistry()
+{
+    auto result = Janus::CreateBuiltinSceneReflectionRegistry();
+    if (!result)
+    {
+        throw std::runtime_error(result.GetError().message);
+    }
+    return std::move(result).Value();
+}
+
 } // namespace
 
 TEST_CASE("LuaScriptComponent round trips persistent Script AssetHandle",
           "[scene][serialization][lua-script][v0.5]")
 {
+    auto reflection = MakeReflectionRegistry();
     const Janus::UUID sceneId =
         ParseUUID("51000000-0000-4000-8000-000000000001");
     const Janus::UUID entityId =
@@ -40,14 +53,15 @@ TEST_CASE("LuaScriptComponent round trips persistent Script AssetHandle",
         entity,
         Janus::LuaScriptComponent{script, true});
 
-    const auto serialized = Janus::SceneSerializer::Serialize(scene);
+    const auto serialized = Janus::SceneSerializer::Serialize(scene, reflection);
     REQUIRE(serialized);
     REQUIRE(serialized.Value().find("\"LuaScript\"") != std::string::npos);
     REQUIRE(serialized.Value().find(script.ToString()) != std::string::npos);
     REQUIRE(serialized.Value().find("Scripts/") == std::string::npos);
 
     auto loadedResult = Janus::SceneDeserializer::Deserialize(
-        serialized.Value());
+        serialized.Value(),
+        reflection);
     REQUIRE(loadedResult);
     auto loaded = std::move(loadedResult).Value();
 
@@ -59,7 +73,7 @@ TEST_CASE("LuaScriptComponent round trips persistent Script AssetHandle",
     REQUIRE(loadedScript->script == script);
     REQUIRE(loadedScript->enabled);
 
-    const auto second = Janus::SceneSerializer::Serialize(*loaded);
+    const auto second = Janus::SceneSerializer::Serialize(*loaded, reflection);
     REQUIRE(second);
     REQUIRE(second.Value() == serialized.Value());
 }
@@ -67,6 +81,7 @@ TEST_CASE("LuaScriptComponent round trips persistent Script AssetHandle",
 TEST_CASE("Disabled LuaScriptComponent may persist without a Script handle",
           "[scene][serialization][lua-script][v0.5]")
 {
+    auto reflection = MakeReflectionRegistry();
     Janus::Scene scene(Janus::SceneMetadata{
         ParseUUID("51000000-0000-4000-8000-000000000002"),
         "DisabledScript"});
@@ -77,13 +92,14 @@ TEST_CASE("Disabled LuaScriptComponent may persist without a Script handle",
         entity,
         Janus::LuaScriptComponent{Janus::AssetHandle{}, false});
 
-    const auto serialized = Janus::SceneSerializer::Serialize(scene);
+    const auto serialized = Janus::SceneSerializer::Serialize(scene, reflection);
     REQUIRE(serialized);
     REQUIRE(serialized.Value().find("\"script\": null")
         != std::string::npos);
 
     const auto loaded = Janus::SceneDeserializer::Deserialize(
-        serialized.Value());
+        serialized.Value(),
+        reflection);
     REQUIRE(loaded);
     const auto loadedEntity = loaded.Value()->FindEntity(
         ParseUUID("52000000-0000-4000-8000-000000000002"));
@@ -97,6 +113,7 @@ TEST_CASE("Disabled LuaScriptComponent may persist without a Script handle",
 TEST_CASE("Enabled LuaScriptComponent rejects missing or malformed handles",
           "[scene][serialization][lua-script][v0.5]")
 {
+    auto reflection = MakeReflectionRegistry();
     SECTION("serializer rejects enabled nil handle")
     {
         Janus::Scene scene(Janus::SceneMetadata{
@@ -109,7 +126,7 @@ TEST_CASE("Enabled LuaScriptComponent rejects missing or malformed handles",
             entity,
             Janus::LuaScriptComponent{Janus::AssetHandle{}, true});
 
-        const auto serialized = Janus::SceneSerializer::Serialize(scene);
+        const auto serialized = Janus::SceneSerializer::Serialize(scene, reflection);
         REQUIRE_FALSE(serialized);
         REQUIRE(serialized.GetError().code == Janus::ErrorCode::InvalidState);
     }
@@ -128,7 +145,7 @@ TEST_CASE("Enabled LuaScriptComponent rejects missing or malformed handles",
             }
           }]
         })json";
-        REQUIRE_FALSE(Janus::SceneDeserializer::Deserialize(text));
+        REQUIRE_FALSE(Janus::SceneDeserializer::Deserialize(text, reflection));
     }
 
     SECTION("deserializer rejects malformed handle")
@@ -145,6 +162,6 @@ TEST_CASE("Enabled LuaScriptComponent rejects missing or malformed handles",
             }
           }]
         })json";
-        REQUIRE_FALSE(Janus::SceneDeserializer::Deserialize(text));
+        REQUIRE_FALSE(Janus::SceneDeserializer::Deserialize(text, reflection));
     }
 }

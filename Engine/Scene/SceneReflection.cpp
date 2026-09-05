@@ -785,8 +785,8 @@ Result<void> RegisterBuiltinSceneReflection(
     return registry.RegisterComponent(
         ComponentDescriptor{
             LuaScript,
-            "lua-script",
-            "lua-script",
+            "LuaScript",
+            "LuaScript",
             true,
             true,
             {

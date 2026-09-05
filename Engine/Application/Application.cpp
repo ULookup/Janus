@@ -6,6 +6,7 @@
 #include "Core/Assert.h"
 #include "Core/Event/Event.h"
 #include "Core/Log/Log.h"
+#include "Core/Reflection/ReflectionRegistry.h"
 #include "Platform/Graphics/GraphicsContext.h"
 #include "Platform/Platform.h"
 #include "Platform/Window/Window.h"
@@ -13,6 +14,7 @@
 #include "Scene/Scene.h"
 #include "Scene/SceneDeserializer.h"
 #include "Scene/SceneRenderer.h"
+#include "Scene/SceneReflection.h"
 #include "Scripting/ScriptEngine.h"
 
 #include <filesystem>
@@ -211,6 +213,19 @@ Result<void> Application::Run(ApplicationClient& client)
 
     if (managedRuntime)
     {
+        auto reflectionResult =
+            CreateBuiltinSceneReflectionRegistry();
+        if (!reflectionResult)
+        {
+            Error error = std::move(reflectionResult.GetError());
+            Cleanup(&client, false);
+            return Result<void>::Failure(std::move(error));
+        }
+
+        m_ReflectionRegistry =
+            std::make_unique<ReflectionRegistry>(
+                std::move(reflectionResult).Value());
+
         std::filesystem::path projectRoot = std::filesystem::current_path();
 
         if (diskBackedProject)
@@ -248,7 +263,9 @@ Result<void> Application::Run(ApplicationClient& client)
                 return Result<void>::Failure(std::move(error));
             }
 
-            auto sceneResult = SceneDeserializer::Load(scenePath.Value());
+            auto sceneResult = SceneDeserializer::Load(
+                scenePath.Value(),
+                *m_ReflectionRegistry);
             if (!sceneResult)
             {
                 Error error = std::move(sceneResult.GetError());
@@ -424,6 +441,22 @@ Renderer2D& Application::GetRenderer2D() noexcept
     return *m_Renderer2D;
 }
 
+ReflectionRegistry& Application::GetReflectionRegistry() noexcept
+{
+    JANUS_CORE_ASSERT(
+        m_ReflectionRegistry != nullptr,
+        "ReflectionRegistry is not available before managed runtime initialization.");
+    return *m_ReflectionRegistry;
+}
+
+const ReflectionRegistry& Application::GetReflectionRegistry() const noexcept
+{
+    JANUS_CORE_ASSERT(
+        m_ReflectionRegistry != nullptr,
+        "ReflectionRegistry is not available before managed runtime initialization.");
+    return *m_ReflectionRegistry;
+}
+
 Scene& Application::GetScene() noexcept
 {
     JANUS_CORE_ASSERT(
@@ -461,6 +494,7 @@ void Application::Cleanup(
     // reset before its dependencies for an explicit lifecycle order.
     m_Scene.reset();
     m_SceneRenderer.reset();
+    m_ReflectionRegistry.reset();
     m_AssetService.reset();
     m_AssetRegistry.reset();
     m_Renderer2D.reset();

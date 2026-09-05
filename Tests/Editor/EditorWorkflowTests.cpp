@@ -253,7 +253,8 @@ TEST_CASE(
 
     auto reloaded =
         Janus::SceneDeserializer::Load(
-            temp.Path() / "Scenes/Battle.scene");
+            temp.Path() / "Scenes/Battle.scene",
+            project->GetReflectionRegistry());
     REQUIRE(reloaded);
 
     const auto persisted =
