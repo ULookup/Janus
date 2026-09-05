@@ -210,12 +210,24 @@ JsonRpcDecodeResult DecodeResponse(const Json& root)
     const auto messageIt = error.find("message");
 
     if (codeIt == error.end()
-        || !codeIt->is_number_integer()
+        || (!codeIt->is_number_integer()
+            && !codeIt->is_number_unsigned())
         || messageIt == error.end()
         || !messageIt->is_string())
     {
         return InvalidRequest(
             "JSON-RPC error requires integer code and string message.");
+    }
+
+    if (codeIt->is_number_unsigned())
+    {
+        const u64 rawUnsignedCode = codeIt->get<u64>();
+        if (rawUnsignedCode
+            > static_cast<u64>(std::numeric_limits<i32>::max()))
+        {
+            return InvalidRequest(
+                "JSON-RPC error code is outside the supported 32-bit range.");
+        }
     }
 
     const i64 rawCode = codeIt->get<i64>();
