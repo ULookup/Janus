@@ -447,3 +447,28 @@ TEST_CASE(
         response.at("error").at("code")
         == JsonRpcParseError);
 }
+
+
+TEST_CASE(
+    "MCP protocol returns method not found without a registered handler",
+    "[mcp][protocol][v0.8]")
+{
+    using namespace Janus::MCP;
+
+    McpProtocolSession session;
+
+    const Json response = RequireResponse(
+        session,
+        Json{
+            {"jsonrpc", "2.0"},
+            {"id", 11},
+            {"method", "tools/list"},
+            {"params", ModernParams()}});
+
+    REQUIRE(
+        response.at("error").at("code")
+        == JsonRpcMethodNotFound);
+    REQUIRE(
+        session.GetEra()
+        == McpProtocolEra::Modern2026);
+}
