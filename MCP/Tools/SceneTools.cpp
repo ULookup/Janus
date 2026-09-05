@@ -44,12 +44,14 @@ Json ToolResult(
     Json structured,
     bool isError = false)
 {
+    Json contentItem = {
+        {"type", "text"},
+        {"text", structured.dump()}};
+
     Json result = {
         {"content",
          Json::array(
-             {Json{
-                 {"type", "text"},
-                 {"text", structured.dump()}})},
+             {std::move(contentItem)})},
         {"structuredContent",
          structured}};
 
@@ -64,16 +66,18 @@ Json ToolResult(
 Json ToolExecutionError(
     const Error& error)
 {
+    Json errorObject = {
+        {"code",
+         static_cast<i32>(
+             error.code)},
+        {"message",
+         error.message}};
+
     return ToolResult(
         Json{
             {"ok", false},
             {"error",
-             Json{
-                 {"code",
-                  static_cast<i32>(
-                      error.code)},
-                 {"message",
-                  error.message}}}},
+             std::move(errorObject)}},
         true);
 }
 
