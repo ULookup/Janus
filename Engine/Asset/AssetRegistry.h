@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace Janus
 {
@@ -27,6 +28,7 @@ public:
 
     [[nodiscard]] bool Contains(AssetHandle handle) const noexcept;
     [[nodiscard]] usize Size() const noexcept;
+    [[nodiscard]] std::vector<AssetMetadata> GetAssets() const;
 
     [[nodiscard]] Result<void> Save(
         const std::filesystem::path& registryPath) const;
