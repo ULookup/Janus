@@ -17,6 +17,7 @@ add_executable(
     Application/ApplicationTests.cpp
     Application/ProjectRuntimeTests.cpp
     Editor/EditorCameraTests.cpp
+    Editor/EditorViewSourceTests.cpp
     Editor/ProjectSessionTests.cpp
     Editor/RuntimeSessionTests.cpp
     Renderer/RendererTypesTests.cpp
