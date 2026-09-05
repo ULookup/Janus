@@ -41,6 +41,11 @@ public:
     Result<FramebufferHandle> CreateFramebuffer(
         const FramebufferDesc& desc) override;
     void DestroyFramebuffer(FramebufferHandle handle) override;
+    Result<void> BindFramebuffer(FramebufferHandle handle) override;
+    void BindDefaultFramebuffer() override;
+
+    Result<TexturePresentationHandle> GetTexturePresentationHandle(
+        TextureHandle handle) const override;
 
     void SetViewport(Viewport viewport) override;
     void SetViewProjection(const Mat4& matrix) override;
