@@ -40,11 +40,12 @@ Result<void> ValidateProperty(
             "Reflection property requires a getter.");
     }
 
-    if (property.editable && !property.setter)
+    if ((property.editable || property.serializable)
+        && !property.setter)
     {
         return Result<void>::Failure(
             ErrorCode::InvalidArgument,
-            "Editable reflection property requires a setter.");
+            "Editable or serializable reflection property requires a setter.");
     }
 
     return Result<void>::Success();
@@ -156,13 +157,6 @@ Result<void> PropertyDescriptor::Set(
         return Result<void>::Failure(
             ErrorCode::InvalidArgument,
             "Reflection property setter requires a component instance.");
-    }
-
-    if (!editable)
-    {
-        return Result<void>::Failure(
-            ErrorCode::InvalidState,
-            "Reflection property is read-only.");
     }
 
     if (!setter)
