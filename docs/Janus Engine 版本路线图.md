@@ -620,7 +620,7 @@ Runtime / Edit State Isolation
 
 # 9. v0.7 — Reflection + Command
 
-状态：下一里程碑
+状态：已完成
 
 ## 目标
 
@@ -710,9 +710,55 @@ Undo
 Redo
 ```
 
+## 实现结果
+
+v0.7 已形成第一条 Human/Agent 共用 Capability 主链：
+
+```text
+ProjectSession
+├── ReflectionRegistry
+├── CommandBus
+└── EditorScene
+      │
+      ├── Reflection-backed Inspector
+      ├── Reflection-backed Scene persistence
+      └── reversible Scene commands
+```
+
+已落地：
+
+- Core Reflection metadata 与稳定 ComponentTypeId / PropertyId；
+- Transform、SpriteRenderer、Camera、LuaScript 内置 authoring metadata；
+- Scene v1 序列化/反序列化迁移到 Reflection，SandboxProject 保持兼容；
+- SetProperty / AddComponent / RemoveComponent Undo/Redo；
+- Create / Delete / Rename Entity Undo/Redo；
+- Delete Undo 恢复 persistent UUID、组件状态、Hierarchy 与 sibling order；
+- Camera.primary 的跨实体 mutation delta 可完整撤销；
+- EditorActions 全部作者态修改进入 ProjectSession CommandBus；
+- Inspector 按 metadata / PropertyType 生成控件；
+- Play Mode 禁止作者态 Execute / Undo / Redo，并保持 RuntimeScene 隔离；
+- Windows CI 覆盖 Reflection、Command、Editor 与完整历史回归。
+
+## 当前边界
+
+v0.7 不提前实现：
+
+```text
+MCP Transport / JSON-RPC
+Transaction / Command Grouping
+Audit / Agent Activity
+Profiler
+Runtime Agent Control
+User-facing Reparent UX
+```
+
+AssetReference 的通用 Inspector 在 v0.7 负责展示 UUID 与类型 metadata，类型安全赋值仍通过 Asset Browser。旧的多字段 EditorActions compatibility helper 允许产生多个 history entry；Transaction/批量原子操作留到 v0.9。
+
 ---
 
 # 10. v0.8 — MCP Agent Foundation
+
+状态：下一里程碑
 
 ## 目标
 
