@@ -6,6 +6,7 @@
 #include "EditorConsole.h"
 #include "EditorViewSource.h"
 #include "EditorWorkspaceLayout.h"
+#include "McpEditorHost.h"
 #include "Panels/AssetBrowserPanel.h"
 #include "Panels/ConsolePanel.h"
 #include "Panels/HierarchyPanel.h"
@@ -15,6 +16,7 @@
 
 #include "Application/Application.h"
 #include "Core/Input/InputState.h"
+#include "Host/McpPermissionPolicy.h"
 #include "Core/Log/Log.h"
 #include "Platform/Window/Window.h"
 #include "Renderer/Renderer2D.h"
@@ -31,6 +33,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <iostream>
 #include <optional>
 #include <string>
 #include <utility>
@@ -398,6 +401,43 @@ Result<void> EditorApplication::OnInitialize(Application& application)
 
     m_GameViewTarget = gameTarget.Value();
 
+    if (m_McpStdio)
+    {
+        m_McpPermissionPolicy =
+            std::make_unique<MCP::AllowAllMcpPermissionPolicy>();
+
+        auto host =
+            McpEditorHost::Create(
+                *m_ProjectSession,
+                std::cin,
+                std::cout,
+                *m_McpPermissionPolicy);
+
+        if (!host)
+        {
+            const Error error =
+                host.GetError();
+            OnShutdown(application);
+            return Result<void>::Failure(
+                error);
+        }
+
+        m_McpHost =
+            std::move(host).Value();
+
+        const auto started =
+            m_McpHost->Start();
+
+        if (!started)
+        {
+            const Error error =
+                started.GetError();
+            OnShutdown(application);
+            return Result<void>::Failure(
+                error);
+        }
+    }
+
     m_EditorConsole->PushInfo(
         "Opened project '" + m_ProjectRoot.string()
         + "' with Scene '"
@@ -422,6 +462,22 @@ void EditorApplication::OnUpdate(
 {
     auto& window = application.GetWindow();
     auto& renderer = application.GetRenderer2D();
+
+    if (m_McpHost != nullptr)
+    {
+        const auto pumped =
+            m_McpHost->Pump();
+
+        if (!pumped)
+        {
+            const Error error =
+                pumped.GetError();
+            RecordError(error);
+            m_McpHost->Stop();
+            m_McpHost.reset();
+            m_McpPermissionPolicy.reset();
+        }
+    }
 
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL3_NewFrame();
@@ -1050,6 +1106,13 @@ void EditorApplication::OnUpdate(
 void EditorApplication::OnShutdown(Application& application) noexcept
 {
     auto& renderer = application.GetRenderer2D();
+
+    if (m_McpHost != nullptr)
+    {
+        m_McpHost->Stop();
+        m_McpHost.reset();
+    }
+    m_McpPermissionPolicy.reset();
 
     if (m_ProjectSession != nullptr
         && m_ProjectSession->IsPlaying())
