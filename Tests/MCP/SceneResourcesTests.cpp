@@ -16,14 +16,14 @@
 namespace
 {
 
-const Janus::MCP::Json& RequireJsonResult(
+Janus::MCP::Json RequireJsonResult(
     const Janus::MCP::McpDispatchResult& result)
 {
     REQUIRE(std::holds_alternative<Janus::MCP::Json>(result));
     return std::get<Janus::MCP::Json>(result);
 }
 
-const Janus::MCP::McpDispatchError& RequireErrorResult(
+Janus::MCP::McpDispatchError RequireErrorResult(
     const Janus::MCP::McpDispatchResult& result)
 {
     REQUIRE(std::holds_alternative<Janus::MCP::McpDispatchError>(result));
@@ -36,7 +36,7 @@ Janus::MCP::Json ReadPayload(
     Janus::MCP::McpProtocolEra era =
         Janus::MCP::McpProtocolEra::Modern2026)
 {
-    const Janus::MCP::Json& result =
+    const Janus::MCP::Json result =
         RequireJsonResult(
             registry.HandleRead(
                 Janus::MCP::Json{
