@@ -64,7 +64,7 @@ TEST_CASE(
     REQUIRE(
         texture->type
         == Janus::PropertyType::AssetReference);
-    REQUIRE(texture->referenceConstraint == "Texture");
+    REQUIRE(texture->referenceConstraint == "texture");
 
     const auto* uvMin =
         sprite->FindProperty(
@@ -80,7 +80,7 @@ TEST_CASE(
         script->FindProperty(
             Janus::SceneReflectionIds::LuaScriptAsset)
             ->referenceConstraint
-        == "LuaScript");
+        == "lua-script");
 }
 
 TEST_CASE(
