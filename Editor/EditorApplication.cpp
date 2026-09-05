@@ -490,7 +490,7 @@ void EditorApplication::OnUpdate(
         ImGui::SameLine(
             0.0f,
             24.0f);
-        ImGui::Separator();
+        ImGui::TextDisabled("|");
         ImGui::SameLine();
 
         ImGui::Text(
@@ -512,16 +512,6 @@ void EditorApplication::OnUpdate(
                 "Project: %s\nScene file: %s",
                 projectRoot.c_str(),
                 scenePath.c_str());
-        }
-
-        if (!m_LastError.empty())
-        {
-            ImGui::SameLine(
-                0.0f,
-                24.0f);
-            ImGui::TextDisabled(
-                "Last error: %s",
-                m_LastError.c_str());
         }
 
         ImGui::End();
