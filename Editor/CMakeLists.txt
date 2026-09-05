@@ -7,6 +7,7 @@ add_library(
     EditorConsole.cpp
     EditorContext.cpp
     EditorViewSource.cpp
+    EditorWorkspaceLayout.cpp
     ScenePicker.cpp
     ProjectSession.cpp
     RuntimeSession.cpp
