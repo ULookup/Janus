@@ -468,6 +468,9 @@ void EditorApplication::OnUpdate(
                         m_EditorConsole->PushInfo(
                             "Play Mode started.");
                     }
+
+                    m_SelectGameViewTab = true;
+                    m_SelectSceneViewTab = false;
                 }
             }
         }
@@ -479,10 +482,16 @@ void EditorApplication::OnUpdate(
             {
                 RecordError(stopped.GetError());
             }
-            else if (m_EditorConsole != nullptr)
+            else
             {
-                m_EditorConsole->PushInfo(
-                    "Play Mode stopped.");
+                if (m_EditorConsole != nullptr)
+                {
+                    m_EditorConsole->PushInfo(
+                        "Play Mode stopped.");
+                }
+
+                m_SelectSceneViewTab = true;
+                m_SelectGameViewTab = false;
             }
         }
 
