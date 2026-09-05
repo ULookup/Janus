@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Core/Error/Result.h"
-#include "Core/Reflection/ReflectionTypes.h"
+#include "Core/Reflection/ReflectionRegistry.h"
 #include "Protocol/JsonRpc.h"
 
 #include <string_view>
