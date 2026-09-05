@@ -2,7 +2,7 @@
 
 Janus 是一个面向 Human Developer 与 AI Agent 的 C++20 2D 游戏引擎。项目希望让 Editor、Game 和 Agent 通过同一套 Engine Capability 理解、修改、运行并验证游戏世界。
 
-项目已完成 **v0.1 Engine Foundation**、**v0.2 Renderer2D**、**v0.3 ECS + Scene**、**v0.4 Asset + Serialization**、**v0.5 Lua Gameplay Runtime** 和 **v0.6 Editor Foundation**。当前 Janus 已具备磁盘项目加载、稳定 UUID / AssetHandle、Lua Gameplay、离屏 Scene/Game View、Hierarchy、Inspector、CPU Picking、Asset Browser、Scene Save、Console、Scene Grid 与 Edit/Play 世界隔离。下一里程碑为 **v0.7 Reflection + Command**。
+项目已完成 **v0.1 Engine Foundation**、**v0.2 Renderer2D**、**v0.3 ECS + Scene**、**v0.4 Asset + Serialization**、**v0.5 Lua Gameplay Runtime**、**v0.6 Editor Foundation** 和 **v0.7 Reflection + Command**。当前 Janus 已具备磁盘项目加载、稳定 UUID / AssetHandle、Lua Gameplay、离屏 Scene/Game View、metadata-driven Inspector、Reflection-backed Scene persistence、CommandBus、Undo/Redo、Asset Browser、Scene Save、Console、Scene Grid 与 Edit/Play 世界隔离。下一里程碑为 **v0.8 MCP Agent Foundation**。
 
 ## 环境要求
 
@@ -33,6 +33,51 @@ ctest --preset windows-msvc-debug-tests
 ```
 
 生成内容位于 `out/`。不要提交 `out/`、`.vs/`、二进制或本地 IDE 设置。
+
+## v0.7 Reflection + Command 工作流
+
+v0.7 将 v0.6 的临时 authoring seam 收敛为可同时服务 Human Editor 与未来 MCP 的 Engine Capability：
+
+```text
+Inspector / Asset Browser / Hierarchy
+                │
+                ▼
+           EditorActions
+                │
+                ▼
+ProjectSession::CommandBus
+                │
+        ┌───────┴────────┐
+        ▼                ▼
+ Scene Commands     SceneReflection
+                         │
+                         ▼
+                 ReflectionRegistry
+```
+
+`ReflectionRegistry` 为 Transform、SpriteRenderer、Camera、LuaScript 提供稳定的组件/属性 metadata。Inspector 根据 `ComponentDescriptor / PropertyDescriptor / PropertyType` 枚举并生成当前内置组件编辑 UI，不再维护一份 Transform/SpriteRenderer/Camera/LuaScript 的硬编码属性列表。runtime-only Transform cache/dirty、Hierarchy internals 等状态不会进入 authoring metadata。
+
+Scene v1 的 JSON 结构保持兼容，但组件与属性持久化已经改为 Reflection 驱动。SceneSerializer / SceneDeserializer / SceneCloner 都显式接收 host 持有的 ReflectionRegistry；ProjectSession 与 managed Runtime Application 各自拥有明确生命周期的 registry，不使用全局 singleton 或每次调用临时构造的 metadata universe。
+
+作者态修改统一进入 CommandBus。当前支持：
+
+```text
+SetPropertyCommand
+AddComponentCommand
+RemoveComponentCommand
+CreateEntityCommand
+DeleteEntityCommand
+RenameEntityCommand
+```
+
+Delete Undo 使用 persistent UUID + reflected authoring snapshot 重建实体子树，不依赖 ECS index/generation；Camera.primary 这类跨实体副作用通过 PropertyMutationDelta 一并记录，因此 Undo/Redo 可以恢复原来的主 Camera。Play Mode 只运行隔离的 RuntimeScene，作者态 Execute / Undo / Redo 会被拒绝，Stop 后 EditorScene 与 authoring history 保留。
+
+当前 v0.7 的明确边界：
+
+- 通用 Inspector 的 AssetReference 展示 UUID 与类型约束；Texture / LuaScript 的类型安全赋值继续由 Asset Browser 完成；
+- 通用 Inspector 一次提交一个 reflected property；为了不提前引入 Transaction，旧的多字段兼容 helper 可能对应多个 history entry；
+- Command history 只属于当前 ProjectSession / authoring document；
+- 不包含 MCP transport/JSON-RPC、Transaction、Audit、Agent Activity、Profiler 或 user-facing Reparent workflow，这些属于后续里程碑。
 
 ## v0.6 Editor 工作流
 
@@ -69,7 +114,7 @@ Hierarchy 与 Scene View 共用 UUID-backed selection。Inspector 在 v0.6 手�
 
 Console 保存最近的 Editor 信息与可恢复错误，包括 Play/Stop、Save 和运行时/脚本失败入口；它是 v0.6 的最小错误可见性基础，不尝试提前实现 v0.9 的完整日志/Profiler/Audit 系统。
 
-v0.6 的 Inspector mutation 被集中在 `EditorActions` seam；这是临时的 authoring capability 边界。v0.7 会把其内部实现替换为 Reflection + CommandBus，从而加入通用属性元数据和 Undo/Redo，而不要求重写 Editor panels。
+v0.6 的 Inspector mutation 被集中在 `EditorActions` seam；v0.7 已将其内部实现替换为 Reflection + CommandBus，并在保留 Editor panel 分层的同时加入通用属性 metadata 与 Undo/Redo。
 
 ## v0.5 磁盘项目与 Lua Gameplay 工作流
 
@@ -122,7 +167,7 @@ Janus/
 ├── Engine/          引擎静态库与公共 API
 ├── Editor/          JanusEditor、EditorCore 与 authoring panels
 ├── Sandbox/         最小运行时客户端和验证程序
-├── SandboxProject/  v0.6 Editor / Lua / Asset workflow fixture
+├── SandboxProject/  v0.7 Editor / Reflection / Lua / Asset workflow fixture
 ├── Tests/           自动测试
 ├── docs/            PRD、技术架构和版本路线图
 └── AGENTS.md        代码 Agent 的仓库级工作规则

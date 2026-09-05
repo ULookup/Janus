@@ -2,9 +2,22 @@
 
 ## Mission
 
-Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.7 Reflection + Command**. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
+Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.8 MCP Agent Foundation**. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
 
 This file applies to the entire repository. A more deeply nested `AGENTS.md` may add stricter rules for its subtree.
+
+## v0.7 capability baseline
+
+v0.7 Reflection + Command is the completed authoring capability baseline for v0.8.
+
+- `ReflectionRegistry` is explicitly owned by the active host/session; do not introduce a global Reflection singleton.
+- Scene persistence and cloning consume the active ReflectionRegistry explicitly.
+- `ProjectSession` owns the Human authoring `CommandBus`.
+- Editor panels route mutations through `EditorActions`; EditorActions constructs Engine Scene commands instead of mutating reflected ECS state directly.
+- MCP must consume Engine `ReflectionRegistry + CommandBus + Scene commands` directly. MCP must not depend on EditorActions or ImGui.
+- Entity mutation identity is persistent UUID, never ECS index/generation.
+- Scene v1 serialized names are a compatibility contract.
+- v0.8 does not introduce Transaction/Audit merely because commands exist; those remain v0.9 scope unless the roadmap is explicitly changed.
 
 ## Source of truth
 
