@@ -35,14 +35,14 @@ Janus::MCP::McpToolDescriptor MakeTool(
         }};
 }
 
-const Janus::MCP::Json& RequireJson(
+Janus::MCP::Json RequireJson(
     const Janus::MCP::McpDispatchResult& result)
 {
     REQUIRE(std::holds_alternative<Janus::MCP::Json>(result));
     return std::get<Janus::MCP::Json>(result);
 }
 
-const Janus::MCP::McpDispatchError& RequireError(
+Janus::MCP::McpDispatchError RequireError(
     const Janus::MCP::McpDispatchResult& result)
 {
     REQUIRE(std::holds_alternative<Janus::MCP::McpDispatchError>(result));
@@ -144,7 +144,7 @@ TEST_CASE(
                     std::move(name))));
     }
 
-    const Json& first =
+    const Json first =
         RequireJson(
             registry.HandleList(
                 Json::object(),
@@ -155,7 +155,7 @@ TEST_CASE(
     REQUIRE(first.at("ttlMs") == 0);
     REQUIRE(first.at("cacheScope") == "private");
 
-    const Json& second =
+    const Json second =
         RequireJson(
             registry.HandleList(
                 Json{{"cursor", "64"}},
@@ -164,7 +164,7 @@ TEST_CASE(
     REQUIRE(second.at("tools").size() == 1);
     REQUIRE_FALSE(second.contains("nextCursor"));
 
-    const Json& legacy =
+    const Json legacy =
         RequireJson(
             registry.HandleList(
                 Json::object(),
@@ -217,7 +217,7 @@ TEST_CASE(
         registry.RegisterTool(
             std::move(descriptor)));
 
-    const Json& result =
+    const Json result =
         RequireJson(
             registry.HandleCall(
                 Json{
