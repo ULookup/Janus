@@ -43,6 +43,7 @@ target_sources(
         Scene/SceneDeserializer.cpp
         Scene/SceneReflection.cpp
         Scene/Command/SceneCommands.cpp
+        Scene/Command/EntityCommands.cpp
         Scene/SceneRenderer.cpp
 
         Scripting/LuaStackGuard.h
@@ -121,6 +122,7 @@ target_sources(
         Scene/SceneDeserializer.h
         Scene/SceneReflection.h
         Scene/Command/SceneCommands.h
+        Scene/Command/EntityCommands.h
         Scene/SceneRenderer.h
 
         Scripting/ScriptEngine.h

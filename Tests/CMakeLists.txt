@@ -44,6 +44,7 @@ add_executable(
     Scene/SceneHierarchySerializationTests.cpp
     Scene/SceneReflectionTests.cpp
     Scene/SceneCommandTests.cpp
+    Scene/EntityCommandTests.cpp
     Scene/SceneRenderTests.cpp
     Scene/LuaScriptSerializationTests.cpp
     Scripting/LuaVirtualMachineTests.cpp
