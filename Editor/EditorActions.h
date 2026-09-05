@@ -3,6 +3,7 @@
 #include "Core/Error/Result.h"
 #include "Core/Math/Vector2.h"
 #include "Core/UUID/UUID.h"
+#include "ECS/Entity.h"
 #include "Renderer/RendererTypes.h"
 
 #include <string>
@@ -11,11 +12,6 @@ namespace Janus
 {
 
 class Scene;
-
-namespace ECS
-{
-struct Entity;
-}
 
 namespace Editor
 {
