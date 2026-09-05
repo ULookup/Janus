@@ -3,9 +3,13 @@
 #include "EditorContext.h"
 #include "ProjectSession.h"
 
-#include "Scene/Components.h"
+#include "Core/Command/ICommand.h"
+#include "Scene/Command/EntityCommands.h"
+#include "Scene/Command/SceneCommands.h"
 #include "Scene/Scene.h"
+#include "Scene/SceneReflection.h"
 
+#include <memory>
 #include <utility>
 
 namespace Janus::Editor
@@ -37,26 +41,34 @@ Result<Scene*> EditorActions::GetEditableScene()
         &m_Context.project->GetEditorScene());
 }
 
-Result<ECS::Entity> EditorActions::ResolveEntity(
-    Scene& scene,
-    UUID id)
+void EditorActions::FinishSuccessfulMutation(
+    Scene& scene) noexcept
 {
-    if (!id.IsValid())
+    m_Context.selection.Validate(scene);
+    m_Context.project->MarkDirty();
+}
+
+Result<void> EditorActions::ExecutePrepared(
+    Scene& scene,
+    std::unique_ptr<ICommand> command)
+{
+    if (m_Context.project == nullptr)
     {
-        return Result<ECS::Entity>::Failure(
-            ErrorCode::InvalidArgument,
-            "Editor action requires a valid entity UUID.");
+        return Result<void>::Failure(
+            ErrorCode::InvalidState,
+            "Editor action requires an open project.");
     }
 
-    const ECS::Entity entity = scene.FindEntity(id);
-    if (!entity.IsValid())
+    auto executed =
+        m_Context.project->GetCommandBus().Execute(
+            std::move(command));
+    if (!executed)
     {
-        return Result<ECS::Entity>::Failure(
-            ErrorCode::EntityNotFound,
-            "Editor entity no longer exists.");
+        return executed;
     }
 
-    return Result<ECS::Entity>::Success(entity);
+    FinishSuccessfulMutation(scene);
+    return Result<void>::Success();
 }
 
 Result<UUID> EditorActions::CreateEntity(
@@ -69,29 +81,23 @@ Result<UUID> EditorActions::CreateEntity(
             editable.GetError());
     }
 
-    if (name.empty())
-    {
-        return Result<UUID>::Failure(
-            ErrorCode::InvalidArgument,
-            "Entity name cannot be empty.");
-    }
-
+    const UUID id = UUID::Random();
     Scene& scene = *editable.Value();
-    const ECS::Entity entity =
-        scene.CreateEntity(std::move(name));
 
-    const auto* identity =
-        scene.GetComponent<EntityIdentityComponent>(entity);
-    if (identity == nullptr)
+    auto executed = ExecutePrepared(
+        scene,
+        std::make_unique<CreateEntityCommand>(
+            scene,
+            id,
+            std::move(name)));
+    if (!executed)
     {
         return Result<UUID>::Failure(
-            ErrorCode::InvalidState,
-            "Created entity has no identity component.");
+            executed.GetError());
     }
 
-    m_Context.selection.Select(identity->id);
-    m_Context.project->MarkDirty();
-    return Result<UUID>::Success(identity->id);
+    m_Context.selection.Select(id);
+    return Result<UUID>::Success(id);
 }
 
 Result<void> EditorActions::DeleteEntity(UUID id)
@@ -104,23 +110,16 @@ Result<void> EditorActions::DeleteEntity(UUID id)
     }
 
     Scene& scene = *editable.Value();
-    auto entity = ResolveEntity(scene, id);
-    if (!entity)
-    {
-        return Result<void>::Failure(
-            entity.GetError());
-    }
+    SceneReflection reflection(
+        m_Context.project->GetReflectionRegistry(),
+        &m_Context.project->GetAssetRegistry());
 
-    if (!scene.DestroyEntity(entity.Value()))
-    {
-        return Result<void>::Failure(
-            ErrorCode::InvalidEntity,
-            "Failed to delete Editor entity.");
-    }
-
-    m_Context.selection.Validate(scene);
-    m_Context.project->MarkDirty();
-    return Result<void>::Success();
+    return ExecutePrepared(
+        scene,
+        std::make_unique<DeleteEntityCommand>(
+            scene,
+            reflection,
+            id));
 }
 
 Result<void> EditorActions::RenameEntity(
@@ -134,34 +133,146 @@ Result<void> EditorActions::RenameEntity(
             editable.GetError());
     }
 
-    if (name.empty())
+    Scene& scene = *editable.Value();
+    return ExecutePrepared(
+        scene,
+        std::make_unique<RenameEntityCommand>(
+            scene,
+            id,
+            std::move(name)));
+}
+
+Result<void> EditorActions::SetProperty(
+    UUID id,
+    ComponentTypeId component,
+    PropertyId property,
+    PropertyValue value)
+{
+    auto editable = GetEditableScene();
+    if (!editable)
     {
         return Result<void>::Failure(
-            ErrorCode::InvalidArgument,
-            "Entity name cannot be empty.");
+            editable.GetError());
     }
 
     Scene& scene = *editable.Value();
-    auto entity = ResolveEntity(scene, id);
-    if (!entity)
+    SceneReflection reflection(
+        m_Context.project->GetReflectionRegistry(),
+        &m_Context.project->GetAssetRegistry());
+
+    return ExecutePrepared(
+        scene,
+        std::make_unique<SetPropertyCommand>(
+            scene,
+            reflection,
+            id,
+            component,
+            property,
+            std::move(value)));
+}
+
+Result<void> EditorActions::AddComponent(
+    UUID id,
+    ComponentTypeId component)
+{
+    auto editable = GetEditableScene();
+    if (!editable)
     {
         return Result<void>::Failure(
-            entity.GetError());
+            editable.GetError());
     }
 
-    auto* identity =
-        scene.GetComponent<EntityIdentityComponent>(
-            entity.Value());
-    if (identity == nullptr)
+    Scene& scene = *editable.Value();
+    SceneReflection reflection(
+        m_Context.project->GetReflectionRegistry(),
+        &m_Context.project->GetAssetRegistry());
+
+    return ExecutePrepared(
+        scene,
+        std::make_unique<AddComponentCommand>(
+            scene,
+            reflection,
+            id,
+            component));
+}
+
+Result<void> EditorActions::RemoveComponent(
+    UUID id,
+    ComponentTypeId component)
+{
+    auto editable = GetEditableScene();
+    if (!editable)
     {
         return Result<void>::Failure(
-            ErrorCode::InvalidState,
-            "Entity identity component is missing.");
+            editable.GetError());
     }
 
-    identity->name = std::move(name);
-    m_Context.project->MarkDirty();
+    Scene& scene = *editable.Value();
+    SceneReflection reflection(
+        m_Context.project->GetReflectionRegistry(),
+        &m_Context.project->GetAssetRegistry());
+
+    return ExecutePrepared(
+        scene,
+        std::make_unique<RemoveComponentCommand>(
+            scene,
+            reflection,
+            id,
+            component));
+}
+
+Result<void> EditorActions::Undo()
+{
+    auto editable = GetEditableScene();
+    if (!editable)
+    {
+        return Result<void>::Failure(
+            editable.GetError());
+    }
+
+    auto undone =
+        m_Context.project->GetCommandBus().Undo();
+    if (!undone)
+    {
+        return undone;
+    }
+
+    FinishSuccessfulMutation(*editable.Value());
     return Result<void>::Success();
+}
+
+Result<void> EditorActions::Redo()
+{
+    auto editable = GetEditableScene();
+    if (!editable)
+    {
+        return Result<void>::Failure(
+            editable.GetError());
+    }
+
+    auto redone =
+        m_Context.project->GetCommandBus().Redo();
+    if (!redone)
+    {
+        return redone;
+    }
+
+    FinishSuccessfulMutation(*editable.Value());
+    return Result<void>::Success();
+}
+
+bool EditorActions::CanUndo() const noexcept
+{
+    return m_Context.project != nullptr
+        && !m_Context.project->IsPlaying()
+        && m_Context.project->GetCommandBus().CanUndo();
+}
+
+bool EditorActions::CanRedo() const noexcept
+{
+    return m_Context.project != nullptr
+        && !m_Context.project->IsPlaying()
+        && m_Context.project->GetCommandBus().CanRedo();
 }
 
 Result<void> EditorActions::SetTransform(
@@ -170,100 +281,45 @@ Result<void> EditorActions::SetTransform(
     f32 rotationRadians,
     Vector2 scale)
 {
-    auto editable = GetEditableScene();
-    if (!editable)
+    auto result = SetProperty(
+        id,
+        SceneReflectionIds::Transform,
+        SceneReflectionIds::TransformPosition,
+        PropertyValue{position});
+    if (!result)
     {
-        return Result<void>::Failure(
-            editable.GetError());
+        return result;
     }
 
-    Scene& scene = *editable.Value();
-    auto entity = ResolveEntity(scene, id);
-    if (!entity)
+    result = SetProperty(
+        id,
+        SceneReflectionIds::Transform,
+        SceneReflectionIds::TransformRotation,
+        PropertyValue{rotationRadians});
+    if (!result)
     {
-        return Result<void>::Failure(
-            entity.GetError());
+        return result;
     }
 
-    auto* transform =
-        scene.GetComponent<TransformComponent>(
-            entity.Value());
-    if (transform == nullptr)
-    {
-        return Result<void>::Failure(
-            ErrorCode::InvalidState,
-            "Entity transform component is missing.");
-    }
-
-    transform->position = position;
-    transform->rotationRadians = rotationRadians;
-    transform->scale = scale;
-    transform->dirty = true;
-
-    m_Context.project->MarkDirty();
-    return Result<void>::Success();
+    return SetProperty(
+        id,
+        SceneReflectionIds::Transform,
+        SceneReflectionIds::TransformScale,
+        PropertyValue{scale});
 }
 
 Result<void> EditorActions::AddSpriteRenderer(UUID id)
 {
-    auto editable = GetEditableScene();
-    if (!editable)
-    {
-        return Result<void>::Failure(
-            editable.GetError());
-    }
-
-    Scene& scene = *editable.Value();
-    auto entity = ResolveEntity(scene, id);
-    if (!entity)
-    {
-        return Result<void>::Failure(
-            entity.GetError());
-    }
-
-    if (scene.HasComponent<SpriteRendererComponent>(
-            entity.Value()))
-    {
-        return Result<void>::Failure(
-            ErrorCode::InvalidState,
-            "Entity already has a SpriteRenderer component.");
-    }
-
-    scene.AddComponent<SpriteRendererComponent>(
-        entity.Value(),
-        SpriteRendererComponent{});
-
-    m_Context.project->MarkDirty();
-    return Result<void>::Success();
+    return AddComponent(
+        id,
+        SceneReflectionIds::SpriteRenderer);
 }
 
 Result<void> EditorActions::RemoveSpriteRenderer(UUID id)
 {
-    auto editable = GetEditableScene();
-    if (!editable)
-    {
-        return Result<void>::Failure(
-            editable.GetError());
-    }
-
-    Scene& scene = *editable.Value();
-    auto entity = ResolveEntity(scene, id);
-    if (!entity)
-    {
-        return Result<void>::Failure(
-            entity.GetError());
-    }
-
-    if (!scene.RemoveComponent<SpriteRendererComponent>(
-            entity.Value()))
-    {
-        return Result<void>::Failure(
-            ErrorCode::InvalidState,
-            "Entity has no SpriteRenderer component.");
-    }
-
-    m_Context.project->MarkDirty();
-    return Result<void>::Success();
+    return RemoveComponent(
+        id,
+        SceneReflectionIds::SpriteRenderer);
 }
 
 Result<void> EditorActions::SetSpriteRenderer(
@@ -273,150 +329,72 @@ Result<void> EditorActions::SetSpriteRenderer(
     i32 layer,
     bool enabled)
 {
-    auto editable = GetEditableScene();
-    if (!editable)
+    auto result = SetProperty(
+        id,
+        SceneReflectionIds::SpriteRenderer,
+        SceneReflectionIds::SpriteSize,
+        PropertyValue{size});
+    if (!result)
     {
-        return Result<void>::Failure(
-            editable.GetError());
+        return result;
     }
 
-    Scene& scene = *editable.Value();
-    auto entity = ResolveEntity(scene, id);
-    if (!entity)
+    result = SetProperty(
+        id,
+        SceneReflectionIds::SpriteRenderer,
+        SceneReflectionIds::SpriteColor,
+        PropertyValue{
+            ColorValue{
+                color.r,
+                color.g,
+                color.b,
+                color.a}});
+    if (!result)
     {
-        return Result<void>::Failure(
-            entity.GetError());
+        return result;
     }
 
-    auto* sprite =
-        scene.GetComponent<SpriteRendererComponent>(
-            entity.Value());
-    if (sprite == nullptr)
+    result = SetProperty(
+        id,
+        SceneReflectionIds::SpriteRenderer,
+        SceneReflectionIds::SpriteLayer,
+        PropertyValue{layer});
+    if (!result)
     {
-        return Result<void>::Failure(
-            ErrorCode::InvalidState,
-            "Entity has no SpriteRenderer component.");
+        return result;
     }
 
-    sprite->size = size;
-    sprite->color = color;
-    sprite->layer = layer;
-    sprite->enabled = enabled;
-
-    m_Context.project->MarkDirty();
-    return Result<void>::Success();
+    return SetProperty(
+        id,
+        SceneReflectionIds::SpriteRenderer,
+        SceneReflectionIds::SpriteEnabled,
+        PropertyValue{enabled});
 }
-
 
 Result<void> EditorActions::SetSpriteTexture(
     UUID id,
     AssetHandle texture)
 {
-    auto editable = GetEditableScene();
-    if (!editable)
-    {
-        return Result<void>::Failure(
-            editable.GetError());
-    }
-
-    const AssetMetadata* metadata =
-        m_Context.project->GetAssetRegistry().Find(texture);
-    if (metadata == nullptr)
-    {
-        return Result<void>::Failure(
-            ErrorCode::AssetNotFound,
-            "Texture asset is not registered in the current project.");
-    }
-
-    if (metadata->type != AssetType::Texture)
-    {
-        return Result<void>::Failure(
-            ErrorCode::AssetTypeMismatch,
-            "Selected asset is not a Texture.");
-    }
-
-    Scene& scene = *editable.Value();
-    auto entity = ResolveEntity(scene, id);
-    if (!entity)
-    {
-        return Result<void>::Failure(
-            entity.GetError());
-    }
-
-    auto* sprite =
-        scene.GetComponent<SpriteRendererComponent>(
-            entity.Value());
-    if (sprite == nullptr)
-    {
-        return Result<void>::Failure(
-            ErrorCode::InvalidState,
-            "Entity has no SpriteRenderer component.");
-    }
-
-    sprite->texture = texture;
-    m_Context.project->MarkDirty();
-    return Result<void>::Success();
+    return SetProperty(
+        id,
+        SceneReflectionIds::SpriteRenderer,
+        SceneReflectionIds::SpriteTexture,
+        PropertyValue{
+            AssetReferenceValue{texture.id}});
 }
 
 Result<void> EditorActions::AddCamera(UUID id)
 {
-    auto editable = GetEditableScene();
-    if (!editable)
-    {
-        return Result<void>::Failure(
-            editable.GetError());
-    }
-
-    Scene& scene = *editable.Value();
-    auto entity = ResolveEntity(scene, id);
-    if (!entity)
-    {
-        return Result<void>::Failure(
-            entity.GetError());
-    }
-
-    if (scene.HasComponent<CameraComponent>(entity.Value()))
-    {
-        return Result<void>::Failure(
-            ErrorCode::InvalidState,
-            "Entity already has a Camera component.");
-    }
-
-    scene.AddComponent<CameraComponent>(
-        entity.Value(),
-        CameraComponent{});
-
-    m_Context.project->MarkDirty();
-    return Result<void>::Success();
+    return AddComponent(
+        id,
+        SceneReflectionIds::Camera);
 }
 
 Result<void> EditorActions::RemoveCamera(UUID id)
 {
-    auto editable = GetEditableScene();
-    if (!editable)
-    {
-        return Result<void>::Failure(
-            editable.GetError());
-    }
-
-    Scene& scene = *editable.Value();
-    auto entity = ResolveEntity(scene, id);
-    if (!entity)
-    {
-        return Result<void>::Failure(
-            entity.GetError());
-    }
-
-    if (!scene.RemoveComponent<CameraComponent>(
-            entity.Value()))
-    {
-        return Result<void>::Failure(
-            ErrorCode::InvalidState,
-            "Entity has no Camera component.");
-    }
-
-    m_Context.project->MarkDirty();
-    return Result<void>::Success();
+    return RemoveComponent(
+        id,
+        SceneReflectionIds::Camera);
 }
 
 Result<void> EditorActions::SetCamera(
@@ -424,208 +402,58 @@ Result<void> EditorActions::SetCamera(
     f32 zoom,
     bool primary)
 {
-    auto editable = GetEditableScene();
-    if (!editable)
+    auto result = SetProperty(
+        id,
+        SceneReflectionIds::Camera,
+        SceneReflectionIds::CameraZoom,
+        PropertyValue{zoom});
+    if (!result)
     {
-        return Result<void>::Failure(
-            editable.GetError());
+        return result;
     }
 
-    if (zoom <= 0.0f)
-    {
-        return Result<void>::Failure(
-            ErrorCode::InvalidArgument,
-            "Camera zoom must be positive.");
-    }
-
-    Scene& scene = *editable.Value();
-    auto entity = ResolveEntity(scene, id);
-    if (!entity)
-    {
-        return Result<void>::Failure(
-            entity.GetError());
-    }
-
-    auto* target =
-        scene.GetComponent<CameraComponent>(
-            entity.Value());
-    if (target == nullptr)
-    {
-        return Result<void>::Failure(
-            ErrorCode::InvalidState,
-            "Entity has no Camera component.");
-    }
-
-    if (primary)
-    {
-        scene.View<CameraComponent>()
-            .ForEach(
-                [](ECS::Entity, CameraComponent& camera)
-                {
-                    camera.primary = false;
-                });
-    }
-
-    target->zoom = zoom;
-    target->primary = primary;
-
-    m_Context.project->MarkDirty();
-    return Result<void>::Success();
+    return SetProperty(
+        id,
+        SceneReflectionIds::Camera,
+        SceneReflectionIds::CameraPrimary,
+        PropertyValue{primary});
 }
 
 Result<void> EditorActions::AddLuaScript(UUID id)
 {
-    auto editable = GetEditableScene();
-    if (!editable)
-    {
-        return Result<void>::Failure(
-            editable.GetError());
-    }
-
-    Scene& scene = *editable.Value();
-    auto entity = ResolveEntity(scene, id);
-    if (!entity)
-    {
-        return Result<void>::Failure(
-            entity.GetError());
-    }
-
-    if (scene.HasComponent<LuaScriptComponent>(
-            entity.Value()))
-    {
-        return Result<void>::Failure(
-            ErrorCode::InvalidState,
-            "Entity already has a LuaScript component.");
-    }
-
-    // A disabled nil script is a valid serializable authoring state.
-    scene.AddComponent<LuaScriptComponent>(
-        entity.Value(),
-        LuaScriptComponent{AssetHandle{}, false});
-
-    m_Context.project->MarkDirty();
-    return Result<void>::Success();
+    return AddComponent(
+        id,
+        SceneReflectionIds::LuaScript);
 }
 
 Result<void> EditorActions::RemoveLuaScript(UUID id)
 {
-    auto editable = GetEditableScene();
-    if (!editable)
-    {
-        return Result<void>::Failure(
-            editable.GetError());
-    }
-
-    Scene& scene = *editable.Value();
-    auto entity = ResolveEntity(scene, id);
-    if (!entity)
-    {
-        return Result<void>::Failure(
-            entity.GetError());
-    }
-
-    if (!scene.RemoveComponent<LuaScriptComponent>(
-            entity.Value()))
-    {
-        return Result<void>::Failure(
-            ErrorCode::InvalidState,
-            "Entity has no LuaScript component.");
-    }
-
-    m_Context.project->MarkDirty();
-    return Result<void>::Success();
+    return RemoveComponent(
+        id,
+        SceneReflectionIds::LuaScript);
 }
 
 Result<void> EditorActions::SetLuaScriptEnabled(
     UUID id,
     bool enabled)
 {
-    auto editable = GetEditableScene();
-    if (!editable)
-    {
-        return Result<void>::Failure(
-            editable.GetError());
-    }
-
-    Scene& scene = *editable.Value();
-    auto entity = ResolveEntity(scene, id);
-    if (!entity)
-    {
-        return Result<void>::Failure(
-            entity.GetError());
-    }
-
-    auto* script =
-        scene.GetComponent<LuaScriptComponent>(
-            entity.Value());
-    if (script == nullptr)
-    {
-        return Result<void>::Failure(
-            ErrorCode::InvalidState,
-            "Entity has no LuaScript component.");
-    }
-
-    if (enabled && !script->script.IsValid())
-    {
-        return Result<void>::Failure(
-            ErrorCode::InvalidState,
-            "Cannot enable LuaScript without a Script AssetHandle.");
-    }
-
-    script->enabled = enabled;
-    m_Context.project->MarkDirty();
-    return Result<void>::Success();
+    return SetProperty(
+        id,
+        SceneReflectionIds::LuaScript,
+        SceneReflectionIds::LuaScriptEnabled,
+        PropertyValue{enabled});
 }
-
 
 Result<void> EditorActions::SetLuaScriptAsset(
     UUID id,
-    AssetHandle scriptHandle)
+    AssetHandle script)
 {
-    auto editable = GetEditableScene();
-    if (!editable)
-    {
-        return Result<void>::Failure(
-            editable.GetError());
-    }
-
-    const AssetMetadata* metadata =
-        m_Context.project->GetAssetRegistry().Find(scriptHandle);
-    if (metadata == nullptr)
-    {
-        return Result<void>::Failure(
-            ErrorCode::AssetNotFound,
-            "Lua script asset is not registered in the current project.");
-    }
-
-    if (metadata->type != AssetType::LuaScript)
-    {
-        return Result<void>::Failure(
-            ErrorCode::AssetTypeMismatch,
-            "Selected asset is not a LuaScript.");
-    }
-
-    Scene& scene = *editable.Value();
-    auto entity = ResolveEntity(scene, id);
-    if (!entity)
-    {
-        return Result<void>::Failure(
-            entity.GetError());
-    }
-
-    auto* script =
-        scene.GetComponent<LuaScriptComponent>(
-            entity.Value());
-    if (script == nullptr)
-    {
-        return Result<void>::Failure(
-            ErrorCode::InvalidState,
-            "Entity has no LuaScript component.");
-    }
-
-    script->script = scriptHandle;
-    m_Context.project->MarkDirty();
-    return Result<void>::Success();
+    return SetProperty(
+        id,
+        SceneReflectionIds::LuaScript,
+        SceneReflectionIds::LuaScriptAsset,
+        PropertyValue{
+            AssetReferenceValue{script.id}});
 }
 
 } // namespace Janus::Editor
