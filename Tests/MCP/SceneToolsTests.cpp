@@ -401,18 +401,27 @@ TEST_CASE(
     const Janus::ECS::Entity second =
         fixture.scene.CreateEntity("Second");
 
-    auto* firstCamera =
+    REQUIRE(
         fixture.scene.AddComponent<Janus::CameraComponent>(
             first,
             Janus::CameraComponent{
                 1.0f,
-                true});
-    auto* secondCamera =
+                true})
+        != nullptr);
+    REQUIRE(
         fixture.scene.AddComponent<Janus::CameraComponent>(
             second,
             Janus::CameraComponent{
                 1.0f,
-                false});
+                false})
+        != nullptr);
+
+    auto* firstCamera =
+        fixture.scene.GetComponent<Janus::CameraComponent>(
+            first);
+    auto* secondCamera =
+        fixture.scene.GetComponent<Janus::CameraComponent>(
+            second);
 
     REQUIRE(firstCamera != nullptr);
     REQUIRE(secondCamera != nullptr);
