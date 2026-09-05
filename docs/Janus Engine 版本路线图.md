@@ -530,7 +530,7 @@ Gameplay 移动逻辑完全可以由 Lua 实现。
 
 # 8. v0.6 — Editor Foundation
 
-状态：下一里程碑
+状态：已完成
 
 ## 目标
 
@@ -619,6 +619,8 @@ Runtime / Edit State Isolation
 ---
 
 # 9. v0.7 — Reflection + Command
+
+状态：下一里程碑
 
 ## 目标
 
