@@ -9,7 +9,7 @@ namespace
 {
 
 constexpr f32 PanelGap = 2.0f;
-constexpr f32 MinimumCenterWidth = 360.0f;
+constexpr f32 MinimumCenterWidth = 320.0f;
 
 [[nodiscard]] f32 ClampNonNegative(f32 value) noexcept
 {
@@ -29,9 +29,9 @@ EditorWorkspaceLayout BuildEditorWorkspaceLayout(
 
     const f32 toolbarHeight =
         std::clamp(
-            height * 0.055f,
-            40.0f,
-            52.0f);
+            height * 0.052f,
+            42.0f,
+            50.0f);
 
     layout.toolbar = EditorPanelRect{
         0.0f,
@@ -45,24 +45,38 @@ EditorWorkspaceLayout BuildEditorWorkspaceLayout(
         ClampNonNegative(
             height - contentY);
 
+    const f32 utilityHeight =
+        std::min(
+            std::clamp(
+                height * 0.25f,
+                160.0f,
+                230.0f),
+            contentHeight);
+
+    const f32 topHeight =
+        ClampNonNegative(
+            contentHeight
+            - utilityHeight
+            - PanelGap);
+
     f32 leftWidth =
         std::clamp(
-            width * 0.20f,
+            width * 0.19f,
             220.0f,
-            300.0f);
+            290.0f);
     f32 rightWidth =
         std::clamp(
-            width * 0.24f,
+            width * 0.23f,
             260.0f,
-            360.0f);
+            340.0f);
 
-    const f32 required =
+    const f32 requiredWidth =
         leftWidth
         + rightWidth
         + MinimumCenterWidth
         + PanelGap * 2.0f;
 
-    if (required > width)
+    if (requiredWidth > width)
     {
         const f32 sideBudget =
             ClampNonNegative(
@@ -87,79 +101,62 @@ EditorWorkspaceLayout BuildEditorWorkspaceLayout(
         + centerWidth
         + PanelGap;
 
-    const f32 leftTopHeight =
-        ClampNonNegative(
-            contentHeight * 0.56f
-            - PanelGap * 0.5f);
-    const f32 leftBottomY =
-        contentY
-        + leftTopHeight
-        + PanelGap;
-    const f32 leftBottomHeight =
-        ClampNonNegative(
-            height - leftBottomY);
-
     layout.hierarchy = EditorPanelRect{
         0.0f,
         contentY,
         leftWidth,
-        leftTopHeight};
+        topHeight};
 
-    layout.assetBrowser = EditorPanelRect{
-        0.0f,
-        leftBottomY,
-        leftWidth,
-        leftBottomHeight};
-
-    const f32 centerTopHeight =
-        ClampNonNegative(
-            contentHeight * 0.68f
-            - PanelGap * 0.5f);
-    const f32 centerBottomY =
-        contentY
-        + centerTopHeight
-        + PanelGap;
-    const f32 centerBottomHeight =
-        ClampNonNegative(
-            height - centerBottomY);
-
-    layout.sceneView = EditorPanelRect{
+    layout.viewport = EditorPanelRect{
         centerX,
         contentY,
         centerWidth,
-        centerTopHeight};
-
-    layout.gameView = EditorPanelRect{
-        centerX,
-        centerBottomY,
-        centerWidth,
-        centerBottomHeight};
-
-    const f32 rightTopHeight =
-        ClampNonNegative(
-            contentHeight * 0.64f
-            - PanelGap * 0.5f);
-    const f32 rightBottomY =
-        contentY
-        + rightTopHeight
-        + PanelGap;
-    const f32 rightBottomHeight =
-        ClampNonNegative(
-            height - rightBottomY);
+        topHeight};
 
     layout.inspector = EditorPanelRect{
         rightX,
         contentY,
         rightWidth,
-        rightTopHeight};
+        topHeight};
 
-    layout.console = EditorPanelRect{
-        rightX,
-        rightBottomY,
-        rightWidth,
-        rightBottomHeight};
+    layout.utility = EditorPanelRect{
+        0.0f,
+        contentY + topHeight + PanelGap,
+        width,
+        utilityHeight};
 
     return layout;
+}
+
+EditorPanelRect FitAspectRatio(
+    f32 availableWidth,
+    f32 availableHeight,
+    f32 aspectRatio) noexcept
+{
+    availableWidth = ClampNonNegative(availableWidth);
+    availableHeight = ClampNonNegative(availableHeight);
+
+    if (availableWidth == 0.0f
+        || availableHeight == 0.0f
+        || aspectRatio <= 0.0f)
+    {
+        return {};
+    }
+
+    f32 width = availableWidth;
+    f32 height = width / aspectRatio;
+
+    if (height > availableHeight)
+    {
+        height = availableHeight;
+        width = height * aspectRatio;
+    }
+
+    return EditorPanelRect{
+        (availableWidth - width) * 0.5f,
+        (availableHeight - height) * 0.5f,
+        width,
+        height};
 }
 
 } // namespace Janus::Editor
