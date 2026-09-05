@@ -9,6 +9,9 @@ add_executable(
     Core/LogTests.cpp
     Core/CommandTests.cpp
     Core/ReflectionTests.cpp
+    MCP/JsonRpcTests.cpp
+    MCP/McpProtocolTests.cpp
+    MCP/StdioTransportTests.cpp
     Asset/AssetTypesTests.cpp
     Asset/AssetRegistryTests.cpp
     Asset/AssetCacheTests.cpp
@@ -72,6 +75,7 @@ target_link_libraries(
     PRIVATE
 
         JanusEngine
+        JanusMCP
         JanusEditorCore
         Catch2::Catch2WithMain
 )
