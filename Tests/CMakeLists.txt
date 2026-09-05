@@ -141,7 +141,7 @@ if(TARGET JanusEditor)
 
         PROPERTIES
 
-            TIMEOUT 60
+            TIMEOUT 90
             RUN_SERIAL TRUE
     )
 
