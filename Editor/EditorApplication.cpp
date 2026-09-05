@@ -5,6 +5,7 @@
 #include "EditorContext.h"
 #include "EditorConsole.h"
 #include "EditorViewSource.h"
+#include "EditorWorkspaceLayout.h"
 #include "Panels/AssetBrowserPanel.h"
 #include "Panels/ConsolePanel.h"
 #include "Panels/HierarchyPanel.h"
@@ -65,6 +66,37 @@ constexpr u32 InitialViewHeight = 360;
         static_cast<ImTextureID>(handle.value)};
 }
 
+
+
+void ApplyWorkspaceRect(
+    const EditorPanelRect& rect,
+    const ImGuiViewport& viewport)
+{
+    ImGui::SetNextWindowPos(
+        ImVec2{
+            viewport.WorkPos.x + rect.x,
+            viewport.WorkPos.y + rect.y},
+        ImGuiCond_Always);
+
+    ImGui::SetNextWindowSize(
+        ImVec2{
+            std::max(rect.width, 1.0f),
+            std::max(rect.height, 1.0f)},
+        ImGuiCond_Always);
+}
+
+constexpr ImGuiWindowFlags WorkspacePanelFlags =
+    ImGuiWindowFlags_NoMove
+    | ImGuiWindowFlags_NoResize
+    | ImGuiWindowFlags_NoCollapse;
+
+constexpr ImGuiWindowFlags ToolbarFlags =
+    ImGuiWindowFlags_NoTitleBar
+    | ImGuiWindowFlags_NoMove
+    | ImGuiWindowFlags_NoResize
+    | ImGuiWindowFlags_NoCollapse
+    | ImGuiWindowFlags_NoScrollbar
+    | ImGuiWindowFlags_NoSavedSettings;
 
 void DrawSceneGrid(
     const EditorCamera& camera,
@@ -188,6 +220,13 @@ Result<void> EditorApplication::OnInitialize(Application& application)
     ImGui::CreateContext();
     m_ImGuiContextCreated = true;
     ImGui::StyleColorsDark();
+
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.WindowRounding = 0.0f;
+    style.ChildRounding = 0.0f;
+    style.FrameRounding = 3.0f;
+    style.WindowBorderSize = 1.0f;
+    style.WindowPadding = ImVec2{8.0f, 8.0f};
 
     if (!ImGui_ImplSDL3_InitForOpenGL(nativeWindow, nullptr))
     {
@@ -341,6 +380,13 @@ void EditorApplication::OnUpdate(
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
 
+    const ImGuiViewport* mainViewport =
+        ImGui::GetMainViewport();
+    const EditorWorkspaceLayout workspace =
+        BuildEditorWorkspaceLayout(
+            mainViewport->WorkSize.x,
+            mainViewport->WorkSize.y);
+
     if (m_ProjectSession == nullptr
         || m_EditorCamera == nullptr
         || m_SceneRenderer == nullptr)
@@ -353,10 +399,14 @@ void EditorApplication::OnUpdate(
 
     if (m_ProjectSession != nullptr)
     {
+        ApplyWorkspaceRect(
+            workspace.toolbar,
+            *mainViewport);
+
         ImGui::Begin(
-            "Play Controls",
+            "##JanusToolbar",
             nullptr,
-            ImGuiWindowFlags_AlwaysAutoResize);
+            ToolbarFlags);
 
         if (!m_ProjectSession->IsPlaying())
         {
@@ -434,43 +484,48 @@ void EditorApplication::OnUpdate(
             ImGui::TextDisabled("* Unsaved");
         }
 
-        ImGui::End();
-    }
+        const auto& scene =
+            m_ProjectSession->GetEditorScene();
 
-    ImGui::Begin("Janus Editor");
-
-    if (m_ProjectSession != nullptr)
-    {
-        const auto& scene = m_ProjectSession->GetEditorScene();
-        const std::string projectRoot =
-            m_ProjectSession->GetProjectRoot().string();
-        const std::string scenePath =
-            m_ProjectSession->GetCurrentScenePath().generic_string();
-
-        ImGui::TextUnformatted("v0.6 Editor Foundation");
+        ImGui::SameLine(
+            0.0f,
+            24.0f);
         ImGui::Separator();
-        ImGui::Text("Project: %s", projectRoot.c_str());
-        ImGui::Text("Scene: %s", scene.GetMetadata().name.c_str());
-        ImGui::Text("Scene file: %s", scenePath.c_str());
+        ImGui::SameLine();
+
         ImGui::Text(
-            "Entities: %llu",
+            "Scene: %s   Entities: %llu   Assets: %llu",
+            scene.GetMetadata().name.c_str(),
             static_cast<unsigned long long>(
-                scene.GetEntities().size()));
-        ImGui::Text(
-            "Registered assets: %llu",
+                scene.GetEntities().size()),
             static_cast<unsigned long long>(
                 m_ProjectSession->GetAssetRegistry().Size()));
-    }
 
-    if (!m_LastError.empty())
-    {
-        ImGui::Separator();
-        ImGui::TextWrapped(
-            "Last error: %s",
-            m_LastError.c_str());
-    }
+        if (ImGui::IsItemHovered())
+        {
+            const std::string projectRoot =
+                m_ProjectSession->GetProjectRoot().string();
+            const std::string scenePath =
+                m_ProjectSession->GetCurrentScenePath().generic_string();
 
-    ImGui::End();
+            ImGui::SetTooltip(
+                "Project: %s\nScene file: %s",
+                projectRoot.c_str(),
+                scenePath.c_str());
+        }
+
+        if (!m_LastError.empty())
+        {
+            ImGui::SameLine(
+                0.0f,
+                24.0f);
+            ImGui::TextDisabled(
+                "Last error: %s",
+                m_LastError.c_str());
+        }
+
+        ImGui::End();
+    }
 
     if (m_EditorContext != nullptr
         && m_HierarchyPanel != nullptr
@@ -482,6 +537,9 @@ void EditorApplication::OnUpdate(
                 m_ProjectSession->GetEditorScene());
         }
 
+        ApplyWorkspaceRect(
+            workspace.hierarchy,
+            *mainViewport);
         const auto hierarchyError =
             m_HierarchyPanel->Draw();
         if (hierarchyError.has_value())
@@ -489,6 +547,9 @@ void EditorApplication::OnUpdate(
             RecordError(*hierarchyError);
         }
 
+        ApplyWorkspaceRect(
+            workspace.inspector,
+            *mainViewport);
         const auto inspectorError =
             m_InspectorPanel->Draw();
         if (inspectorError.has_value())
@@ -498,6 +559,9 @@ void EditorApplication::OnUpdate(
 
         if (m_AssetBrowserPanel != nullptr)
         {
+            ApplyWorkspaceRect(
+                workspace.assetBrowser,
+                *mainViewport);
             const auto assetError =
                 m_AssetBrowserPanel->Draw();
             if (assetError.has_value())
@@ -508,6 +572,9 @@ void EditorApplication::OnUpdate(
 
         if (m_ConsolePanel != nullptr)
         {
+            ApplyWorkspaceRect(
+                workspace.console,
+                *mainViewport);
             m_ConsolePanel->Draw();
         }
     }
@@ -520,8 +587,14 @@ void EditorApplication::OnUpdate(
         && m_EditorCamera != nullptr
         && m_SceneRenderer != nullptr)
     {
+        ApplyWorkspaceRect(
+            workspace.sceneView,
+            *mainViewport);
         const bool sceneViewVisible =
-            ImGui::Begin("Scene View");
+            ImGui::Begin(
+                "Scene View",
+                nullptr,
+                WorkspacePanelFlags);
 
         if (sceneViewVisible)
         {
@@ -629,8 +702,14 @@ void EditorApplication::OnUpdate(
 
         ImGui::End();
 
+        ApplyWorkspaceRect(
+            workspace.gameView,
+            *mainViewport);
         const bool gameViewVisible =
-            ImGui::Begin("Game View");
+            ImGui::Begin(
+                "Game View",
+                nullptr,
+                WorkspacePanelFlags);
 
         if (gameViewVisible)
         {
