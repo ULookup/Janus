@@ -412,13 +412,15 @@ Result<TextureHandle> OpenGLRenderDevice::CreateTexture(
 {
     constexpr usize channels = 4;
 
+    const usize requiredDataSize =
+        static_cast<usize>(desc.width) *
+        static_cast<usize>(desc.height) *
+        channels;
+
     if (desc.width == 0 ||
         desc.height == 0 ||
-        desc.data == nullptr ||
-        desc.dataSize <
-            static_cast<usize>(desc.width) *
-                static_cast<usize>(desc.height) *
-                channels)
+        (desc.data != nullptr && desc.dataSize < requiredDataSize) ||
+        (desc.data == nullptr && desc.dataSize != 0))
     {
         return Result<TextureHandle>::Failure(
             ErrorCode::TextureCreateFailed,
@@ -517,6 +519,45 @@ void OpenGLRenderDevice::DestroyFramebuffer(
 
     glDeleteFramebuffers(1, &iterator->second);
     m_Framebuffers.erase(iterator);
+}
+
+Result<void> OpenGLRenderDevice::BindFramebuffer(
+    FramebufferHandle handle)
+{
+    const auto iterator = m_Framebuffers.find(handle.value);
+
+    if (iterator == m_Framebuffers.end())
+    {
+        return Result<void>::Failure(
+            ErrorCode::InvalidArgument,
+            "Cannot bind an unknown framebuffer.");
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, iterator->second);
+    return Result<void>::Success();
+}
+
+void OpenGLRenderDevice::BindDefaultFramebuffer()
+{
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+Result<TexturePresentationHandle>
+OpenGLRenderDevice::GetTexturePresentationHandle(
+    TextureHandle handle) const
+{
+    const auto iterator = m_Textures.find(handle.value);
+
+    if (iterator == m_Textures.end())
+    {
+        return Result<TexturePresentationHandle>::Failure(
+            ErrorCode::InvalidArgument,
+            "Cannot present an unknown texture.");
+    }
+
+    return Result<TexturePresentationHandle>::Success(
+        TexturePresentationHandle{
+            static_cast<usize>(iterator->second)});
 }
 
 void OpenGLRenderDevice::SetViewport(Viewport viewport)
