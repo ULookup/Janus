@@ -369,6 +369,12 @@ McpProtocolSession::HandleNotification(
 
     if (m_Era == McpProtocolEra::Legacy2025)
     {
+        if (HasModernVersionClaim(notification.params))
+        {
+            return Result<std::optional<Json>>::Success(
+                std::nullopt);
+        }
+
         if (notification.method
             == "notifications/initialized")
         {
