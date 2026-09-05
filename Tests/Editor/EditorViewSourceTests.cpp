@@ -1,6 +1,7 @@
 #include "EditorViewSource.h"
 
 #include "ProjectSession.h"
+#include "RuntimeSession.h"
 
 #include "Application/ApplicationConfig.h"
 #include "Core/Input/InputState.h"
