@@ -11,6 +11,8 @@ add_executable(
     Core/ReflectionTests.cpp
     MCP/JsonRpcTests.cpp
     MCP/McpProtocolTests.cpp
+    MCP/McpMainThreadDispatcherTests.cpp
+    MCP/McpPermissionPolicyTests.cpp
     MCP/StdioTransportTests.cpp
     MCP/ToolRegistryTests.cpp
     MCP/ResourceRegistryTests.cpp
@@ -28,6 +30,7 @@ add_executable(
     Application/ProjectRuntimeTests.cpp
     Editor/EditorActionsTests.cpp
     Editor/EditorCameraTests.cpp
+    Editor/EditorLaunchOptionsTests.cpp
     Editor/EditorConsoleTests.cpp
     Editor/InspectorModelTests.cpp
     Editor/EditorSelectionTests.cpp
