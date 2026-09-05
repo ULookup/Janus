@@ -305,8 +305,7 @@ std::optional<Error> InspectorPanel::DrawProperty(
             ImGui::InputText(
                 descriptor->name.c_str(),
                 buffer.data(),
-                buffer.size(),
-                ImGuiInputTextFlags_EnterReturnsTrue);
+                buffer.size());
 
         if (ImGui::IsItemActivated())
         {
@@ -314,8 +313,15 @@ std::optional<Error> InspectorPanel::DrawProperty(
         }
 
         commit =
-            changed
-            || ImGui::IsItemDeactivatedAfterEdit();
+            ImGui::IsItemDeactivatedAfterEdit();
+
+        if (ImGui::IsItemDeactivated()
+            && !commit
+            && m_ActiveProperty == key)
+        {
+            m_ActiveProperty.reset();
+            m_StringBuffers.erase(key);
+        }
 
         desired =
             PropertyValue{
@@ -519,6 +525,14 @@ std::optional<Error> InspectorPanel::DrawProperty(
             && !ImGui::IsItemActive())
         {
             commit = true;
+        }
+
+        if (ImGui::IsItemDeactivated()
+            && !commit
+            && m_ActiveProperty == key)
+        {
+            m_ActiveProperty.reset();
+            m_PropertyBuffers.erase(key);
         }
 
         desired = buffer;
