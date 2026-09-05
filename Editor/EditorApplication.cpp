@@ -238,8 +238,11 @@ void DrawSceneGrid(
 
 } // namespace
 
-EditorApplication::EditorApplication(std::filesystem::path projectRoot)
-    : m_ProjectRoot(std::move(projectRoot))
+EditorApplication::EditorApplication(
+    std::filesystem::path projectRoot,
+    bool mcpStdio)
+    : m_ProjectRoot(std::move(projectRoot)),
+      m_McpStdio(mcpStdio)
 {
 }
 
