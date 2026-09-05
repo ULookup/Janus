@@ -17,6 +17,12 @@ struct CreatedTextureRecord
     std::vector<u8> pixels;
 };
 
+struct CreatedFramebufferRecord
+{
+    FramebufferHandle handle;
+    FramebufferDesc desc;
+};
+
 class FakeRenderDevice final : public RenderDevice
 {
 public:
@@ -68,6 +74,14 @@ public:
     Result<TextureHandle> CreateTexture(
         const TextureDesc& desc) override
     {
+        if (failNextTextureCreate)
+        {
+            failNextTextureCreate = false;
+            return Result<TextureHandle>::Failure(
+                ErrorCode::TextureCreateFailed,
+                "Fake texture creation failure.");
+        }
+
         const TextureHandle handle{Next()};
 
         CreatedTextureRecord record;
@@ -89,22 +103,71 @@ public:
     void DestroyTexture(TextureHandle handle) override
     {
         destroyedTextures.push_back(handle);
+        destructionOrder.push_back('T');
     }
 
     Result<FramebufferHandle> CreateFramebuffer(
-        const FramebufferDesc&) override
+        const FramebufferDesc& desc) override
     {
-        return Result<FramebufferHandle>::Success(
-            FramebufferHandle{Next()});
+        if (failNextFramebufferCreate)
+        {
+            failNextFramebufferCreate = false;
+            return Result<FramebufferHandle>::Failure(
+                ErrorCode::FramebufferCreateFailed,
+                "Fake framebuffer creation failure.");
+        }
+
+        const FramebufferHandle handle{Next()};
+        createdFramebuffers.push_back(
+            CreatedFramebufferRecord{handle, desc});
+        return Result<FramebufferHandle>::Success(handle);
     }
 
-    void DestroyFramebuffer(FramebufferHandle) override
+    void DestroyFramebuffer(FramebufferHandle handle) override
     {
+        destroyedFramebuffers.push_back(handle);
+        destructionOrder.push_back('F');
+    }
+
+    Result<void> BindFramebuffer(
+        FramebufferHandle handle) override
+    {
+        if (failNextFramebufferBind)
+        {
+            failNextFramebufferBind = false;
+            return Result<void>::Failure(
+                ErrorCode::InvalidState,
+                "Fake framebuffer bind failure.");
+        }
+
+        boundFramebuffers.push_back(handle);
+        return Result<void>::Success();
+    }
+
+    void BindDefaultFramebuffer() override
+    {
+        ++defaultFramebufferBindCount;
+    }
+
+    Result<TexturePresentationHandle> GetTexturePresentationHandle(
+        TextureHandle handle) const override
+    {
+        if (handle.value == 0)
+        {
+            return Result<TexturePresentationHandle>::Failure(
+                ErrorCode::InvalidArgument,
+                "Fake cannot present an invalid texture.");
+        }
+
+        return Result<TexturePresentationHandle>::Success(
+            TexturePresentationHandle{
+                static_cast<usize>(handle.value)});
     }
 
     void SetViewport(Viewport viewport) override
     {
         lastViewport = viewport;
+        viewportHistory.push_back(viewport);
     }
 
     void SetViewProjection(const Mat4&) override
@@ -130,9 +193,20 @@ public:
         return ++nextHandle;
     }
 
+    bool failNextTextureCreate = false;
+    bool failNextFramebufferCreate = false;
+    bool failNextFramebufferBind = false;
+
     std::vector<DrawCommand> drawCommands;
     std::vector<CreatedTextureRecord> createdTextures;
     std::vector<TextureHandle> destroyedTextures;
+    std::vector<CreatedFramebufferRecord> createdFramebuffers;
+    std::vector<FramebufferHandle> destroyedFramebuffers;
+    std::vector<FramebufferHandle> boundFramebuffers;
+    std::vector<Viewport> viewportHistory;
+    std::vector<char> destructionOrder;
+
+    u32 defaultFramebufferBindCount = 0;
     Viewport lastViewport;
     Color lastClearColor;
 
