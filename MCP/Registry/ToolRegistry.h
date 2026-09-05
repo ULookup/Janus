@@ -2,6 +2,7 @@
 
 #include "Core/Error/Result.h"
 #include "Protocol/McpProtocol.h"
+#include "Schema/JsonSchema.h"
 
 #include <functional>
 #include <map>
@@ -12,9 +13,6 @@
 
 namespace Janus::MCP
 {
-
-inline constexpr std::string_view McpJsonSchema202012 =
-    "https://json-schema.org/draft/2020-12/schema";
 
 using McpToolHandler =
     std::function<McpDispatchResult(
