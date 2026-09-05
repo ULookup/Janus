@@ -91,6 +91,7 @@ TEST_CASE(
     const Json& result = response.at("result");
     REQUIRE(result.at("supportedVersions").at(0)
             == std::string{McpModernProtocolVersion});
+    REQUIRE(result.at("resultType") == "complete");
     REQUIRE(result.at("ttlMs") == 0);
     REQUIRE(result.at("cacheScope") == "private");
     REQUIRE(result.at("capabilities").contains("tools"));
@@ -232,6 +233,7 @@ TEST_CASE(
     REQUIRE(callCount == 1);
     REQUIRE(response.at("id") == "modern-1");
     REQUIRE(response.at("result").contains("tools"));
+    REQUIRE(response.at("result").at("resultType") == "complete");
     REQUIRE(
         response.at("result")
             .at("_meta")
