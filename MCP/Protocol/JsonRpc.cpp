@@ -40,7 +40,7 @@ Json EncodeId(const JsonRpcId& id)
     return std::visit(
         [](const auto& value) -> Json
         {
-            return Json{value};
+            return Json(value);
         },
         id);
 }
@@ -376,7 +376,7 @@ Json EncodeJsonRpcMessage(const JsonRpcMessage& message)
             {
                 root["id"] = value.id.has_value()
                     ? EncodeId(*value.id)
-                    : Json{nullptr};
+                    : Json(nullptr);
 
                 root["error"] = {
                     {"code", value.error.code},
