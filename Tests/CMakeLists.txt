@@ -16,6 +16,7 @@ add_executable(
     MCP/ResourceRegistryTests.cpp
     MCP/ReflectionSchemaAdapterTests.cpp
     MCP/SceneResourcesTests.cpp
+    MCP/SceneToolsTests.cpp
     Asset/AssetTypesTests.cpp
     Asset/AssetRegistryTests.cpp
     Asset/AssetCacheTests.cpp
