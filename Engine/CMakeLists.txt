@@ -19,6 +19,7 @@ target_sources(
         Core/Time/FrameClock.cpp
         Core/Input/InputState.cpp
         Core/Math/Mat4.cpp
+        Core/Reflection/ReflectionRegistry.cpp
 
         Asset/AssetMetadata.cpp
         Asset/AssetRegistry.cpp
@@ -90,6 +91,9 @@ target_sources(
 
         Core/Math/Vector2.h
         Core/Math/Mat4.h
+
+        Core/Reflection/ReflectionTypes.h
+        Core/Reflection/ReflectionRegistry.h
 
         Asset/AssetHandle.h
         Asset/AssetMetadata.h

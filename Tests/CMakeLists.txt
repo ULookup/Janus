@@ -7,6 +7,7 @@ add_executable(
     Core/UUIDTests.cpp
     Core/EventInputTests.cpp
     Core/LogTests.cpp
+    Core/ReflectionTests.cpp
     Asset/AssetTypesTests.cpp
     Asset/AssetRegistryTests.cpp
     Asset/AssetCacheTests.cpp
