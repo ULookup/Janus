@@ -90,7 +90,7 @@ TEST_CASE(
 
     const Json& result = response.at("result");
     REQUIRE(result.at("supportedVersions").at(0)
-            == McpModernProtocolVersion);
+            == std::string{McpModernProtocolVersion});
     REQUIRE(result.at("ttlMs") == 0);
     REQUIRE(result.at("cacheScope") == "private");
     REQUIRE(result.at("capabilities").contains("tools"));
@@ -291,7 +291,7 @@ TEST_CASE(
 
     REQUIRE(
         response.at("result").at("protocolVersion")
-        == McpLegacyProtocolVersion);
+        == std::string{McpLegacyProtocolVersion});
     REQUIRE(
         response.at("result")
             .at("serverInfo")
