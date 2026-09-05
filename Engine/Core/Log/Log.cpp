@@ -11,7 +11,7 @@ namespace Janus
     std::shared_ptr<spdlog::logger> Log::s_CoreLogger;
     std::shared_ptr<spdlog::logger> Log::s_ClientLogger;
 
-    void Log::Initialize()
+    void Log::Initialize(LogOutput output)
     {
         if (s_CoreLogger || s_ClientLogger)
         {
@@ -23,11 +23,20 @@ namespace Janus
             spdlog::set_pattern(
                 "[%T] [%n] [%^%l%$] %v");
 
-            s_CoreLogger =
-                spdlog::stdout_color_mt("Core");
-
-            s_ClientLogger =
-                spdlog::stdout_color_mt("Sandbox");
+            if (output == LogOutput::StandardError)
+            {
+                s_CoreLogger =
+                    spdlog::stderr_color_mt("Core");
+                s_ClientLogger =
+                    spdlog::stderr_color_mt("Sandbox");
+            }
+            else
+            {
+                s_CoreLogger =
+                    spdlog::stdout_color_mt("Core");
+                s_ClientLogger =
+                    spdlog::stdout_color_mt("Sandbox");
+            }
 
 #if defined(JANUS_DEBUG)
 
