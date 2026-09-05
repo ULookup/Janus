@@ -245,6 +245,42 @@ TEST_CASE(
 }
 
 TEST_CASE(
+    "Reflection component validator exposes local invariants",
+    "[core][reflection][v0.7]")
+{
+    Janus::ReflectionRegistry registry;
+    auto descriptor = MakeTestComponent();
+    descriptor.validator =
+        [](const void* component)
+        {
+            const auto* test =
+                static_cast<const TestComponent*>(component);
+            if (test->speed <= 0.0f)
+            {
+                return Janus::Result<void>::Failure(
+                    Janus::ErrorCode::InvalidArgument,
+                    "Speed must be positive.");
+            }
+            return Janus::Result<void>::Success();
+        };
+
+    REQUIRE(registry.RegisterComponent(std::move(descriptor)));
+    const auto* reflected = registry.FindComponent("Test");
+    REQUIRE(reflected != nullptr);
+
+    TestComponent valid;
+    REQUIRE(reflected->Validate(&valid));
+
+    TestComponent invalid;
+    invalid.speed = 0.0f;
+    const auto result = reflected->Validate(&invalid);
+    REQUIRE_FALSE(result);
+    REQUIRE(
+        result.GetError().code
+        == Janus::ErrorCode::InvalidArgument);
+}
+
+TEST_CASE(
     "Reflection property accessors get and set typed values",
     "[core][reflection][v0.7]")
 {
