@@ -611,3 +611,32 @@ TEST_CASE(
         scene.GetComponent<Janus::CameraComponent>(
             originalPrimary)->primary);
 }
+
+
+TEST_CASE(
+    "ProjectSession command history is scoped to one authoring session",
+    "[editor][actions][command][session][v0.7]")
+{
+    Janus::Test::FakeRenderDevice device;
+    auto renderer =
+        Janus::Detail::Renderer2DTestAccess::Create(device);
+
+    auto first = OpenProject(*renderer);
+
+    Janus::Editor::EditorContext firstContext;
+    firstContext.project = first.get();
+    Janus::Editor::EditorActions firstActions(firstContext);
+
+    REQUIRE(firstActions.CreateEntity("SessionOnly"));
+    REQUIRE(
+        first->GetCommandBus().GetHistorySize()
+        == 1);
+
+    auto second = OpenProject(*renderer);
+    REQUIRE(
+        second->GetCommandBus().GetHistorySize()
+        == 0);
+    REQUIRE(
+        second->GetCommandBus().GetCursor()
+        == 0);
+}
