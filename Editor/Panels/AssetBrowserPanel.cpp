@@ -101,10 +101,13 @@ std::optional<Error> AssetBrowserPanel::Draw()
             m_SelectedAsset = asset.handle;
         }
 
+        const std::string typeName{
+            AssetTypeName(asset.type)};
+
         ImGui::SameLine();
         ImGui::TextDisabled(
             "[%s]",
-            AssetTypeName(asset.type).data());
+            typeName.c_str());
 
         ImGui::PopID();
     }
@@ -138,9 +141,12 @@ std::optional<Error> AssetBrowserPanel::Draw()
     ImGui::TextWrapped(
         "Path: %s",
         selectedPath.c_str());
+    const std::string selectedType{
+        AssetTypeName(selected->type)};
+
     ImGui::Text(
         "Type: %s",
-        AssetTypeName(selected->type).data());
+        selectedType.c_str());
     ImGui::TextWrapped(
         "Handle: %s",
         selectedHandle.c_str());
