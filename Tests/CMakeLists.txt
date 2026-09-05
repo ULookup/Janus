@@ -12,6 +12,9 @@ add_executable(
     MCP/JsonRpcTests.cpp
     MCP/McpProtocolTests.cpp
     MCP/StdioTransportTests.cpp
+    MCP/ToolRegistryTests.cpp
+    MCP/ResourceRegistryTests.cpp
+    MCP/ReflectionSchemaAdapterTests.cpp
     Asset/AssetTypesTests.cpp
     Asset/AssetRegistryTests.cpp
     Asset/AssetCacheTests.cpp
