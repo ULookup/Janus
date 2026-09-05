@@ -90,6 +90,7 @@ Result<UUID> EditorActions::CreateEntity(
     }
 
     m_Context.selection.Select(identity->id);
+    m_Context.project->MarkDirty();
     return Result<UUID>::Success(identity->id);
 }
 
@@ -118,6 +119,7 @@ Result<void> EditorActions::DeleteEntity(UUID id)
     }
 
     m_Context.selection.Validate(scene);
+    m_Context.project->MarkDirty();
     return Result<void>::Success();
 }
 
@@ -158,6 +160,7 @@ Result<void> EditorActions::RenameEntity(
     }
 
     identity->name = std::move(name);
+    m_Context.project->MarkDirty();
     return Result<void>::Success();
 }
 
@@ -197,6 +200,7 @@ Result<void> EditorActions::SetTransform(
     transform->scale = scale;
     transform->dirty = true;
 
+    m_Context.project->MarkDirty();
     return Result<void>::Success();
 }
 
@@ -229,6 +233,7 @@ Result<void> EditorActions::AddSpriteRenderer(UUID id)
         entity.Value(),
         SpriteRendererComponent{});
 
+    m_Context.project->MarkDirty();
     return Result<void>::Success();
 }
 
@@ -257,6 +262,7 @@ Result<void> EditorActions::RemoveSpriteRenderer(UUID id)
             "Entity has no SpriteRenderer component.");
     }
 
+    m_Context.project->MarkDirty();
     return Result<void>::Success();
 }
 
@@ -297,6 +303,58 @@ Result<void> EditorActions::SetSpriteRenderer(
     sprite->layer = layer;
     sprite->enabled = enabled;
 
+    m_Context.project->MarkDirty();
+    return Result<void>::Success();
+}
+
+
+Result<void> EditorActions::SetSpriteTexture(
+    UUID id,
+    AssetHandle texture)
+{
+    auto editable = GetEditableScene();
+    if (!editable)
+    {
+        return Result<void>::Failure(
+            editable.GetError());
+    }
+
+    const AssetMetadata* metadata =
+        m_Context.project->GetAssetRegistry().Find(texture);
+    if (metadata == nullptr)
+    {
+        return Result<void>::Failure(
+            ErrorCode::AssetNotFound,
+            "Texture asset is not registered in the current project.");
+    }
+
+    if (metadata->type != AssetType::Texture)
+    {
+        return Result<void>::Failure(
+            ErrorCode::AssetTypeMismatch,
+            "Selected asset is not a Texture.");
+    }
+
+    Scene& scene = *editable.Value();
+    auto entity = ResolveEntity(scene, id);
+    if (!entity)
+    {
+        return Result<void>::Failure(
+            entity.GetError());
+    }
+
+    auto* sprite =
+        scene.GetComponent<SpriteRendererComponent>(
+            entity.Value());
+    if (sprite == nullptr)
+    {
+        return Result<void>::Failure(
+            ErrorCode::InvalidState,
+            "Entity has no SpriteRenderer component.");
+    }
+
+    sprite->texture = texture;
+    m_Context.project->MarkDirty();
     return Result<void>::Success();
 }
 
@@ -328,6 +386,7 @@ Result<void> EditorActions::AddCamera(UUID id)
         entity.Value(),
         CameraComponent{});
 
+    m_Context.project->MarkDirty();
     return Result<void>::Success();
 }
 
@@ -356,6 +415,7 @@ Result<void> EditorActions::RemoveCamera(UUID id)
             "Entity has no Camera component.");
     }
 
+    m_Context.project->MarkDirty();
     return Result<void>::Success();
 }
 
@@ -409,6 +469,7 @@ Result<void> EditorActions::SetCamera(
     target->zoom = zoom;
     target->primary = primary;
 
+    m_Context.project->MarkDirty();
     return Result<void>::Success();
 }
 
@@ -442,6 +503,7 @@ Result<void> EditorActions::AddLuaScript(UUID id)
         entity.Value(),
         LuaScriptComponent{AssetHandle{}, false});
 
+    m_Context.project->MarkDirty();
     return Result<void>::Success();
 }
 
@@ -470,6 +532,7 @@ Result<void> EditorActions::RemoveLuaScript(UUID id)
             "Entity has no LuaScript component.");
     }
 
+    m_Context.project->MarkDirty();
     return Result<void>::Success();
 }
 
@@ -510,6 +573,58 @@ Result<void> EditorActions::SetLuaScriptEnabled(
     }
 
     script->enabled = enabled;
+    m_Context.project->MarkDirty();
+    return Result<void>::Success();
+}
+
+
+Result<void> EditorActions::SetLuaScriptAsset(
+    UUID id,
+    AssetHandle scriptHandle)
+{
+    auto editable = GetEditableScene();
+    if (!editable)
+    {
+        return Result<void>::Failure(
+            editable.GetError());
+    }
+
+    const AssetMetadata* metadata =
+        m_Context.project->GetAssetRegistry().Find(scriptHandle);
+    if (metadata == nullptr)
+    {
+        return Result<void>::Failure(
+            ErrorCode::AssetNotFound,
+            "Lua script asset is not registered in the current project.");
+    }
+
+    if (metadata->type != AssetType::LuaScript)
+    {
+        return Result<void>::Failure(
+            ErrorCode::AssetTypeMismatch,
+            "Selected asset is not a LuaScript.");
+    }
+
+    Scene& scene = *editable.Value();
+    auto entity = ResolveEntity(scene, id);
+    if (!entity)
+    {
+        return Result<void>::Failure(
+            entity.GetError());
+    }
+
+    auto* script =
+        scene.GetComponent<LuaScriptComponent>(
+            entity.Value());
+    if (script == nullptr)
+    {
+        return Result<void>::Failure(
+            ErrorCode::InvalidState,
+            "Entity has no LuaScript component.");
+    }
+
+    script->script = scriptHandle;
+    m_Context.project->MarkDirty();
     return Result<void>::Success();
 }
 
