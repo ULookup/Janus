@@ -28,7 +28,9 @@ class ProjectSession;
 class EditorApplication final : public ApplicationClient
 {
 public:
-    explicit EditorApplication(std::filesystem::path projectRoot);
+    explicit EditorApplication(
+        std::filesystem::path projectRoot,
+        bool mcpStdio = false);
     ~EditorApplication() override;
 
     [[nodiscard]] Result<void> OnInitialize(Application& application) override;
@@ -41,6 +43,7 @@ private:
     void ShutdownImGui(Application& application) noexcept;
 
     std::filesystem::path m_ProjectRoot;
+    bool m_McpStdio = false;
     std::unique_ptr<ProjectSession> m_ProjectSession;
     std::unique_ptr<EditorContext> m_EditorContext;
     std::unique_ptr<EditorActions> m_EditorActions;
