@@ -3,8 +3,10 @@
 #include "EditorActions.h"
 #include "EditorCamera.h"
 #include "EditorContext.h"
+#include "EditorConsole.h"
 #include "EditorViewSource.h"
 #include "Panels/AssetBrowserPanel.h"
+#include "Panels/ConsolePanel.h"
 #include "Panels/HierarchyPanel.h"
 #include "Panels/InspectorPanel.h"
 #include "ProjectSession.h"
@@ -61,6 +63,105 @@ constexpr u32 InitialViewHeight = 360;
 {
     return ImTextureRef{
         static_cast<ImTextureID>(handle.value)};
+}
+
+
+void DrawSceneGrid(
+    const EditorCamera& camera,
+    Viewport viewport,
+    ImVec2 rectMin,
+    ImVec2 rectMax)
+{
+    if (viewport.width == 0 || viewport.height == 0)
+    {
+        return;
+    }
+
+    const f32 zoom = camera.GetZoom();
+    if (zoom <= 0.0f)
+    {
+        return;
+    }
+
+    f32 worldSpacing = 64.0f;
+    f32 pixelSpacing = worldSpacing / zoom;
+
+    while (pixelSpacing < 24.0f)
+    {
+        worldSpacing *= 2.0f;
+        pixelSpacing = worldSpacing / zoom;
+    }
+
+    while (pixelSpacing > 160.0f && worldSpacing > 1.0f)
+    {
+        worldSpacing *= 0.5f;
+        pixelSpacing = worldSpacing / zoom;
+    }
+
+    const Vector2 worldTopLeft =
+        camera.ScreenToWorld(
+            Vector2{0.0f, 0.0f},
+            viewport);
+    const Vector2 worldBottomRight =
+        camera.ScreenToWorld(
+            Vector2{
+                static_cast<f32>(viewport.width),
+                static_cast<f32>(viewport.height)},
+            viewport);
+
+    ImDrawList* drawList = ImGui::GetWindowDrawList();
+    drawList->PushClipRect(rectMin, rectMax, true);
+
+    const ImU32 gridColor =
+        ImGui::GetColorU32(
+            ImGuiCol_Border,
+            0.35f);
+    const ImU32 axisColor =
+        ImGui::GetColorU32(
+            ImGuiCol_TextDisabled,
+            0.65f);
+
+    const f32 firstX =
+        std::floor(worldTopLeft.x / worldSpacing)
+        * worldSpacing;
+
+    for (f32 worldX = firstX;
+         worldX <= worldBottomRight.x;
+         worldX += worldSpacing)
+    {
+        const f32 screenX =
+            rectMin.x
+            + (worldX - worldTopLeft.x) / zoom;
+
+        drawList->AddLine(
+            ImVec2{screenX, rectMin.y},
+            ImVec2{screenX, rectMax.y},
+            std::abs(worldX) < 0.001f
+                ? axisColor
+                : gridColor);
+    }
+
+    const f32 firstY =
+        std::floor(worldBottomRight.y / worldSpacing)
+        * worldSpacing;
+
+    for (f32 worldY = firstY;
+         worldY <= worldTopLeft.y;
+         worldY += worldSpacing)
+    {
+        const f32 screenY =
+            rectMin.y
+            + (worldTopLeft.y - worldY) / zoom;
+
+        drawList->AddLine(
+            ImVec2{rectMin.x, screenY},
+            ImVec2{rectMax.x, screenY},
+            std::abs(worldY) < 0.001f
+                ? axisColor
+                : gridColor);
+    }
+
+    drawList->PopClipRect();
 }
 
 } // namespace
@@ -132,6 +233,10 @@ Result<void> EditorApplication::OnInitialize(Application& application)
     m_EditorContext->project = m_ProjectSession.get();
     m_EditorActions =
         std::make_unique<EditorActions>(*m_EditorContext);
+    m_EditorConsole =
+        std::make_unique<EditorConsole>();
+    m_ConsolePanel =
+        std::make_unique<ConsolePanel>(*m_EditorConsole);
     m_AssetBrowserPanel =
         std::make_unique<AssetBrowserPanel>(
             *m_EditorContext,
@@ -162,6 +267,8 @@ Result<void> EditorApplication::OnInitialize(Application& application)
         m_InspectorPanel.reset();
         m_HierarchyPanel.reset();
         m_AssetBrowserPanel.reset();
+        m_ConsolePanel.reset();
+        m_EditorConsole.reset();
         m_EditorActions.reset();
         m_EditorContext.reset();
         m_ProjectSession.reset();
@@ -194,6 +301,8 @@ Result<void> EditorApplication::OnInitialize(Application& application)
         m_InspectorPanel.reset();
         m_HierarchyPanel.reset();
         m_AssetBrowserPanel.reset();
+        m_ConsolePanel.reset();
+        m_EditorConsole.reset();
         m_EditorActions.reset();
         m_EditorContext.reset();
         m_ProjectSession.reset();
@@ -202,6 +311,12 @@ Result<void> EditorApplication::OnInitialize(Application& application)
     }
 
     m_GameViewTarget = gameTarget.Value();
+
+    m_EditorConsole->PushInfo(
+        "Opened project '" + m_ProjectRoot.string()
+        + "' with Scene '"
+        + m_ProjectSession->GetEditorScene().GetMetadata().name
+        + "'.");
 
     JANUS_INFO(
         "JanusEditor opened project '{}' with Scene '{}'.",
@@ -257,6 +372,11 @@ void EditorApplication::OnUpdate(
                 else
                 {
                     m_LastError.clear();
+                    if (m_EditorConsole != nullptr)
+                    {
+                        m_EditorConsole->PushInfo(
+                            "Play Mode started.");
+                    }
                 }
             }
         }
@@ -267,6 +387,11 @@ void EditorApplication::OnUpdate(
             if (!stopped)
             {
                 RecordError(stopped.GetError());
+            }
+            else if (m_EditorConsole != nullptr)
+            {
+                m_EditorConsole->PushInfo(
+                    "Play Mode stopped.");
             }
         }
 
@@ -288,6 +413,11 @@ void EditorApplication::OnUpdate(
             else
             {
                 m_LastError.clear();
+                if (m_EditorConsole != nullptr)
+                {
+                    m_EditorConsole->PushInfo(
+                        "Scene saved.");
+                }
             }
         }
         ImGui::EndDisabled();
@@ -375,6 +505,11 @@ void EditorApplication::OnUpdate(
                 RecordError(*assetError);
             }
         }
+
+        if (m_ConsolePanel != nullptr)
+        {
+            m_ConsolePanel->Draw();
+        }
     }
 
     bool renderSceneView = false;
@@ -427,6 +562,12 @@ void EditorApplication::OnUpdate(
                         available,
                         ImVec2{0.0f, 1.0f},
                         ImVec2{1.0f, 0.0f});
+
+                    DrawSceneGrid(
+                        *m_EditorCamera,
+                        m_SceneViewViewport,
+                        ImGui::GetItemRectMin(),
+                        ImGui::GetItemRectMax());
 
                     const bool hovered =
                         ImGui::IsItemHovered();
@@ -713,6 +854,8 @@ void EditorApplication::OnShutdown(Application& application) noexcept
     m_InspectorPanel.reset();
     m_HierarchyPanel.reset();
     m_AssetBrowserPanel.reset();
+    m_ConsolePanel.reset();
+    m_EditorConsole.reset();
     m_EditorActions.reset();
     m_EditorContext.reset();
 
@@ -728,6 +871,12 @@ void EditorApplication::OnShutdown(Application& application) noexcept
 void EditorApplication::RecordError(const Error& error)
 {
     m_LastError = error.message;
+
+    if (m_EditorConsole != nullptr)
+    {
+        m_EditorConsole->PushError(error);
+    }
+
     JANUS_ERROR(
         "JanusEditor operation failed: {}",
         error.message);
