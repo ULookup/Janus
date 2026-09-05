@@ -98,7 +98,7 @@ private:
     [[nodiscard]] Json BuildModernDiscoverResult() const;
     [[nodiscard]] Json BuildLegacyInitializeResult() const;
 
-    void StampModernServerInfo(Json& result) const;
+    void FinalizeModernResult(Json& result) const;
 
     [[nodiscard]] Json MakeRequestError(
         const JsonRpcId& id,
