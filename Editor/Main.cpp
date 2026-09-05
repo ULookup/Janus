@@ -1,47 +1,32 @@
 #include "EditorApplication.h"
+#include "EditorLaunchOptions.h"
 
 #include "Application/Application.h"
 #include "Application/ApplicationConfig.h"
 
 #include <cstdio>
 #include <cstdlib>
-#include <filesystem>
-#include <system_error>
 #include <utility>
-
-namespace
-{
-
-std::filesystem::path ResolveProjectRoot(int argc, char** argv)
-{
-    if (argc > 1 && argv[1] != nullptr)
-    {
-        return std::filesystem::path(argv[1]);
-    }
-
-    std::error_code error;
-    if (argc > 0 && argv[0] != nullptr)
-    {
-        const std::filesystem::path executable =
-            std::filesystem::absolute(argv[0], error);
-        if (!error)
-        {
-            return executable.parent_path() / "SandboxProject";
-        }
-    }
-
-    error.clear();
-    const std::filesystem::path current =
-        std::filesystem::current_path(error);
-    return error
-        ? std::filesystem::path("SandboxProject")
-        : current / "SandboxProject";
-}
-
-} // namespace
 
 int main(int argc, char** argv)
 {
+    auto options =
+        Janus::Editor::ParseEditorLaunchOptions(
+            argc,
+            argv);
+
+    if (!options)
+    {
+        std::fprintf(
+            stderr,
+            "JanusEditor arguments invalid: %s\n",
+            options.GetError().message.c_str());
+        return EXIT_FAILURE;
+    }
+
+    Janus::Editor::EditorLaunchOptions launch =
+        std::move(options).Value();
+
     Janus::ApplicationConfig config;
     config.window.title = "Janus Editor";
     config.window.width = 1440;
@@ -50,9 +35,16 @@ int main(int argc, char** argv)
     config.executionMode =
         Janus::ApplicationExecutionMode::ClientDriven;
 
+    if (launch.mcpStdio)
+    {
+        config.logOutput =
+            Janus::LogOutput::StandardError;
+    }
+
     Janus::Application application(config);
     Janus::Editor::EditorApplication editor(
-        ResolveProjectRoot(argc, argv));
+        std::move(launch.projectRoot),
+        launch.mcpStdio);
 
     const auto result = application.Run(editor);
     if (!result)
