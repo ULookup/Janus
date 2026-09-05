@@ -245,7 +245,7 @@ McpProtocolSession::HandleRequest(
         {
             Json result =
                 BuildModernDiscoverResult();
-            StampModernServerInfo(
+            FinalizeModernResult(
                 result);
 
             return Result<std::optional<Json>>::Success(
@@ -317,7 +317,7 @@ McpProtocolSession::HandleRequest(
 
     if (m_Era == McpProtocolEra::Modern2026)
     {
-        StampModernServerInfo(
+        FinalizeModernResult(
             result);
     }
 
@@ -514,13 +514,15 @@ Json McpProtocolSession::BuildLegacyInitializeResult() const
     return result;
 }
 
-void McpProtocolSession::StampModernServerInfo(
+void McpProtocolSession::FinalizeModernResult(
     Json& result) const
 {
     if (!result.is_object())
     {
         return;
     }
+
+    result["resultType"] = "complete";
 
     Json& meta =
         result["_meta"];
