@@ -16,6 +16,7 @@ target_sources(
         Resources/SceneResources.cpp
         Schema/ReflectionJsonCodec.cpp
         Schema/ReflectionSchemaAdapter.cpp
+        Tools/SceneTools.cpp
         Transport/StdioTransport.cpp
 
     PUBLIC
@@ -29,6 +30,7 @@ target_sources(
         Schema/JsonSchema.h
         Schema/ReflectionJsonCodec.h
         Schema/ReflectionSchemaAdapter.h
+        Tools/SceneTools.h
         Transport/StdioTransport.h
 )
 
