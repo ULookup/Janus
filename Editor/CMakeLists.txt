@@ -2,6 +2,7 @@ add_library(
     JanusEditorCore
     STATIC
 
+    EditorActions.cpp
     EditorCamera.cpp
     EditorContext.cpp
     EditorViewSource.cpp
