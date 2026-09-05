@@ -6,6 +6,7 @@ add_library(
     EditorCamera.cpp
     EditorConsole.cpp
     EditorContext.cpp
+    EditorLaunchOptions.cpp
     InspectorModel.cpp
     EditorViewSource.cpp
     EditorWorkspaceLayout.cpp
@@ -82,6 +83,7 @@ if(JANUS_BUILD_EDITOR)
         PRIVATE
 
             JanusEditorCore
+            JanusMCP
             JanusImGui
             SDL3::SDL3
     )
