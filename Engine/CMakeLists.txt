@@ -40,6 +40,7 @@ target_sources(
         Scene/SceneCloner.cpp
         Scene/SceneSerializer.cpp
         Scene/SceneDeserializer.cpp
+        Scene/SceneReflection.cpp
         Scene/SceneRenderer.cpp
 
         Scripting/LuaStackGuard.h
@@ -113,6 +114,7 @@ target_sources(
         Scene/SceneCloner.h
         Scene/SceneSerializer.h
         Scene/SceneDeserializer.h
+        Scene/SceneReflection.h
         Scene/SceneRenderer.h
 
         Scripting/ScriptEngine.h
