@@ -132,7 +132,10 @@ void ConfigureEditorFont()
     }
 #endif
 
-    io.FontGlobalScale = 1.15f;
+    ImFontConfig fallback;
+    fallback.SizePixels = 16.0f;
+    io.FontDefault =
+        io.Fonts->AddFontDefaultVector(&fallback);
 }
 
 void DrawSceneGrid(
