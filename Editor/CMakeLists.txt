@@ -6,6 +6,8 @@ add_library(
     EditorCamera.cpp
     EditorConsole.cpp
     EditorContext.cpp
+    EditorLaunchOptions.cpp
+    McpEditorHost.cpp
     InspectorModel.cpp
     EditorViewSource.cpp
     EditorWorkspaceLayout.cpp
@@ -28,6 +30,7 @@ target_link_libraries(
     PUBLIC
 
         JanusEngine
+        JanusMCP
 )
 
 janus_set_warnings(JanusEditorCore)
@@ -82,6 +85,7 @@ if(JANUS_BUILD_EDITOR)
         PRIVATE
 
             JanusEditorCore
+            JanusMCP
             JanusImGui
             SDL3::SDL3
     )
