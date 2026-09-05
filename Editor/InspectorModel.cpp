@@ -54,6 +54,16 @@ BuildInspectorModel(
         componentModel.descriptor = component;
         componentModel.present = present.Value();
 
+        if (!componentModel.present
+            && !component->removable)
+        {
+            return Result<std::vector<InspectorComponentModel>>::Failure(
+                ErrorCode::InvalidState,
+                "Inspector entity is missing required reflected component '"
+                    + component->name
+                    + "'.");
+        }
+
         if (componentModel.present)
         {
             for (const PropertyDescriptor& property :
