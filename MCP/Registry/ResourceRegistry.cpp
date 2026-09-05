@@ -72,40 +72,44 @@ bool ValidateUriTemplate(
     std::string_view uriTemplate)
 {
     bool hasVariable = false;
-    usize index = 0;
+    bool insideVariable = false;
+    usize variableLength = 0;
 
-    while (index < uriTemplate.size())
+    for (const char character : uriTemplate)
     {
-        const usize open =
-            uriTemplate.find('{', index);
-
-        if (open == std::string_view::npos)
+        if (character == '{')
         {
-            break;
+            if (insideVariable)
+            {
+                return false;
+            }
+
+            insideVariable = true;
+            variableLength = 0;
+            continue;
         }
 
-        const usize close =
-            uriTemplate.find('}', open + 1);
-
-        if (close == std::string_view::npos
-            || close == open + 1)
+        if (character == '}')
         {
-            return false;
+            if (!insideVariable
+                || variableLength == 0)
+            {
+                return false;
+            }
+
+            insideVariable = false;
+            hasVariable = true;
+            continue;
         }
 
-        if (uriTemplate.find('{', open + 1)
-            < close)
+        if (insideVariable)
         {
-            return false;
+            ++variableLength;
         }
-
-        hasVariable = true;
-        index = close + 1;
     }
 
     return hasVariable
-        && uriTemplate.find('}', index)
-            == std::string_view::npos;
+        && !insideVariable;
 }
 
 bool MatchUriTemplate(
