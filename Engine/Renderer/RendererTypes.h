@@ -78,6 +78,16 @@ struct FramebufferHandle
     u32 value = 0;
 };
 
+struct RenderTargetHandle
+{
+    u32 value = 0;
+};
+
+struct TexturePresentationHandle
+{
+    usize value = 0;
+};
+
 // ----------------------------------------------------------
 // Internal GPU resource descriptions
 // ----------------------------------------------------------
@@ -124,6 +134,12 @@ struct TextureDesc
 struct FramebufferDesc
 {
     TextureHandle colorTexture;
+    u32 width = 0;
+    u32 height = 0;
+};
+
+struct RenderTargetDesc
+{
     u32 width = 0;
     u32 height = 0;
 };
