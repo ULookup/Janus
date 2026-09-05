@@ -113,6 +113,38 @@ usize AssetRegistry::Size() const noexcept
     return m_Metadata.size();
 }
 
+std::vector<AssetMetadata> AssetRegistry::GetAssets() const
+{
+    std::vector<AssetMetadata> assets;
+    assets.reserve(m_Metadata.size());
+
+    for (const auto& [handle, metadata] : m_Metadata)
+    {
+        (void)handle;
+        assets.push_back(metadata);
+    }
+
+    std::sort(
+        assets.begin(),
+        assets.end(),
+        [](const AssetMetadata& left, const AssetMetadata& right)
+        {
+            const std::string leftPath =
+                left.relativePath.generic_string();
+            const std::string rightPath =
+                right.relativePath.generic_string();
+
+            if (leftPath != rightPath)
+            {
+                return leftPath < rightPath;
+            }
+
+            return left.handle < right.handle;
+        });
+
+    return assets;
+}
+
 Result<void> AssetRegistry::Save(const std::filesystem::path& registryPath) const
 {
     nlohmann::json document = {
