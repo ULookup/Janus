@@ -67,8 +67,13 @@ Json PropertySchemaFragment(
 
     case PropertyType::AssetReference:
         schema = {
-            {"type", "string"},
-            {"format", "uuid"}};
+            {"oneOf",
+             Json::array(
+                 {Json{
+                      {"type", "string"},
+                      {"format", "uuid"}},
+                  Json{
+                      {"type", "null"}}})}};
 
         if (!property.referenceConstraint.empty())
         {
