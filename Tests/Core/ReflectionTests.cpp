@@ -313,12 +313,11 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "Reflection read-only properties reject mutation",
+    "Reflection descriptor can restore non-editable serializable properties",
     "[core][reflection][v0.7]")
 {
     auto speed = MakeSpeedProperty();
     speed.editable = false;
-    speed.setter = {};
 
     Janus::ReflectionRegistry registry;
     auto descriptor = MakeTestComponent();
@@ -332,14 +331,35 @@ TEST_CASE(
     const auto* property =
         componentDescriptor->FindProperty("speed");
     REQUIRE(property != nullptr);
+    REQUIRE_FALSE(property->editable);
+    REQUIRE(property->serializable);
 
     TestComponent component;
     const auto result = property->Set(
         &component,
         Janus::PropertyValue{Janus::f32{2.0f}});
 
-    REQUIRE_FALSE(result);
+    REQUIRE(result);
+    REQUIRE(component.speed == 2.0f);
+}
+
+TEST_CASE(
+    "Reflection registry requires setters for serializable properties",
+    "[core][reflection][v0.7]")
+{
+    auto speed = MakeSpeedProperty();
+    speed.editable = false;
+    speed.serializable = true;
+    speed.setter = {};
+
+    Janus::ReflectionRegistry registry;
+    auto descriptor = MakeTestComponent();
+    descriptor.properties = {std::move(speed)};
+
+    const auto registered =
+        registry.RegisterComponent(std::move(descriptor));
+    REQUIRE_FALSE(registered);
     REQUIRE(
-        result.GetError().code
-        == Janus::ErrorCode::InvalidState);
+        registered.GetError().code
+        == Janus::ErrorCode::InvalidArgument);
 }
