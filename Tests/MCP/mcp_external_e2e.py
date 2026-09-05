@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import queue
 import shutil
 import subprocess
@@ -56,6 +57,9 @@ class JanusStdioClient:
         self._stderr_lines: list[str] = []
         self._all_stdout_lines: list[str] = []
 
+        child_environment = os.environ.copy()
+        child_environment["JANUS_MCP_STARTUP_TRACE"] = "1"
+
         self._process = subprocess.Popen(
             [
                 str(editor),
@@ -70,6 +74,7 @@ class JanusStdioClient:
             encoding="utf-8",
             errors="replace",
             bufsize=1,
+            env=child_environment,
         )
 
         require(self._process.stdin is not None, "JanusEditor stdin pipe unavailable.")
