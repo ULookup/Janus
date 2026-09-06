@@ -1,17 +1,39 @@
 #include "Log.h"
+#include "Core/Log/LogStore.h"
 
 #include <cstdio>
 
+#include <spdlog/sinks/base_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 
 namespace Janus
 {
+namespace
+{
+class StoreSink final : public spdlog::sinks::base_sink<std::mutex>
+{
+  public:
+    explicit StoreSink(std::shared_ptr<LogStore> store) : m_Store(std::move(store)) {}
+
+  private:
+    void sink_it_(const spdlog::details::log_msg& message) override
+    {
+        const auto level = message.level >= spdlog::level::err    ? LogLevel::Error
+                           : message.level == spdlog::level::warn ? LogLevel::Warning
+                                                                  : LogLevel::Info;
+        m_Store->Append(level, std::string(message.logger_name.data(), message.logger_name.size()),
+                        std::string(message.payload.data(), message.payload.size()));
+    }
+    void flush_() override {}
+    std::shared_ptr<LogStore> m_Store;
+};
+} // namespace
 
     std::shared_ptr<spdlog::logger> Log::s_CoreLogger;
     std::shared_ptr<spdlog::logger> Log::s_ClientLogger;
 
-    void Log::Initialize(LogOutput output)
+    void Log::Initialize(LogOutput output, std::shared_ptr<LogStore> store)
     {
         if (s_CoreLogger || s_ClientLogger)
         {
@@ -38,6 +60,13 @@ namespace Janus
                     spdlog::stdout_color_mt("Sandbox");
             }
 
+            if (store)
+            {
+                // Attach before publishing loggers to worker threads; shutdown owns detachment.
+                auto sink = std::make_shared<StoreSink>(std::move(store));
+                s_CoreLogger->sinks().push_back(sink);
+                s_ClientLogger->sinks().push_back(std::move(sink));
+            }
 #if defined(JANUS_DEBUG)
 
             s_CoreLogger->set_level(
@@ -108,4 +137,4 @@ namespace Janus
         return s_ClientLogger;
     }
 
-} // namespace Janus
+    } // namespace Janus

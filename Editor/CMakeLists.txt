@@ -13,7 +13,6 @@ add_library(
     EditorWorkspaceLayout.cpp
     ScenePicker.cpp
     ProjectSession.cpp
-    RuntimeSession.cpp
 )
 
 target_include_directories(
@@ -104,3 +103,5 @@ if(JANUS_BUILD_EDITOR)
     )
 
 endif()
+
+target_compile_definitions(JanusEditorCore PRIVATE JANUS_VERSION_STRING="${PROJECT_VERSION}")

@@ -94,7 +94,7 @@ bool AllowedKeys(
          it != arguments.end();
          ++it)
     {
-        bool found = false;
+        bool found = allowed.size() != 0 && it.key() == "transaction" && it->is_string();
         for (const std::string_view key : allowed)
         {
             if (it.key() == key)
@@ -159,9 +159,8 @@ Result<void> CheckWritable(
     return Result<void>::Success();
 }
 
-Result<void> ExecuteCommand(
-    const McpSceneToolContext& context,
-    std::unique_ptr<ICommand> command)
+Result<void> ExecuteCommand(const McpSceneToolContext& context, const Json& arguments,
+                            std::unique_ptr<ICommand> command)
 {
     auto writable =
         CheckWritable(context);
@@ -170,9 +169,17 @@ Result<void> ExecuteCommand(
         return writable;
     }
 
-    auto executed =
-        context.commands->Execute(
-            std::move(command));
+    UUID token;
+    if (arguments.contains("transaction"))
+    {
+        auto parsed = UUID::Parse(arguments["transaction"].get<std::string>());
+        if (!parsed || !parsed.Value().IsValid())
+            return Result<void>::Failure(ErrorCode::InvalidArgument, "Invalid transaction token.");
+        token = parsed.Value();
+    }
+    auto executed = context.executeCommand
+                        ? context.executeCommand(std::move(command), token)
+                        : context.commands->Execute(std::move(command), CommandActor::Agent, token);
     if (!executed)
     {
         return executed;
@@ -244,6 +251,8 @@ Json ObjectInputSchema(
     Json properties,
     Json required)
 {
+    if (!properties.empty())
+        properties["transaction"] = UuidSchema();
     return Json{
         {"$schema",
          std::string{
@@ -260,6 +269,7 @@ Json BasicOutputSchema(
     Json properties,
     Json required)
 {
+    properties["receipt"] = Json{{"type", "object"}};
     properties["ok"] =
         Json{{"const", true}};
     required.push_back("ok");
@@ -316,6 +326,7 @@ Json SetPropertyInputSchema(
     for (Json& branch
          : schema["oneOf"])
     {
+        branch["properties"]["transaction"] = UuidSchema();
         branch["properties"]["entity"] =
             UuidSchema();
         branch["required"].push_back(
@@ -380,12 +391,8 @@ McpToolDescriptor CreateEntityTool(
                 UUID::Random();
 
             auto executed =
-                ExecuteCommand(
-                    context,
-                    std::make_unique<CreateEntityCommand>(
-                        *context.scene,
-                        entity,
-                        name));
+                ExecuteCommand(context, arguments,
+                               std::make_unique<CreateEntityCommand>(*context.scene, entity, name));
 
             if (!executed)
             {
@@ -443,13 +450,9 @@ McpToolDescriptor DeleteEntityTool(
                 *context.reflection,
                 context.assets);
 
-            auto executed =
-                ExecuteCommand(
-                    context,
-                    std::make_unique<DeleteEntityCommand>(
-                        *context.scene,
-                        reflection,
-                        entity.Value()));
+            auto executed = ExecuteCommand(
+                context, arguments,
+                std::make_unique<DeleteEntityCommand>(*context.scene, reflection, entity.Value()));
 
             if (!executed)
             {
@@ -521,13 +524,9 @@ McpToolDescriptor RenameEntityTool(
             const std::string name =
                 nameIt->get<std::string>();
 
-            auto executed =
-                ExecuteCommand(
-                    context,
-                    std::make_unique<RenameEntityCommand>(
-                        *context.scene,
-                        entity.Value(),
-                        name));
+            auto executed = ExecuteCommand(
+                context, arguments,
+                std::make_unique<RenameEntityCommand>(*context.scene, entity.Value(), name));
 
             if (!executed)
             {
@@ -606,13 +605,9 @@ McpToolDescriptor AddComponentTool(
                 context.assets);
 
             auto executed =
-                ExecuteCommand(
-                    context,
-                    std::make_unique<AddComponentCommand>(
-                        *context.scene,
-                        reflection,
-                        entity.Value(),
-                        component->id));
+                ExecuteCommand(context, arguments,
+                               std::make_unique<AddComponentCommand>(
+                                   *context.scene, reflection, entity.Value(), component->id));
 
             if (!executed)
             {
@@ -693,13 +688,9 @@ McpToolDescriptor RemoveComponentTool(
                 context.assets);
 
             auto executed =
-                ExecuteCommand(
-                    context,
-                    std::make_unique<RemoveComponentCommand>(
-                        *context.scene,
-                        reflection,
-                        entity.Value(),
-                        component->id));
+                ExecuteCommand(context, arguments,
+                               std::make_unique<RemoveComponentCommand>(
+                                   *context.scene, reflection, entity.Value(), component->id));
 
             if (!executed)
             {
@@ -807,15 +798,10 @@ McpToolDescriptor SetPropertyTool(
                 context.assets);
 
             auto executed =
-                ExecuteCommand(
-                    context,
-                    std::make_unique<SetPropertyCommand>(
-                        *context.scene,
-                        reflection,
-                        entity.Value(),
-                        component->id,
-                        property->id,
-                        std::move(value).Value()));
+                ExecuteCommand(context, arguments,
+                               std::make_unique<SetPropertyCommand>(
+                                   *context.scene, reflection, entity.Value(), component->id,
+                                   property->id, std::move(value).Value()));
 
             if (!executed)
             {

@@ -8,25 +8,26 @@
 
 namespace Janus
 {
+class LogStore;
 
-    class Log final
-    {
-    public:
-        Log() = delete;
+class Log final
+{
+  public:
+    Log() = delete;
 
-        static void Initialize(
-            LogOutput output = LogOutput::StandardOutput);
-        static void Shutdown();
+    static void Initialize(LogOutput output = LogOutput::StandardOutput,
+                           std::shared_ptr<LogStore> store = {});
+    static void Shutdown();
 
-        [[nodiscard]]
-        static std::shared_ptr<spdlog::logger>& GetCoreLogger();
+    [[nodiscard]]
+    static std::shared_ptr<spdlog::logger>& GetCoreLogger();
 
-        [[nodiscard]]
-        static std::shared_ptr<spdlog::logger>& GetClientLogger();
+    [[nodiscard]]
+    static std::shared_ptr<spdlog::logger>& GetClientLogger();
 
-    private:
-        static std::shared_ptr<spdlog::logger> s_CoreLogger;
-        static std::shared_ptr<spdlog::logger> s_ClientLogger;
+  private:
+    static std::shared_ptr<spdlog::logger> s_CoreLogger;
+    static std::shared_ptr<spdlog::logger> s_ClientLogger;
     };
 
 } // namespace Janus

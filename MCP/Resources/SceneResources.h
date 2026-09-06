@@ -34,6 +34,9 @@ struct McpSceneResourceContext
     McpProjectReadStateProvider projectState;
 };
 
+[[nodiscard]] Result<Json> ReadEntityModel(const McpSceneResourceContext& context,
+                                           std::string_view entityUri);
+
 [[nodiscard]] Result<void> RegisterSceneResources(
     ResourceRegistry& registry,
     McpSceneResourceContext context);

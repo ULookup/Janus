@@ -3,7 +3,9 @@
 #include "Core/Error/Result.h"
 #include "Registry/ToolRegistry.h"
 
+#include "Core/Command/ICommand.h"
 #include <functional>
+#include <memory>
 
 namespace Janus
 {
@@ -26,6 +28,7 @@ struct McpSceneToolContext
     std::function<Result<void>()> saveCurrentScene;
     std::function<void()> markDirty;
     std::function<bool()> authoringReadOnly;
+    std::function<Result<void>(std::unique_ptr<ICommand>, UUID)> executeCommand;
 };
 
 [[nodiscard]] Result<void> RegisterSceneTools(

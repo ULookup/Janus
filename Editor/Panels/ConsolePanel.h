@@ -15,6 +15,7 @@ public:
 
 private:
     EditorConsole& m_Console;
+    int m_LevelFilter = 0;
     bool m_AutoScroll = true;
 };
 

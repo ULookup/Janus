@@ -27,17 +27,22 @@ EXPECTED_TOOLS = {
     "scene.remove_component",
     "scene.set_component_property",
     "scene.save",
+    "runtime.play", "runtime.pause", "runtime.stop", "runtime.step",
+    "transaction.begin", "transaction.commit", "transaction.rollback",
 }
 
 EXPECTED_RESOURCES = {
     "engine://project/info",
     "engine://scene/current",
     "engine://scene/hierarchy",
+    "engine://runtime/status", "engine://logs/recent", "engine://profiler/latest-frame",
+    "engine://transaction/status", "engine://agent/activity",
 }
 
 EXPECTED_TEMPLATES = {
     "engine://entity/{uuid}",
     "engine://asset/{uuid}",
+    "engine://runtime/entity/{uuid}",
 }
 
 
@@ -317,6 +322,73 @@ def verify_catalogs(client: JanusStdioClient, first_id: int, modern: bool) -> in
     return request_id
 
 
+def verify_debug(client: JanusStdioClient, project: Path, modern: bool) -> None:
+    request_id = 1000
+    def call(name: str, arguments: dict[str, Any], success: bool = True) -> dict[str, Any]:
+        nonlocal request_id
+        request_id += 1
+        params = dict(name=name, arguments=arguments)
+        result = require_result(client.request(request_id, "tools/call", modern_params(**params) if modern else params), name)
+        require(result.get("isError", False) is not success, f"Unexpected tool outcome: {result}")
+        return result["structuredContent"]
+    def read(uri: str) -> dict[str, Any]:
+        nonlocal request_id
+        request_id += 1
+        return read_resource_payload(client, request_id, uri, modern)
+    token = call("transaction.begin", {"label": "E2E authoring group"})["transaction"]
+    require(read("engine://runtime/status")["authoringReadOnly"], "Transaction lock missing from runtime status")
+    created = call("scene.create_entity", {"name": "Transactional", "transaction": token})["entity"]
+    call("scene.add_component", {"entity": created, "component": "Camera", "transaction": token})
+    call("scene.set_component_property", {"entity": created, "component": "Transform", "property": "position", "value": {"x": 4.0, "y": 5.0}, "transaction": token})
+    require(read("engine://entity/" + created)["authoringTransaction"]["provisional"], "Pending state not marked")
+    call("transaction.commit", {"transaction": "99999999-9999-4999-8999-999999999999"}, success=False)
+    require(read("engine://transaction/status")["state"] == "Active", "Foreign token aborted owner")
+    call("transaction.commit", {"transaction": token})
+    call("transaction.commit", {"transaction": token})
+    require(read("engine://transaction/status")["state"] == "Idle", "Commit left transaction active")
+    activity = read("engine://agent/activity?after=0&limit=200")["entries"]
+    committed = [row for row in activity if row["transaction"] == token and row["outcome"] == "Committed" and row["commandId"] != "0"]
+    filtered = read("engine://agent/activity?after=0&transactionId=" + token)["entries"]
+    require(all(row["transaction"] == token for row in filtered), "Activity transaction filter failed")
+    require(len(committed) == 3 and all(row["effects"] for row in committed), f"Missing command receipts: {committed}")
+    token = call("transaction.begin", {})["transaction"]
+    call("scene.rename_entity", {"entity": created, "name": "Rollback", "transaction": token})
+    call("scene.delete_entity", {"entity": "99999999-9999-4999-8999-999999999999", "transaction": token}, success=False)
+    require(read("engine://transaction/status")["state"] == "Idle", "Failed mutation did not auto-abort")
+    require(read("engine://entity/" + created)["name"] == "Transactional", "Rollback failed to restore name")
+    player = "44444444-4444-4444-8444-444444444444"
+    call("scene.set_component_property", dict(entity=player, component="Transform", property="position", value={"x": 10.0, "y": 0.0}))
+    script = project / "Scripts" / "PlayerController.lua"
+    script.write_text("return { OnUpdate = function(self, dt) local x,y = self.entity:get_position(); self.entity:set_position(x + 60 * dt,y) end }", encoding="utf-8")
+    started = call("runtime.play", {"startPaused": True})
+    first_id = started["runtime"]["runtimeId"]
+    call("runtime.play", {"startPaused": False}, success=False)
+    for _ in range(3): call("runtime.step", {})
+    state = read("engine://runtime/status")
+    require(state["state"] == "Paused" and state["frameIndex"] == 3, f"Wrong paused frame: {state}")
+    profile = read("engine://profiler/latest-frame")
+    require(profile["available"] and profile["simulationFrame"] == 3 and profile["scopes"], f"Missing real runtime profile: {profile}")
+    historical = read("engine://profiler/latest-frame?frameId=" + str(profile["frameId"]))
+    require(historical["frameId"] == profile["frameId"], "Historical frame not stable")
+    require(not read("engine://profiler/latest-frame?frameId=999999999")["available"], "Missing frame claimed available")
+    entity = read("engine://runtime/entity/" + player)
+    require(entity["components"]["Transform"]["position"] == {"x": 13.0, "y": 0.0}, f"Runtime did not execute three Lua steps: {entity}")
+    require(read("engine://entity/" + player)["components"]["Transform"]["position"] == {"x": 10.0, "y": 0.0}, "Runtime polluted authoring")
+    call("runtime.stop", {})
+    script.write_text('return { OnUpdate = function(self, dt) error("v09 deliberate fault") end }', encoding="utf-8")
+    call("runtime.play", {"startPaused": True})
+    call("runtime.step", {}, success=False)
+    state = read("engine://runtime/status")
+    require(state["state"] == "Faulted" and state["partialUpdate"] and state["runtimeId"] != first_id, "Fault snapshot lost")
+    logs = read("engine://logs/recent?level=Error&limit=10")
+    require(any("v09 deliberate fault" in row["message"] for row in logs["entries"]), f"Runtime error missing: {logs}")
+    call("scene.rename_entity", dict(entity=player, name="Forbidden"), success=False)
+    call("runtime.stop", {})
+    token = call("transaction.begin", {})["transaction"]
+    call("scene.rename_entity", {"entity": created, "name": "Disconnect", "transaction": token})
+    # Closing stdin below exercises production main-thread disconnect rollback.
+
+
 def run_modern(host: Path, source_project: Path) -> None:
     with tempfile.TemporaryDirectory(prefix="janus-mcp-modern-") as temp_root:
         project = Path(temp_root) / "SandboxProject"
@@ -524,6 +596,7 @@ def run_modern(host: Path, source_project: Path) -> None:
                 "Camera" in persisted_entity.get("components", {}),
                 f"Saved Scene Camera missing: {persisted_entity!r}",
             )
+            verify_debug(client, project, modern=True)
         finally:
             client.stop()
 
@@ -570,6 +643,7 @@ def run_legacy(host: Path, source_project: Path) -> None:
                 project_info.get("project", {}).get("displayPath") == "SandboxProject",
                 f"Legacy project resource mismatch: {project_info!r}",
             )
+            verify_debug(client, project, modern=False)
         finally:
             client.stop()
 

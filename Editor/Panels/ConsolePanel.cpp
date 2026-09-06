@@ -25,6 +25,13 @@ void ConsolePanel::DrawContents()
         "Auto-scroll",
         &m_AutoScroll);
 
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(120.0f);
+    if (ImGui::Combo("Level", &m_LevelFilter, "All\0Info\0Warning\0Error\0"))
+        m_Console.SetLevelFilter(m_LevelFilter == 0
+                                     ? std::nullopt
+                                     : std::optional<EditorConsoleLevel>(
+                                           static_cast<EditorConsoleLevel>(m_LevelFilter - 1)));
     ImGui::Separator();
 
     ImGui::BeginChild(
@@ -38,10 +45,9 @@ void ConsolePanel::DrawContents()
 
     for (const EditorConsoleEntry& entry : entries)
     {
-        const char* prefix =
-            entry.level == EditorConsoleLevel::Error
-                ? "[Error]"
-                : "[Info]";
+        const char* prefix = entry.level == EditorConsoleLevel::Error     ? "[Error]"
+                             : entry.level == EditorConsoleLevel::Warning ? "[Warning]"
+                                                                          : "[Info]";
 
         ImGui::TextWrapped(
             "%s %s",

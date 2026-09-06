@@ -16,7 +16,13 @@ enum class McpOperation
     ProjectRead,
     SceneRead,
     SceneWrite,
-    SceneSave
+    SceneSave,
+    RuntimeRead,
+    RuntimeControl,
+    DiagnosticsRead,
+    TransactionControl,
+    ActivityRead,
+    Unclassified
 };
 
 struct McpRequestContext

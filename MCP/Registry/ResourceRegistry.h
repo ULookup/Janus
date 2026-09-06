@@ -25,6 +25,7 @@ struct McpResourceDescriptor
     std::string description;
     std::string mimeType;
     McpResourceReadHandler handler;
+    bool allowQuery = false;
 };
 
 struct McpResourceTemplateDescriptor

@@ -146,7 +146,7 @@ Result<void> Application::Run(ApplicationClient& client)
 
     m_HasRun = true;
 
-    Log::Initialize(m_Config.logOutput);
+    Log::Initialize(m_Config.logOutput, m_Logs);
 
     auto platformResult = m_Dependencies.initializePlatform();
     if (!platformResult)

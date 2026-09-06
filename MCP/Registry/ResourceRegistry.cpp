@@ -536,6 +536,12 @@ McpDispatchResult ResourceRegistry::HandleRead(
 
     const McpResourceDescriptor* resource =
         FindResource(uri);
+    if (!resource && uri.find('?') != std::string::npos)
+    {
+        const auto* candidate = FindResource(std::string_view(uri).substr(0, uri.find('?')));
+        if (candidate && candidate->allowQuery)
+            resource = candidate;
+    }
 
     McpDispatchResult result =
         resource != nullptr
