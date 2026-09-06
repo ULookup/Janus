@@ -15,9 +15,11 @@ target_sources(
         Registry/ToolRegistry.cpp
         Registry/ResourceRegistry.cpp
         Registry/McpCapabilityRouter.cpp
+        Resources/DebugResources.cpp
         Resources/SceneResources.cpp
         Schema/ReflectionJsonCodec.cpp
         Schema/ReflectionSchemaAdapter.cpp
+        Tools/TransactionTools.cpp
         Tools/SceneTools.cpp
         Transport/StdioTransport.cpp
 
@@ -30,10 +32,12 @@ target_sources(
         Registry/ToolRegistry.h
         Registry/ResourceRegistry.h
         Registry/McpCapabilityRouter.h
+        Resources/DebugResources.h
         Resources/SceneResources.h
         Schema/JsonSchema.h
         Schema/ReflectionJsonCodec.h
         Schema/ReflectionSchemaAdapter.h
+        Tools/TransactionTools.h
         Tools/SceneTools.h
         Transport/StdioTransport.h
 )

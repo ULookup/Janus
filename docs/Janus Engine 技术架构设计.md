@@ -1189,6 +1189,8 @@ Agent 与 Editor 使用同一个 History。
 
 Agent 批量操作必须支持 Transaction。
 
+v0.9 的实施细化方案见 [Agent Development Loop 设计](superpowers/specs/2026-09-06-v0.9-agent-development-loop-design.md)。下方 `Validate All` 是批处理概念流程，不意味着 Begin 时能够校验尚未收到、或依赖前序 Create 的命令。v0.9 采用会话级独占写入、逐命令校验、临时执行、Commit 分组历史及逆序补偿；临时状态对读取可见，回滚失败进入显式 RecoveryRequired。Save/Runtime 不属于作者态事务，也不承诺磁盘原子提交或数据库读隔离。本地实现及验证证据见 [v0.9 验证记录](verification/2026-09-06-v0.9-agent-development-loop.md)，集成/发布状态与本地完成状态分开记录。
+
 ```text
 Transaction
 │

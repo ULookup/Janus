@@ -91,6 +91,9 @@ int main(int argc, char** argv)
             return EXIT_FAILURE;
         }
 
+        if (project.Value()->GetRuntimeState() == Janus::RuntimeState::Playing)
+            static_cast<void>(
+                project.Value()->UpdateRuntime(Janus::TimeStep::FromSeconds(1.0 / 60.0)));
         std::this_thread::sleep_for(1ms);
     }
 
@@ -98,6 +101,13 @@ int main(int argc, char** argv)
         host.Value()->GetWorkerError();
 
     host.Value()->Stop();
+
+    if (project.Value()->GetCommandBus().HasTransaction() ||
+        project.Value()->GetCommandBus().RecoveryRequired())
+    {
+        std::fprintf(stderr, "Disconnect did not clean authoring transaction.\n");
+        return EXIT_FAILURE;
+    }
 
     if (workerError.has_value())
     {

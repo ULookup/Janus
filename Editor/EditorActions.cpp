@@ -30,7 +30,7 @@ Result<Scene*> EditorActions::GetEditableScene()
             "Editor action requires an open project.");
     }
 
-    if (m_Context.project->IsPlaying())
+    if (m_Context.project->IsAuthoringReadOnly())
     {
         return Result<Scene*>::Failure(
             ErrorCode::InvalidState,
@@ -59,9 +59,7 @@ Result<void> EditorActions::ExecutePrepared(
             "Editor action requires an open project.");
     }
 
-    auto executed =
-        m_Context.project->GetCommandBus().Execute(
-            std::move(command));
+    auto executed = m_Context.project->ExecuteAuthoring(std::move(command));
     if (!executed)
     {
         return executed;
@@ -230,8 +228,7 @@ Result<void> EditorActions::Undo()
             editable.GetError());
     }
 
-    auto undone =
-        m_Context.project->GetCommandBus().Undo();
+    auto undone = m_Context.project->UndoAuthoring();
     if (!undone)
     {
         return undone;
@@ -250,8 +247,7 @@ Result<void> EditorActions::Redo()
             editable.GetError());
     }
 
-    auto redone =
-        m_Context.project->GetCommandBus().Redo();
+    auto redone = m_Context.project->RedoAuthoring();
     if (!redone)
     {
         return redone;
@@ -263,16 +259,14 @@ Result<void> EditorActions::Redo()
 
 bool EditorActions::CanUndo() const noexcept
 {
-    return m_Context.project != nullptr
-        && !m_Context.project->IsPlaying()
-        && m_Context.project->GetCommandBus().CanUndo();
+    return m_Context.project != nullptr && !m_Context.project->IsAuthoringReadOnly() &&
+           m_Context.project->GetCommandBus().CanUndo();
 }
 
 bool EditorActions::CanRedo() const noexcept
 {
-    return m_Context.project != nullptr
-        && !m_Context.project->IsPlaying()
-        && m_Context.project->GetCommandBus().CanRedo();
+    return m_Context.project != nullptr && !m_Context.project->IsAuthoringReadOnly() &&
+           m_Context.project->GetCommandBus().CanRedo();
 }
 
 Result<void> EditorActions::SetTransform(

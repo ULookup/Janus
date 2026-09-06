@@ -7,6 +7,8 @@ add_executable(
     Core/UUIDTests.cpp
     Core/EventInputTests.cpp
     Core/LogTests.cpp
+    Core/ProfilerTests.cpp
+    Core/LogStoreTests.cpp
     Core/CommandTests.cpp
     Core/ReflectionTests.cpp
     MCP/JsonRpcTests.cpp
@@ -168,3 +170,8 @@ set_tests_properties(
         TIMEOUT 30
         RUN_SERIAL TRUE
 )
+
+# Manual CPU instrumentation overhead measurement; no timing threshold in CTest.
+add_executable(JanusCpuProfilerBenchmark Benchmarks/CpuProfilerBenchmark.cpp)
+target_link_libraries(JanusCpuProfilerBenchmark PRIVATE JanusEngine)
+janus_set_warnings(JanusCpuProfilerBenchmark)

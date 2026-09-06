@@ -963,4 +963,37 @@ std::string_view DeleteEntityCommand::Describe() const noexcept
     return "Delete Entity";
 }
 
+Result<usize> CreateEntityCommand::EstimateUndoBytes() const
+{
+    return Result<usize>::Success(512 + m_Name.size());
+}
+Result<usize> RenameEntityCommand::EstimateUndoBytes() const
+{
+    const auto* identity =
+        m_Scene.GetComponent<EntityIdentityComponent>(m_Scene.FindEntity(m_Entity));
+    return Result<usize>::Success(512 + m_NewName.size() + (identity ? identity->name.size() : 0));
+}
+Result<usize> DeleteEntityCommand::EstimateUndoBytes() const
+{
+    return EstimateSceneCommandUndoBytes(m_Scene, m_Reflection);
+}
+std::vector<CommandEffect> CreateEntityCommand::GetEffects() const
+{
+    return {{m_Entity, "CreateEntity"}};
+}
+std::vector<CommandEffect> RenameEntityCommand::GetEffects() const
+{
+    return {{m_Entity, "RenameEntity"}};
+}
+std::vector<CommandEffect> DeleteEntityCommand::GetEffects() const
+{
+    std::vector<CommandEffect> effects;
+    if (m_Snapshot)
+        for (const auto& entity : m_Snapshot->entities)
+            effects.push_back({entity.id, "DeleteEntity"});
+    else
+        effects.push_back({m_Entity, "DeleteEntity"});
+    return effects;
+}
+
 } // namespace Janus

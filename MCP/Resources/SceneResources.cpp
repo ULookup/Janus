@@ -810,6 +810,11 @@ McpResourceReadHandler MakeReadHandler(
 
 } // namespace
 
+Result<Json> ReadEntityModel(const McpSceneResourceContext& context, std::string_view entityUri)
+{
+    return BuildEntity(context, entityUri);
+}
+
 Result<void> RegisterSceneResources(
     ResourceRegistry& registry,
     McpSceneResourceContext context)

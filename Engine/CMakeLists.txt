@@ -14,6 +14,8 @@ target_sources(
     PRIVATE
 
         Core/Log/Log.cpp
+        Core/Profiling/CpuProfiler.cpp
+        Core/Log/LogStore.cpp
         Core/FileSystem/FileSystem.cpp
         Core/UUID/UUID.cpp
         Core/Time/FrameClock.cpp
@@ -50,6 +52,7 @@ target_sources(
         Scripting/LuaVirtualMachine.h
         Scripting/LuaVirtualMachine.cpp
         Scripting/ScriptEngine.cpp
+        Runtime/RuntimeSession.cpp
 
         Renderer/RendererStatistics.cpp
         Renderer/RenderDevice.h
@@ -83,6 +86,9 @@ target_sources(
         Core/Error/Result.h
 
         Core/Log/Log.h
+        Diagnostics/DiagnosticsFrame.h
+        Core/Profiling/CpuProfiler.h
+        Core/Log/LogStore.h
         Core/Log/LogOutput.h
 
         Core/FileSystem/FileSystem.h
@@ -127,6 +133,7 @@ target_sources(
         Scene/SceneRenderer.h
 
         Scripting/ScriptEngine.h
+        Runtime/RuntimeSession.h
 
         Renderer/RendererTypes.h
         Renderer/Sprite.h

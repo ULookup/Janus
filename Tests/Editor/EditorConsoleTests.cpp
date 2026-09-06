@@ -43,3 +43,17 @@ TEST_CASE(
     REQUIRE(console.GetCapacity() == 1);
     REQUIRE(console.GetEntries().size() == 1);
 }
+
+TEST_CASE("Console level filters query the shared structured store", "[console][v0.9]")
+{
+    using namespace Janus;
+    auto store = std::make_shared<LogStore>();
+    store->Append(LogLevel::Info, "Test", "info");
+    store->Append(LogLevel::Warning, "Test", "warning");
+    Editor::EditorConsole console(store);
+    console.SetLevelFilter(Editor::EditorConsoleLevel::Warning);
+    REQUIRE(console.GetEntries().size() == 1);
+    REQUIRE(console.GetEntries()[0].message == "warning");
+    console.SetLevelFilter({});
+    REQUIRE(console.GetEntries().size() == 2);
+}

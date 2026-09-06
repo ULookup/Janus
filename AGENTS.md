@@ -20,13 +20,17 @@ v0.8 MCP Agent Foundation is complete and is the capability baseline for v0.9.
 - stdout is protocol-only in MCP stdio mode. Diagnostics/logging must use stderr or another non-protocol sink.
 - MCP I/O workers may parse/serialize protocol data but must not mutate EditorScene, CommandBus, Reflection-backed authoring state, dirty state, or save state directly.
 - Live Editor resource/tool handling crosses `McpMainThreadDispatcher` before permission enforcement and capability routing.
-- Current operation classes are ProjectRead, SceneRead, SceneWrite, and SceneSave. The local Editor stdio policy currently allows the exposed v0.8 operations, but handlers must remain policy-agnostic.
+- Operation classification is an explicit whitelist: ProjectRead, SceneRead, SceneWrite, SceneSave, RuntimeRead, RuntimeControl, DiagnosticsRead, TransactionControl, and ActivityRead. Unclassified operations are denied. Handlers remain policy-agnostic.
 - Entity mutation identity is persistent UUID, never ECS index/generation.
 - Scene v1 serialized names remain a compatibility contract.
 - MCP Scene writes reuse existing Engine Scene commands. Do not add a parallel direct ECS mutation path.
-- During Play, v0.8 write tools remain authoring-read-only while read resources continue to describe EditorScene.
+- Playing, Paused, and Faulted retain a Runtime and block authoring writes. Existing Scene resources describe EditorScene; runtime/entity reads RuntimeScene. Step is fixed 1/60 second with neutral input and no reload.
 - v0.8 external process tests use the test-only `JanusMcpExternalHost` with `FakeRenderDevice` to remove GPU-driver nondeterminism. Do not turn that fixture into a production MCP executable or duplicate production handlers inside it.
-- v0.9 may add runtime control/resources, structured logs, Profiler, Transaction, and Audit/Agent Activity. Extend the existing capability/dispatcher/permission boundaries rather than bypassing them.
+- v0.9 implements Runtime control/resources, shared logs, CpuProfiler, transactions and Agent Activity. See docs/verification/2026-09-06-v0.9-agent-development-loop.md for local verification and integration status.
+- EditorActions and MCP SceneTools use ProjectSession authoring entry points. Transaction owner/token guards, Runtime guards, dirty restoration and recovery cannot be replaced by UI disabling.
+- CommandBus groups already-executed pending commands at Commit; rollback preserves the redo tail. Limits are 64 commands / 60 seconds / 8 MiB conservative undo reservation. Save and Runtime are outside transactions.
+- Compensation failure freezes authoring until explicit Human discard/reload. MCP must refresh Scene bindings after a scene revision changes. Cleanup occurs on the host owner thread.
+- Diagnostic stores are bounded and session-owned; Core profiling/commands must not depend on Scene, Renderer, Editor or JSON. Never treat CPU timing as GPU timing.
 
 ## Source of truth
 

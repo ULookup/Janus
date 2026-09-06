@@ -875,7 +875,12 @@ Hosted Windows CI 的真实 OpenGL driver 会在 shader compilation 上阻塞，
 
 # 11. v0.9 — Agent Development Loop
 
-状态：下一里程碑
+状态：本地实现完成，待集成到 main。
+
+实施与构建/测试证据见 [v0.9 验证记录](verification/2026-09-06-v0.9-agent-development-loop.md)。尚未发布 Release。
+
+- [v0.9 Agent Development Loop 设计方案](superpowers/specs/2026-09-06-v0.9-agent-development-loop-design.md)
+- [v0.9 分阶段开发计划](superpowers/plans/2026-09-06-v0.9-agent-development-loop-plan.md)
 
 ## 目标
 
@@ -972,6 +977,21 @@ Agent 可以：
 ```
 
 完成第一个 Agent Debug 闭环。
+
+## 推荐实施顺序与阶段验收
+
+| 阶段 | 交付内容 | 阶段验收 |
+|---|---|---|
+| A | Runtime 状态机、结构化日志、Runtime MCP | 修改 → 暂停启动 → 单步 → 读运行态/日志 → 停止；错误现场可观察 |
+| B | CPU Profiler、两视图 Renderer Statistics、Editor/MCP | 同一份完成帧快照供 Human/Agent 使用，记录性能基线 |
+| C | CommandGroup、Transaction、超时/断连处理 | Commit 一条历史、一次 Undo；失败完整回滚或明确隔离故障 |
+| D | Audit/Agent Activity、完整 E2E 与文档 | Agent 操作和 Human Undo 可追踪，全部回归和真实 Editor 验证完成 |
+
+Runtime Control 不进入作者态 Undo 历史；Paused/Faulted 仍禁止作者态写入。现有 Scene Resources 保持读取 EditorScene，新增 Runtime Resources 明确读取隔离运行世界。
+
+v0.9 Transaction 仅覆盖当前 Scene 的可撤销作者态命令；不包含磁盘保存、资源文件修改或 Runtime 操作。采用独占写入、可见临时状态、逐命令校验及逆序回滚；完整失败语义见专项设计。
+
+A/B/C 是中间交付门槛，不能代替 v0.9 的完整范围。D 收尾时必须包含 Profiler、Transaction 和 Audit，不因为最小 Debug 闭环已通就提前标记版本完成。
 
 ---
 

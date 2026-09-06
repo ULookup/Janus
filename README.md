@@ -2,7 +2,7 @@
 
 Janus 是一个面向 Human Developer 与 AI Agent 的 C++20 2D 游戏引擎。项目希望让 Editor、Game 和 Agent 通过同一套 Engine Capability 理解、修改、运行并验证游戏世界。
 
-项目已完成 **v0.1 Engine Foundation**、**v0.2 Renderer2D**、**v0.3 ECS + Scene**、**v0.4 Asset + Serialization**、**v0.5 Lua Gameplay Runtime**、**v0.6 Editor Foundation**、**v0.7 Reflection + Command** 和 **v0.8 MCP Agent Foundation**。当前 Janus 已具备磁盘项目加载、稳定 UUID / AssetHandle、Lua Gameplay、离屏 Scene/Game View、metadata-driven Inspector、Reflection-backed Scene persistence、CommandBus、Undo/Redo，以及原生 C++ MCP stdio Agent authoring 能力。下一里程碑为 **v0.9 Agent Development Loop**。
+项目已完成 **v0.1 Engine Foundation**、**v0.2 Renderer2D**、**v0.3 ECS + Scene**、**v0.4 Asset + Serialization**、**v0.5 Lua Gameplay Runtime**、**v0.6 Editor Foundation**、**v0.7 Reflection + Command** 和 **v0.8 MCP Agent Foundation**。当前 Janus 已具备磁盘项目加载、稳定 UUID / AssetHandle、Lua Gameplay、离屏 Scene/Game View、metadata-driven Inspector、Reflection-backed Scene persistence、CommandBus、Undo/Redo，以及原生 C++ MCP stdio Agent authoring 能力。**v0.9 Agent Development Loop** 已在当前开发分支落地，包含 Runtime 调试、共享诊断、作者态事务及 Activity；本地验收与集成状态见[实施记录](docs/verification/2026-09-06-v0.9-agent-development-loop.md)。
 
 ## 环境要求
 
@@ -33,6 +33,16 @@ ctest --preset windows-msvc-debug-tests
 ```
 
 生成内容位于 `out/`。不要提交 `out/`、`.vs/`、二进制或本地 IDE 设置。
+
+## v0.9 Agent Development Loop
+
+Editor 底部新增 Profiler / Agent Activity 标签，Console 支持日志级别过滤。运行控制增加 Pause、Resume、Step；Lua 失败保留 Faulted 场景直到 Stop。暂停单步使用固定 1/60 秒和空输入。
+
+MCP 新增 `runtime.play/pause/stop/step`、`transaction.begin/commit/rollback`，以及 runtime/status、runtime/entity/{uuid}、logs/recent、profiler/latest-frame、transaction/status、agent/activity 六类资源。资源和工具参数、事务限额及恢复流程见[完整使用与验收记录](docs/verification/2026-09-06-v0.9-agent-development-loop.md)。
+
+Agent 事务的子命令携带 `transaction` UUID，在同一 EditorScene 暂时可见；Commit 后形成一条 Human Undo 历史。跨连接写入、运行中作者态写入和事务期间 Save/Play 被核心入口拒绝。失败、超时或 stdio 断连自动回滚；无法回滚时进入显式恢复状态。
+
+CPU 与渲染统计、日志和命令回执共用 Engine 数据，保留有界历史。版本号从 CMake PROJECT_VERSION 统一传给 MCP。
 
 ## v0.8 MCP Agent Foundation 工作流
 
@@ -105,7 +115,7 @@ scene.save
 
 权限层当前把操作显式分类为 ProjectRead、SceneRead、SceneWrite、SceneSave。默认本地 `JanusEditor --mcp-stdio` 使用 allow-all policy，但授权 seam 已独立于 Tool/Resource handler，后续可以替换策略而不改业务能力。
 
-v0.8 的明确边界：
+以下为 v0.8 发布时的边界；Runtime/诊断/Transaction/Activity 已由上述 v0.9 扩展：
 
 - 不包含 Streamable HTTP / OAuth / remote transport；
 - 不包含 runtime.play / pause / stop / step；

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Core/UUID/UUID.h"
 #include "Host/McpMainThreadDispatcher.h"
 #include "Host/McpPermissionPolicy.h"
 #include "Protocol/McpProtocol.h"
@@ -58,11 +59,15 @@ private:
         const MCP::Json& params,
         MCP::McpProtocolEra era);
 
+    void AbortOwnedRequest(const MCP::Json& params);
     void RunWorker() noexcept;
     void InterruptWorkerRead() noexcept;
     void RecordWorkerError(Error error) noexcept;
 
     ProjectSession& m_Project;
+    UUID m_Owner = UUID::Random();
+    std::thread::id m_OwnerThread = std::this_thread::get_id();
+    u64 m_SceneRevision = 0;
     const MCP::IMcpPermissionPolicy& m_PermissionPolicy;
 
     MCP::ToolRegistry m_Tools;

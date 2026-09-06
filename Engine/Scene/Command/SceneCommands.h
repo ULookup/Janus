@@ -14,6 +14,8 @@ namespace Janus
 
 class Scene;
 
+Result<usize> EstimateSceneCommandUndoBytes(const Scene& scene, const SceneReflection& reflection);
+
 struct ReflectedPropertySnapshot
 {
     PropertyId property;
@@ -41,8 +43,10 @@ public:
     [[nodiscard]] Result<void> Undo() override;
     [[nodiscard]] Result<void> Redo() override;
     [[nodiscard]] std::string_view Describe() const noexcept override;
+    Result<usize> EstimateUndoBytes() const override;
+    std::vector<CommandEffect> GetEffects() const override;
 
-private:
+  private:
     Scene& m_Scene;
     SceneReflection m_Reflection;
     UUID m_Entity;
@@ -65,8 +69,10 @@ public:
     [[nodiscard]] Result<void> Undo() override;
     [[nodiscard]] Result<void> Redo() override;
     [[nodiscard]] std::string_view Describe() const noexcept override;
+    Result<usize> EstimateUndoBytes() const override;
+    std::vector<CommandEffect> GetEffects() const override;
 
-private:
+  private:
     Scene& m_Scene;
     SceneReflection m_Reflection;
     UUID m_Entity;
@@ -86,8 +92,10 @@ public:
     [[nodiscard]] Result<void> Undo() override;
     [[nodiscard]] Result<void> Redo() override;
     [[nodiscard]] std::string_view Describe() const noexcept override;
+    Result<usize> EstimateUndoBytes() const override;
+    std::vector<CommandEffect> GetEffects() const override;
 
-private:
+  private:
     [[nodiscard]] Result<ReflectedComponentSnapshot> CaptureSnapshot() const;
     [[nodiscard]] Result<void> RestoreSnapshot();
 

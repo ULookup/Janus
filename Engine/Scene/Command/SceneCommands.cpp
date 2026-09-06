@@ -328,4 +328,74 @@ std::string_view RemoveComponentCommand::Describe() const noexcept
     return "Remove Component";
 }
 
+Result<usize> EstimateSceneCommandUndoBytes(const Scene& scene, const SceneReflection& reflection)
+{
+    // Conservative reservation covers contextual deltas and subtree restoration, including strings.
+    usize bytes = 1024;
+    for (const auto entity : scene.GetEntities())
+    {
+        const auto* identity = scene.GetComponent<EntityIdentityComponent>(entity);
+        if (!identity)
+            continue;
+        bytes += 512 + identity->name.size() * 2;
+        for (const auto* component : reflection.GetRegistry().GetComponents())
+        {
+            auto present = reflection.HasComponent(scene, identity->id, component->id);
+            if (!present)
+                return Result<usize>::Failure(present.GetError());
+            if (!present.Value())
+                continue;
+            bytes += 256;
+            for (const auto& property : component->properties)
+            {
+                auto value =
+                    reflection.GetProperty(scene, identity->id, component->id, property.id);
+                if (!value)
+                    return Result<usize>::Failure(value.GetError());
+                bytes += 256;
+                if (const auto* text = std::get_if<std::string>(&value.Value()))
+                    bytes += text->size() * 2;
+            }
+        }
+        if (bytes > 8 * 1024 * 1024)
+            break;
+    }
+    return Result<usize>::Success(bytes);
+}
+Result<usize> SetPropertyCommand::EstimateUndoBytes() const
+{
+    auto bytes = EstimateSceneCommandUndoBytes(m_Scene, m_Reflection);
+    if (bytes)
+        if (const auto* text = std::get_if<std::string>(&m_Value))
+            bytes.Value() += text->size() * 2;
+    return bytes;
+}
+Result<usize> AddComponentCommand::EstimateUndoBytes() const
+{
+    return Result<usize>::Success(512);
+}
+Result<usize> RemoveComponentCommand::EstimateUndoBytes() const
+{
+    return EstimateSceneCommandUndoBytes(m_Scene, m_Reflection);
+}
+std::vector<CommandEffect> SetPropertyCommand::GetEffects() const
+{
+    std::vector<CommandEffect> effects;
+    if (m_Delta)
+        for (const auto& change : m_Delta->changes)
+            effects.push_back(
+                {change.entity, "SetProperty", change.component.value, change.property.value});
+    else
+        effects.push_back({m_Entity, "SetProperty", m_Component.value, m_Property.value});
+    return effects;
+}
+std::vector<CommandEffect> AddComponentCommand::GetEffects() const
+{
+    return {{m_Entity, "AddComponent", m_Component.value}};
+}
+std::vector<CommandEffect> RemoveComponentCommand::GetEffects() const
+{
+    return {{m_Entity, "RemoveComponent", m_Component.value}};
+}
+
 } // namespace Janus

@@ -306,9 +306,8 @@ Result<void> EditorApplication::OnInitialize(Application& application)
     ProjectRuntimeConfig project;
     project.root = m_ProjectRoot;
 
-    auto session = ProjectSession::Open(
-        project,
-        application.GetRenderer2D());
+    auto session =
+        ProjectSession::Open(project, application.GetRenderer2D(), application.GetLogStore());
     if (!session)
     {
         const Error error = session.GetError();
@@ -322,8 +321,7 @@ Result<void> EditorApplication::OnInitialize(Application& application)
     m_EditorContext->project = m_ProjectSession.get();
     m_EditorActions =
         std::make_unique<EditorActions>(*m_EditorContext);
-    m_EditorConsole =
-        std::make_unique<EditorConsole>();
+    m_EditorConsole = std::make_unique<EditorConsole>(m_ProjectSession->GetLogStore());
     m_ConsolePanel =
         std::make_unique<ConsolePanel>(*m_EditorConsole);
     m_AssetBrowserPanel =
@@ -462,6 +460,7 @@ void EditorApplication::OnUpdate(
 {
     auto& window = application.GetWindow();
     auto& renderer = application.GetRenderer2D();
+    const bool profileFrame = m_ProjectSession && m_ProjectSession->BeginDiagnosticsFrame();
 
     if (m_McpHost != nullptr)
     {
@@ -518,9 +517,11 @@ void EditorApplication::OnUpdate(
                 const auto started =
                     m_ProjectSession->StartRuntime(
                         application.GetInput());
+                m_ProjectSession->GetCommandBus().RecordOperation(CommandActor::Human,
+                                                                  "runtime.play", started);
                 if (!started)
                 {
-                    RecordError(started.GetError());
+                    m_LastError = started.GetError().message;
                 }
                 else
                 {
@@ -540,9 +541,11 @@ void EditorApplication::OnUpdate(
         {
             const auto stopped =
                 m_ProjectSession->StopRuntime();
+            m_ProjectSession->GetCommandBus().RecordOperation(CommandActor::Human, "runtime.stop",
+                                                              stopped);
             if (!stopped)
             {
-                RecordError(stopped.GetError());
+                m_LastError = stopped.GetError().message;
             }
             else
             {
@@ -559,15 +562,49 @@ void EditorApplication::OnUpdate(
 
         ImGui::SameLine();
 
+        if (m_ProjectSession->GetRuntimeState() == RuntimeState::Playing)
+        {
+            if (ImGui::Button("Pause"))
+            {
+                const auto result = m_ProjectSession->PauseRuntime();
+                m_ProjectSession->GetCommandBus().RecordOperation(CommandActor::Human,
+                                                                  "runtime.pause", result);
+                if (!result)
+                    m_LastError = result.GetError().message;
+            }
+            ImGui::SameLine();
+        }
+        if (m_ProjectSession->GetRuntimeState() == RuntimeState::Paused)
+        {
+            if (ImGui::Button("Resume"))
+            {
+                const auto result = m_ProjectSession->ResumeRuntime();
+                m_ProjectSession->GetCommandBus().RecordOperation(CommandActor::Human,
+                                                                  "runtime.play", result);
+                if (!result)
+                    m_LastError = result.GetError().message;
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Step"))
+            {
+                const auto result = m_ProjectSession->StepRuntime();
+                m_ProjectSession->GetCommandBus().RecordOperation(CommandActor::Human,
+                                                                  "runtime.step", result);
+                if (!result)
+                    m_LastError = result.GetError().message;
+            }
+            ImGui::SameLine();
+        }
         const bool canSave =
-            !m_ProjectSession->IsPlaying()
-            && m_ProjectSession->IsDirty();
+            !m_ProjectSession->IsAuthoringReadOnly() && m_ProjectSession->IsDirty();
 
         ImGui::BeginDisabled(!canSave);
         if (ImGui::Button("Save"))
         {
             const auto saved =
                 m_ProjectSession->SaveCurrentScene();
+            m_ProjectSession->GetCommandBus().RecordOperation(CommandActor::Human, "scene.save",
+                                                              saved);
             if (!saved)
             {
                 RecordError(saved.GetError());
@@ -639,10 +676,7 @@ void EditorApplication::OnUpdate(
         ImGui::EndDisabled();
 
         ImGui::SameLine();
-        ImGui::TextUnformatted(
-            m_ProjectSession->IsPlaying()
-                ? "Playing"
-                : "Editing");
+        ImGui::TextUnformatted(RuntimeStateName(m_ProjectSession->GetRuntimeState()).data());
 
         if (m_ProjectSession->IsDirty())
         {
@@ -746,6 +780,95 @@ void EditorApplication::OnUpdate(
                 ImGui::EndTabItem();
             }
 
+            if (ImGui::BeginTabItem("Agent Activity"))
+            {
+                auto& commands = m_ProjectSession->GetCommandBus();
+                if (commands.HasTransaction())
+                {
+                    ImGui::Text("Provisional transaction: %zu commands, %zu bytes reserved",
+                                commands.GetPendingCount(), commands.GetPendingBytes());
+                    if (!commands.RecoveryRequired() && ImGui::Button("Cancel Agent transaction"))
+                        m_ProjectSession->CancelAuthoringTransaction(
+                            m_ProjectSession->GetTransactionOwner(), CommandActor::Human);
+                }
+                if (commands.RecoveryRequired())
+                {
+                    ImGui::TextWrapped(
+                        "Authoring recovery required. Writes, Save and Play are frozen.");
+                    if (ImGui::Button("Discard unsaved changes and reload..."))
+                        ImGui::OpenPopup("Confirm authoring recovery");
+                }
+                if (ImGui::BeginPopupModal("Confirm authoring recovery", nullptr,
+                                           ImGuiWindowFlags_AlwaysAutoResize))
+                {
+                    ImGui::TextUnformatted(
+                        "Discard all unsaved authoring changes and reload the scene from disk?");
+                    if (ImGui::Button("Discard and reload"))
+                    {
+                        const auto recovered = m_ProjectSession->DiscardUnsavedAndReload();
+                        if (!recovered)
+                            RecordError(recovered.GetError());
+                        else if (m_EditorContext)
+                            m_EditorContext->selection.Clear();
+                        ImGui::CloseCurrentPopup();
+                    }
+                    ImGui::SameLine();
+                    if (ImGui::Button("Keep recovery state"))
+                        ImGui::CloseCurrentPopup();
+                    ImGui::EndPopup();
+                }
+                ImGui::Separator();
+                ImGui::BeginChild("ActivityEntries");
+                const auto& activity = commands.GetActivity();
+                const usize start = activity.size() > 200 ? activity.size() - 200 : 0;
+                for (usize i = start; i < activity.size(); ++i)
+                {
+                    const auto& row = activity[i];
+                    ImGui::TextWrapped("#%llu %s %s | command %llu | %s", row.sequence,
+                                       CommandActorName(row.actor).data(),
+                                       CommandOutcomeName(row.outcome).data(), row.commandId,
+                                       row.description.c_str());
+                    for (const auto& effect : row.effects)
+                        ImGui::TextDisabled("  %s %s", effect.operation.c_str(),
+                                            effect.entity.ToString().c_str());
+                    if (row.truncated)
+                        ImGui::TextDisabled("  Details truncated (%zu effects total)",
+                                            row.effectCount);
+                }
+                ImGui::EndChild();
+                ImGui::EndTabItem();
+            }
+            if (ImGui::BeginTabItem("Profiler"))
+            {
+                bool enabled = m_ProjectSession->GetProfiler().IsEnabled();
+                if (ImGui::Checkbox("Record CPU frames", &enabled))
+                    m_ProjectSession->GetProfiler().SetEnabled(enabled);
+                const auto& frame = m_ProjectSession->GetDiagnosticsFrame();
+                if (frame)
+                {
+                    ImGui::Text("CPU frame %llu: %.3f ms", frame->cpu.frameId,
+                                frame->cpu.durationMilliseconds);
+                    ImGui::TextUnformatted(
+                        "Inclusive scopes overlap. CPU timings do not measure GPU time.");
+                    for (const auto& scope : frame->cpu.scopes)
+                        ImGui::Text("%s: %.3f ms", scope.name.c_str(), scope.durationMilliseconds);
+                    const auto showPass =
+                        [](const char* name, const std::optional<RenderPassSnapshot>& pass)
+                    {
+                        if (pass)
+                            ImGui::Text("%s: %zu entities, %u sprites, %u draws", name,
+                                        pass->entityCount, pass->statistics.spriteCount,
+                                        pass->statistics.drawCallCount);
+                        else
+                            ImGui::Text("%s: unavailable", name);
+                    };
+                    showPass("Scene", frame->sceneView);
+                    showPass("Game", frame->gameView);
+                }
+                else
+                    ImGui::TextUnformatted("No completed frame.");
+                ImGui::EndTabItem();
+            }
             ImGui::EndTabBar();
         }
 
@@ -978,26 +1101,21 @@ void EditorApplication::OnUpdate(
         ImGui::End();
     }
 
-    if (m_ProjectSession != nullptr
-        && m_ProjectSession->IsPlaying())
+    if (m_ProjectSession != nullptr && m_ProjectSession->GetRuntimeState() == RuntimeState::Playing)
     {
         const auto updated =
             m_ProjectSession->UpdateRuntime(timeStep);
         if (!updated)
         {
-            RecordError(updated.GetError());
+            m_LastError = updated.GetError().message;
 
-            const auto stopped =
-                m_ProjectSession->StopRuntime();
-            if (!stopped)
-            {
-                RecordError(stopped.GetError());
-            }
+            // Keep the faulted world available for diagnostics until explicit Stop.
         }
     }
 
     if (renderSceneView)
     {
+        CpuScope profile(m_ProjectSession->GetProfiler(), "SceneView.Render");
         Scene& scene =
             ResolveSceneViewScene(*m_ProjectSession);
 
@@ -1011,6 +1129,9 @@ void EditorApplication::OnUpdate(
                     m_SceneViewViewport,
                     m_SceneViewTarget});
 
+        if (rendered)
+            m_ProjectSession->CaptureRenderPass(false, renderer.GetStatistics(),
+                                                scene.GetEntities().size());
         if (!rendered)
         {
             RecordError(rendered.GetError());
@@ -1038,6 +1159,7 @@ void EditorApplication::OnUpdate(
 
     if (renderGameView)
     {
+        CpuScope profile(m_ProjectSession->GetProfiler(), "GameView.Render");
         Scene& scene =
             ResolveGameViewScene(*m_ProjectSession);
 
@@ -1059,6 +1181,9 @@ void EditorApplication::OnUpdate(
                         m_GameViewViewport,
                         m_GameViewTarget});
 
+            if (rendered)
+                m_ProjectSession->CaptureRenderPass(true, renderer.GetStatistics(),
+                                                    scene.GetEntities().size());
             if (!rendered)
             {
                 RecordError(rendered.GetError());
@@ -1096,6 +1221,8 @@ void EditorApplication::OnUpdate(
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    if (profileFrame)
+        m_ProjectSession->EndDiagnosticsFrame();
 
     if (application.GetInput().WasKeyPressed(KeyCode::Escape))
     {
@@ -1179,9 +1306,7 @@ void EditorApplication::RecordError(const Error& error)
         m_EditorConsole->PushError(error);
     }
 
-    JANUS_ERROR(
-        "JanusEditor operation failed: {}",
-        error.message);
+    // Console already writes to the shared store; avoid recording the same failure twice.
 }
 
 void EditorApplication::ShutdownImGui(Application& application) noexcept

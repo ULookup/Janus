@@ -100,3 +100,16 @@ TEST_CASE(
 
     REQUIRE(result);
 }
+
+TEST_CASE("Unknown MCP operations never downgrade to project read", "[permission][v0.9]")
+{
+    using namespace Janus::MCP;
+    REQUIRE(ClassifyMcpOperation("tools/call", {{"name", "runtime.destroy_everything"}}) ==
+            McpOperation::Unclassified);
+    REQUIRE(ClassifyMcpOperation("tools/call", {{"name", "scene.unknown"}}) ==
+            McpOperation::Unclassified);
+    REQUIRE(ClassifyMcpOperation("tools/call", {{"name", "runtime.play"}}) ==
+            McpOperation::RuntimeControl);
+    REQUIRE(ClassifyMcpOperation("resources/read", {{"uri", "engine://logs/recent?limit=2"}}) ==
+            McpOperation::DiagnosticsRead);
+}

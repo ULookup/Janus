@@ -42,8 +42,10 @@ public:
     [[nodiscard]] Result<void> Undo() override;
     [[nodiscard]] Result<void> Redo() override;
     [[nodiscard]] std::string_view Describe() const noexcept override;
+    Result<usize> EstimateUndoBytes() const override;
+    std::vector<CommandEffect> GetEffects() const override;
 
-private:
+  private:
     [[nodiscard]] Result<void> Create();
 
     Scene& m_Scene;
@@ -63,8 +65,10 @@ public:
     [[nodiscard]] Result<void> Undo() override;
     [[nodiscard]] Result<void> Redo() override;
     [[nodiscard]] std::string_view Describe() const noexcept override;
+    Result<usize> EstimateUndoBytes() const override;
+    std::vector<CommandEffect> GetEffects() const override;
 
-private:
+  private:
     [[nodiscard]] Result<void> ApplyName(
         const std::string& name);
 
@@ -86,8 +90,10 @@ public:
     [[nodiscard]] Result<void> Undo() override;
     [[nodiscard]] Result<void> Redo() override;
     [[nodiscard]] std::string_view Describe() const noexcept override;
+    Result<usize> EstimateUndoBytes() const override;
+    std::vector<CommandEffect> GetEffects() const override;
 
-private:
+  private:
     [[nodiscard]] Result<EntitySubtreeSnapshot>
     CaptureSnapshot() const;
 

@@ -2,6 +2,7 @@
 
 #include "Core/Error/Result.h"
 #include "Core/Input/InputState.h"
+#include "Core/Log/LogStore.h"
 #include "Core/Time/FrameClock.h"
 
 #include "Application/ApplicationConfig.h"
@@ -34,6 +35,10 @@ public:
 
     [[nodiscard]] Result<void> Run(ApplicationClient& client);
     void RequestExit() noexcept;
+    [[nodiscard]] std::shared_ptr<LogStore> GetLogStore() const noexcept
+    {
+        return m_Logs;
+    }
     [[nodiscard]] const InputState& GetInput() const noexcept;
     [[nodiscard]] Window& GetWindow() noexcept;
     [[nodiscard]] Renderer2D& GetRenderer2D() noexcept;
@@ -49,6 +54,7 @@ private:
     void Cleanup(ApplicationClient* client, bool callClientShutdown);
 
     ApplicationConfig m_Config;
+    std::shared_ptr<LogStore> m_Logs = std::make_shared<LogStore>();
     Detail::ApplicationDependencies m_Dependencies;
     std::unique_ptr<Window> m_Window;
     std::unique_ptr<GraphicsContext> m_GraphicsContext;

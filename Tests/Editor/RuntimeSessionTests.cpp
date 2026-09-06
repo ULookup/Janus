@@ -1,3 +1,5 @@
+#include "EditorActions.h"
+#include "EditorContext.h"
 #include "ProjectSession.h"
 #include "RuntimeSession.h"
 
@@ -59,6 +61,84 @@ std::unique_ptr<Janus::Editor::ProjectSession> OpenProject(
 }
 
 } // namespace
+
+TEST_CASE("Paused runtime steps once with neutral input and remains authoring read only",
+          "[runtime-session][v0.9]")
+{
+    Janus::Test::FakeRenderDevice device;
+    auto renderer = Janus::Detail::Renderer2DTestAccess::Create(device);
+    auto project = OpenProject(*renderer);
+    Janus::InputState input;
+    input.Apply(Janus::KeyPressedEvent{Janus::KeyCode::D, false});
+    REQUIRE(project->StartRuntime(input, true));
+    const auto id = project->GetRuntimeStatus().runtimeId;
+    REQUIRE(project->HasRuntime());
+    REQUIRE(project->GetRuntimeState() == Janus::RuntimeState::Paused);
+    Janus::Editor::EditorContext context;
+    context.project = project.get();
+    Janus::Editor::EditorActions actions(context);
+    REQUIRE_FALSE(actions.CreateEntity("Forbidden"));
+    REQUIRE_FALSE(actions.Undo());
+    REQUIRE_FALSE(project->SaveCurrentScene());
+    REQUIRE(project->UpdateRuntime(Janus::TimeStep::FromSeconds(1.0)));
+    REQUIRE(project->GetRuntimeStatus().frameIndex == 0);
+    REQUIRE(project->StepRuntime());
+    auto status = project->GetRuntimeStatus();
+    REQUIRE(status.runtimeId == id);
+    REQUIRE(status.state == Janus::RuntimeState::Paused);
+    REQUIRE(status.frameIndex == 1);
+    REQUIRE(status.simulationTimeSeconds == Catch::Approx(1.0 / 60.0));
+    auto& scene = project->GetRuntimeSession()->GetScene();
+    const auto player = FindByName(scene, "Player");
+    REQUIRE(scene.GetComponent<Janus::TransformComponent>(player)->position.x ==
+            Catch::Approx(-80.0f));
+    REQUIRE(project->ResumeRuntime());
+    REQUIRE(project->UpdateRuntime(Janus::TimeStep::FromSeconds(0.5)));
+    REQUIRE(scene.GetComponent<Janus::TransformComponent>(player)->position.x ==
+            Catch::Approx(10.0f));
+    REQUIRE(project->GetRuntimeStatus().frameIndex == 2);
+    REQUIRE_FALSE(project->StepRuntime());
+    REQUIRE(project->PauseRuntime());
+    REQUIRE(project->PauseRuntime());
+    REQUIRE(project->StopRuntime());
+    REQUIRE_FALSE(project->HasRuntime());
+    REQUIRE(project->GetRuntimeState() == Janus::RuntimeState::Stopped);
+    REQUIRE_FALSE(project->GetRuntimeStatus().runtimeId.IsValid());
+    REQUIRE_FALSE(project->PauseRuntime());
+    REQUIRE_FALSE(project->StepRuntime());
+    REQUIRE(project->StartRuntime(input));
+    REQUIRE(project->GetRuntimeStatus().runtimeId != id);
+}
+
+TEST_CASE("Runtime faults retain the isolated scene and forbid further simulation or authoring",
+          "[runtime-session][v0.9]")
+{
+    Janus::Test::FakeRenderDevice device;
+    auto renderer = Janus::Detail::Renderer2DTestAccess::Create(device);
+    auto project = OpenProject(*renderer);
+    Janus::InputState input;
+    REQUIRE(project->StartRuntime(input));
+    auto& scene = project->GetRuntimeSession()->GetScene();
+    auto* script = scene.GetComponent<Janus::LuaScriptComponent>(FindByName(scene, "Player"));
+    REQUIRE(script != nullptr);
+    script->script = Janus::AssetHandle::Random();
+    REQUIRE_FALSE(project->UpdateRuntime(Janus::TimeStep::FromSeconds(0.1)));
+    const auto status = project->GetRuntimeStatus();
+    REQUIRE(status.state == Janus::RuntimeState::Faulted);
+    REQUIRE(status.lastError.has_value());
+    REQUIRE(status.partialUpdate);
+    REQUIRE(status.failedFrameIndex == 1);
+    REQUIRE(status.frameIndex == 0);
+    REQUIRE(project->HasRuntime());
+    REQUIRE(&project->GetRuntimeSession()->GetScene() == &scene);
+    REQUIRE_FALSE(project->ResumeRuntime());
+    REQUIRE_FALSE(project->StepRuntime());
+    REQUIRE_FALSE(project->SaveCurrentScene());
+    REQUIRE(project->UpdateRuntime(Janus::TimeStep::FromSeconds(0.1)));
+    REQUIRE(project->GetRuntimeStatus().frameIndex == 0);
+    REQUIRE(project->StopRuntime());
+    REQUIRE(project->GetRuntimeStatus().lastError.has_value());
+}
 
 TEST_CASE(
     "ProjectSession runs Lua only against an isolated RuntimeScene",
