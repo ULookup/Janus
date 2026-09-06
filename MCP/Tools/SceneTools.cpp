@@ -408,6 +408,55 @@ McpToolDescriptor CreateEntityTool(
         }};
 }
 
+McpToolDescriptor ReparentEntityTool(McpSceneToolContext context)
+{
+    return McpToolDescriptor{
+        "scene.reparent_entity",
+        "Reparent Entity",
+        "Move an entity preserving local fields. Null parent detaches to root; siblingIndex is "
+        "zero-based, roots use UUID order.",
+        ObjectInputSchema(
+            Json{{"entity", UuidSchema()},
+                 {"parent", Json{{"anyOf", Json::array({UuidSchema(), Json{{"type", "null"}}})}}},
+                 {"siblingIndex",
+                  Json{{"type", "integer"}, {"minimum", 0}, {"maximum", 2147483647}}}},
+            Json::array({"entity", "parent"})),
+        BasicOutputSchema(Json{{"entity", UuidSchema()}}, Json::array({"entity"})),
+        Json{{"destructiveHint", false}},
+        [context = std::move(context)](const Json& arguments, McpProtocolEra) -> McpDispatchResult
+        {
+            if (!AllowedKeys(arguments, {"entity", "parent", "siblingIndex"}))
+                return InvalidParams("Reparent accepts entity, parent and siblingIndex.");
+            auto entity = ParseEntityUuid(arguments);
+            if (!entity)
+                return InvalidParams(entity.GetError().message);
+            auto parentIt = arguments.find("parent");
+            if (parentIt == arguments.end() || (!parentIt->is_null() && !parentIt->is_string()))
+                return InvalidParams("Reparent requires a parent UUID string or null.");
+            UUID parent;
+            if (parentIt->is_string())
+            {
+                auto parsed = UUID::Parse(parentIt->get_ref<const std::string&>());
+                if (!parsed || !parsed.Value().IsValid())
+                    return InvalidParams("Parent must be a valid UUID; use null for root.");
+                parent = parsed.Value();
+            }
+            usize index = 0;
+            if (auto it = arguments.find("siblingIndex"); it != arguments.end())
+            {
+                if (!it->is_number_integer() || *it < 0 || *it > 2147483647)
+                    return InvalidParams("siblingIndex must be an integer in [0, 2147483647].");
+                index = it->get<usize>();
+            }
+            auto executed = ExecuteCommand(context, arguments,
+                                           std::make_unique<ReparentEntityCommand>(
+                                               *context.scene, entity.Value(), parent, index));
+            if (!executed)
+                return ToolExecutionError(executed.GetError());
+            return ToolResult(Json{{"ok", true}, {"entity", entity.Value().ToString()}});
+        }};
+}
+
 McpToolDescriptor DeleteEntityTool(
     McpSceneToolContext context)
 {
@@ -935,6 +984,10 @@ Result<void> RegisterSceneTools(
     {
         return result;
     }
+
+    result = registry.RegisterTool(ReparentEntityTool(context));
+    if (!result)
+        return result;
 
     return registry.RegisterTool(
         SaveSceneTool(

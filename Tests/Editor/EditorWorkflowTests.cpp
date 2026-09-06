@@ -311,9 +311,7 @@ TEST_CASE(
     auto project =
         std::move(opened).Value();
 
-    REQUIRE(
-        project->GetReflectionRegistry().GetComponentCount()
-        == 4);
+    REQUIRE(project->GetReflectionRegistry().GetComponentCount() == 8);
     REQUIRE(
         project->GetCommandBus().GetHistorySize()
         == 0);
@@ -332,7 +330,7 @@ TEST_CASE(
             created.Value(),
             project->GetReflectionRegistry());
     REQUIRE(inspector);
-    REQUIRE(inspector.Value().size() == 4);
+    REQUIRE(inspector.Value().size() == 8);
 
     REQUIRE(
         actions.AddComponent(

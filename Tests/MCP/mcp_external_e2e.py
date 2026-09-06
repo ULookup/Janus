@@ -23,6 +23,7 @@ EXPECTED_TOOLS = {
     "scene.create_entity",
     "scene.delete_entity",
     "scene.rename_entity",
+    "scene.reparent_entity",
     "scene.add_component",
     "scene.remove_component",
     "scene.set_component_property",
@@ -356,6 +357,19 @@ def verify_debug(client: JanusStdioClient, project: Path, modern: bool) -> None:
     call("scene.delete_entity", {"entity": "99999999-9999-4999-8999-999999999999", "transaction": token}, success=False)
     require(read("engine://transaction/status")["state"] == "Idle", "Failed mutation did not auto-abort")
     require(read("engine://entity/" + created)["name"] == "Transactional", "Rollback failed to restore name")
+    token = call("transaction.begin", {"label": "UI authoring rollback"})["transaction"]
+    ui_parent = call("scene.create_entity", {"name": "UIParent", "transaction": token})["entity"]
+    call("scene.add_component", {"entity": ui_parent, "component": "Canvas", "transaction": token})
+    call("scene.add_component", {"entity": created, "component": "UIRect", "transaction": token})
+    call("scene.add_component", {"entity": created, "component": "Panel", "transaction": token})
+    call("scene.set_component_property", {"entity": created, "component": "UIRect", "property": "offset", "value": {"x": 24.0, "y": 48.0}, "transaction": token})
+    call("scene.reparent_entity", {"entity": created, "parent": ui_parent, "siblingIndex": 0, "transaction": token})
+    ui_entity = read("engine://entity/" + created)
+    require(ui_entity["parent"] == ui_parent, "Reparent did not reach shared authoring Scene")
+    require(ui_entity["components"]["UIRect"]["offset"] == {"x": 24.0, "y": 48.0}, "UI reflection mutation missing")
+    call("transaction.rollback", {"transaction": token})
+    ui_entity = read("engine://entity/" + created)
+    require(ui_entity["parent"] is None and "UIRect" not in ui_entity["components"], "UI transaction rollback did not restore root and components")
     player = "44444444-4444-4444-8444-444444444444"
     call("scene.set_component_property", dict(entity=player, component="Transform", property="position", value={"x": 10.0, "y": 0.0}))
     script = project / "Scripts" / "PlayerController.lua"

@@ -21,9 +21,9 @@ public:
     void Clear();
     void Submit(const Sprite& sprite);
 
-    [[nodiscard]] std::vector<Batch> BuildBatches() const;
+    [[nodiscard]] std::vector<Batch> BuildBatches(bool preserveOrder = false) const;
 
-private:
+  private:
     std::vector<Sprite> m_Sprites;
 };
 

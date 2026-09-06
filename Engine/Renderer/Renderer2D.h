@@ -7,6 +7,7 @@
 #include "Renderer/Sprite.h"
 
 #include <memory>
+#include <span>
 
 namespace Janus
 {
@@ -42,6 +43,9 @@ public:
     void SubmitSprite(const Sprite& sprite);
 
     [[nodiscard]] Result<void> EndFrame();
+    // UI sprites are in top-left logical coordinates. Texture zero means solid color.
+    // Adjacent compatible sprites batch; overlay order is never texture-sorted.
+    [[nodiscard]] Result<void> EndFrame(std::span<const Sprite> overlay, Viewport logicalViewport);
 
     [[nodiscard]] const RendererStatistics& GetStatistics() const noexcept;
 

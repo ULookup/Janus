@@ -98,6 +98,73 @@ std::optional<Error> HierarchyPanel::Draw()
         ImGui::TextDisabled("Read-only in Play");
     }
 
+    std::optional<Error> reparentError;
+    if (auto selected = m_Context.selection.GetSelectedUUID(); selected.has_value())
+    {
+        const auto entity = scene.FindEntity(*selected);
+        const auto& hierarchy = *scene.GetComponent<HierarchyComponent>(entity);
+        const auto parent = hierarchy.parent;
+        const auto* parentIdentity = scene.GetComponent<EntityIdentityComponent>(parent);
+        ImGui::BeginDisabled(playing);
+        if (ImGui::BeginCombo("Parent", parentIdentity ? parentIdentity->name.c_str() : "<Root>"))
+        {
+            if (ImGui::Selectable("<Root>", !parent.IsValid()))
+            {
+                auto moved = m_Actions.ReparentEntity(*selected, {});
+                if (!moved)
+                    reparentError = moved.GetError();
+            }
+            for (auto candidate : scene.GetEntities())
+            {
+                // Cycles are rejected by Engine as well as hidden from the selector.
+                auto ancestor = candidate;
+                while (ancestor.IsValid() && ancestor != entity)
+                    ancestor = scene.GetComponent<HierarchyComponent>(ancestor)->parent;
+                if (ancestor == entity)
+                    continue;
+                const auto* identity = scene.GetComponent<EntityIdentityComponent>(candidate);
+                ImGui::PushID(identity->id.ToString().c_str());
+                if (ImGui::Selectable(identity->name.c_str(), parent == candidate))
+                {
+                    auto moved = m_Actions.ReparentEntity(*selected, identity->id);
+                    if (!moved)
+                        reparentError = moved.GetError();
+                }
+                ImGui::PopID();
+            }
+            ImGui::EndCombo();
+        }
+        if (parentIdentity)
+        {
+            usize index = 0;
+            auto sibling = scene.GetComponent<HierarchyComponent>(parent)->firstChild;
+            while (sibling.IsValid() && sibling != entity)
+            {
+                sibling = scene.GetComponent<HierarchyComponent>(sibling)->nextSibling;
+                ++index;
+            }
+            ImGui::BeginDisabled(index == 0);
+            if (ImGui::Button("Earlier"))
+            {
+                auto moved = m_Actions.ReparentEntity(*selected, parentIdentity->id, index - 1);
+                if (!moved)
+                    reparentError = moved.GetError();
+            }
+            ImGui::EndDisabled();
+            ImGui::SameLine();
+            ImGui::BeginDisabled(
+                !scene.GetComponent<HierarchyComponent>(entity)->nextSibling.IsValid());
+            if (ImGui::Button("Later"))
+            {
+                auto moved = m_Actions.ReparentEntity(*selected, parentIdentity->id, index + 1);
+                if (!moved)
+                    reparentError = moved.GetError();
+            }
+            ImGui::EndDisabled();
+        }
+        ImGui::EndDisabled();
+    }
+
     ImGui::Separator();
 
     for (const ECS::Entity entity : scene.GetEntities())
@@ -113,7 +180,7 @@ std::optional<Error> HierarchyPanel::Draw()
     }
 
     ImGui::End();
-    return std::nullopt;
+    return reparentError;
 }
 
 void HierarchyPanel::DrawEntity(

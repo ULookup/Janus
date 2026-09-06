@@ -26,12 +26,13 @@ struct CreatedFramebufferRecord
 class FakeRenderDevice final : public RenderDevice
 {
 public:
-    Result<VertexBufferHandle> CreateVertexBuffer(
-        const BufferDesc&) override
-    {
-        return Result<VertexBufferHandle>::Success(
-            VertexBufferHandle{Next()});
-    }
+  Result<VertexBufferHandle> CreateVertexBuffer(const BufferDesc& desc) override
+  {
+      const auto* begin = static_cast<const u8*>(desc.data);
+      if (begin != nullptr)
+          vertexUploads.emplace_back(begin, begin + desc.size);
+      return Result<VertexBufferHandle>::Success(VertexBufferHandle{Next()});
+  }
 
     void DestroyVertexBuffer(VertexBufferHandle) override
     {
@@ -170,12 +171,15 @@ public:
         viewportHistory.push_back(viewport);
     }
 
-    void SetViewProjection(const Mat4&) override
+    void SetViewProjection(const Mat4& matrix) override
     {
+        viewProjections.push_back(matrix);
     }
 
     void UseShader(ShaderHandle) override
     {
+        if (!viewProjections.empty())
+            boundProjection = viewProjections.back();
     }
 
     void Clear(Color color) override
@@ -186,6 +190,7 @@ public:
     void DrawIndexed(const DrawCommand& command) override
     {
         drawCommands.push_back(command);
+        drawProjections.push_back(boundProjection);
     }
 
     u32 Next()
@@ -198,6 +203,10 @@ public:
     bool failNextFramebufferBind = false;
 
     std::vector<DrawCommand> drawCommands;
+    std::vector<std::vector<u8>> vertexUploads;
+    std::vector<Mat4> viewProjections;
+    std::vector<Mat4> drawProjections;
+    Mat4 boundProjection;
     std::vector<CreatedTextureRecord> createdTextures;
     std::vector<TextureHandle> destroyedTextures;
     std::vector<CreatedFramebufferRecord> createdFramebuffers;

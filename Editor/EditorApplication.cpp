@@ -1147,14 +1147,14 @@ void EditorApplication::OnUpdate(
             ResolveSceneViewScene(*m_ProjectSession);
 
         const auto rendered =
-            m_SceneRenderer->Render(
-                SceneRenderRequest{
-                    scene,
-                    m_ProjectSession->GetAssetService(),
-                    renderer,
-                    m_EditorCamera->ToRenderCamera(),
-                    m_SceneViewViewport,
-                    m_SceneViewTarget});
+            m_SceneRenderer->Render(SceneRenderRequest{scene,
+                                                       m_ProjectSession->GetAssetService(),
+                                                       renderer,
+                                                       m_EditorCamera->ToRenderCamera(),
+                                                       m_SceneViewViewport,
+                                                       m_SceneViewTarget,
+                                                       {},
+                                                       false});
 
         if (rendered)
             m_ProjectSession->CaptureRenderPass(false, renderer.GetStatistics(),
@@ -1198,15 +1198,15 @@ void EditorApplication::OnUpdate(
         }
         else
         {
-            const auto rendered =
-                m_SceneRenderer->Render(
-                    SceneRenderRequest{
-                        scene,
-                        m_ProjectSession->GetAssetService(),
-                        renderer,
-                        camera.Value(),
-                        m_GameViewViewport,
-                        m_GameViewTarget});
+            const auto rendered = m_SceneRenderer->Render(
+                SceneRenderRequest{scene,
+                                   m_ProjectSession->GetAssetService(),
+                                   renderer,
+                                   camera.Value(),
+                                   m_GameViewViewport,
+                                   m_GameViewTarget,
+                                   {m_ProjectSession->GetProjectSettings().width,
+                                    m_ProjectSession->GetProjectSettings().height}});
 
             if (rendered)
                 m_ProjectSession->CaptureRenderPass(true, renderer.GetStatistics(),

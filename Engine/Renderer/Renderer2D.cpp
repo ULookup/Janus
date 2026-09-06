@@ -51,6 +51,7 @@ public:
     RenderDevice* devicePtr = nullptr;
     BatchRenderer batchRenderer;
     RenderQueue queue;
+    TextureHandle solidTexture;
     Viewport viewport;
     OrthographicCamera camera;
     RendererStatistics statistics;
@@ -92,6 +93,8 @@ Renderer2D::~Renderer2D()
     }
 
     m_Impl->renderTargets.clear();
+    if (m_Impl->solidTexture.value != 0)
+        m_Impl->devicePtr->DestroyTexture(m_Impl->solidTexture);
 }
 
 Result<std::unique_ptr<Renderer2D>> Renderer2D::Create()
@@ -208,11 +211,49 @@ void Renderer2D::SubmitSprite(const Sprite& sprite)
 
 Result<void> Renderer2D::EndFrame()
 {
-    m_Impl->devicePtr->Clear(m_Impl->clearColor);
+    return EndFrame({}, {});
+}
 
-    auto flushed = m_Impl->batchRenderer.Flush(
-        m_Impl->queue.BuildBatches(),
-        m_Impl->statistics);
+Result<void> Renderer2D::EndFrame(std::span<const Sprite> overlay, Viewport logicalViewport)
+{
+    auto flush = [&]() -> Result<void>
+    {
+        RenderQueue ui;
+        if (!overlay.empty() && (logicalViewport.width == 0 || logicalViewport.height == 0))
+            return Result<void>::Failure(ErrorCode::InvalidArgument,
+                                         "Overlay logical viewport must be non-zero.");
+        for (Sprite sprite : overlay)
+        {
+            if (sprite.texture.value == 0)
+            {
+                if (m_Impl->solidTexture.value == 0)
+                {
+                    const u8 white[] = {255, 255, 255, 255};
+                    TextureDesc desc;
+                    desc.width = desc.height = 1;
+                    desc.data = white;
+                    desc.dataSize = sizeof(white);
+                    auto texture = m_Impl->devicePtr->CreateTexture(desc);
+                    if (!texture)
+                        return Result<void>::Failure(texture.GetError());
+                    m_Impl->solidTexture = texture.Value();
+                }
+                sprite.texture = m_Impl->solidTexture;
+            }
+            ui.Submit(sprite);
+        }
+        m_Impl->devicePtr->Clear(m_Impl->clearColor);
+        auto world = m_Impl->batchRenderer.Flush(m_Impl->queue.BuildBatches(), m_Impl->statistics);
+        if (!world || overlay.empty())
+            return world;
+        m_Impl->devicePtr->SetViewProjection(
+            Mat4::Orthographic(0, static_cast<f32>(logicalViewport.width),
+                               static_cast<f32>(logicalViewport.height), 0, -1, 1));
+        // The device uploads its staged view/projection when binding the shader.
+        m_Impl->devicePtr->UseShader(ShaderHandle{1});
+        return m_Impl->batchRenderer.Flush(ui.BuildBatches(true), m_Impl->statistics);
+    };
+    auto flushed = flush();
 
     if (m_Impl->activeTarget.value != 0)
     {

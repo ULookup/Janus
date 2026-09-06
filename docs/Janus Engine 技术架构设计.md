@@ -1777,3 +1777,6 @@ Janus 的架构价值在于：
 
 > **Human、Agent 和 Game 都通过稳定的 Engine Capability 与同一个游戏世界交互。**
 
+## v0.10 / 10-04a UI 布局实现补充
+
+Engine/UI 持有可反射的 Canvas/UIRect/Panel/Image 作者态定义，UILayout 从 Scene 层级生成共享绘制与几何命中顺序。SceneRenderer 将 UI 作为世界 Sprite 后的屏幕空间阶段，使用项目逻辑分辨率、CPU 矩形/UV 裁剪和只合并相邻图元的批处理。ReparentEntityCommand 供 EditorActions 与 MCP 共用，保留局部字段及可撤销兄弟顺序。详见[专项设计](superpowers/specs/2026-09-07-v0.10-ui-layout-design.md)和[本地验收](verification/2026-09-07-v0.10-ui-layout.md)；当前尚未合并，Text/Button 与后续游戏系统不在本包。

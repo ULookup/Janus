@@ -15,28 +15,27 @@ void RenderQueue::Submit(const Sprite& sprite)
     m_Sprites.push_back(sprite);
 }
 
-std::vector<Batch> RenderQueue::BuildBatches() const
+std::vector<Batch> RenderQueue::BuildBatches(bool preserveOrder) const
 {
     std::vector<Sprite> sorted = m_Sprites;
 
-    std::stable_sort(
-        sorted.begin(),
-        sorted.end(),
-        [](const Sprite& left, const Sprite& right)
-        {
-            if (left.layer != right.layer)
-            {
-                return left.layer < right.layer;
-            }
+    if (!preserveOrder)
+        std::stable_sort(sorted.begin(), sorted.end(),
+                         [](const Sprite& left, const Sprite& right)
+                         {
+                             if (left.layer != right.layer)
+                             {
+                                 return left.layer < right.layer;
+                             }
 
-            if (left.texture.value != right.texture.value)
-            {
-                return left.texture.value < right.texture.value;
-            }
+                             if (left.texture.value != right.texture.value)
+                             {
+                                 return left.texture.value < right.texture.value;
+                             }
 
-            return static_cast<int>(left.blendMode)
-                < static_cast<int>(right.blendMode);
-        });
+                             return static_cast<int>(left.blendMode) <
+                                    static_cast<int>(right.blendMode);
+                         });
 
     std::vector<Batch> batches;
 
