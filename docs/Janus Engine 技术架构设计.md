@@ -414,6 +414,8 @@ Present
 
 首期可使用固定顺序。
 
+10-03 实现细化：managed Application 与 RuntimeSession 已通过 `Engine/Runtime/RuntimeExecution` 共享现有脚本执行阶段（输入快照 → 可选热重载 → Script Update）。Scene 所有权、Editor Clone/Faulted 状态机和渲染仍由宿主管理；Paused Step 保持中性输入、1/60 秒和不重载。上图的 Fixed Update/Animation/Physics 是后续目标流程，尚未因本次抽取而实现；不引入空系统或动态 Scheduler。生命周期和验证见[共享 Runtime 设计](superpowers/specs/2026-09-07-v0.10-shared-runtime-design.md)及[实施记录](verification/2026-09-07-v0.10-shared-runtime.md)。
+
 ---
 
 # 7. ECS 架构
@@ -1774,3 +1776,4 @@ MCP Server
 Janus 的架构价值在于：
 
 > **Human、Agent 和 Game 都通过稳定的 Engine Capability 与同一个游戏世界交互。**
+

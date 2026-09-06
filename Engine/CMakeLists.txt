@@ -55,6 +55,7 @@ target_sources(
         Scripting/LuaVirtualMachine.cpp
         Scripting/ScriptEngine.cpp
         Runtime/RuntimeSession.cpp
+        Runtime/RuntimeExecution.cpp
 
         Renderer/RendererStatistics.cpp
         Renderer/RenderDevice.h
@@ -138,6 +139,7 @@ target_sources(
 
         Scripting/ScriptEngine.h
         Runtime/RuntimeSession.h
+        Runtime/RuntimeExecution.h
 
         Renderer/RendererTypes.h
         Renderer/Sprite.h

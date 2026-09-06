@@ -13,7 +13,7 @@ namespace Janus
 class AssetService;
 class ReflectionRegistry;
 class Scene;
-class ScriptEngine;
+class RuntimeExecution;
 enum class RuntimeState
 {
     Stopped,
@@ -63,9 +63,7 @@ class RuntimeSession final
     [[nodiscard]] Result<void> Advance(TimeStep timeStep, bool reload);
     std::unique_ptr<Scene> m_RuntimeScene;
     const InputState& m_SourceInput;
-    // ScriptEngine observes a stable owned buffer, including during neutral-input steps.
-    InputState m_Input;
-    std::unique_ptr<ScriptEngine> m_ScriptEngine;
+    std::unique_ptr<RuntimeExecution> m_Execution;
     RuntimeStatus m_Status;
 };
 } // namespace Janus
