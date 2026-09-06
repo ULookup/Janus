@@ -1,10 +1,10 @@
 #include "Runtime/RuntimeSession.h"
 #include "Asset/AssetService.h"
 #include "Core/Log/Log.h"
+#include "Runtime/RuntimeExecution.h"
 #include "Scene/Components.h"
 #include "Scene/Scene.h"
 #include "Scene/SceneCloner.h"
-#include "Scripting/ScriptEngine.h"
 #include <cmath>
 #include <utility>
 
@@ -41,7 +41,7 @@ std::string_view RuntimeStateName(RuntimeState state) noexcept
     return "Stopped";
 }
 RuntimeSession::RuntimeSession(std::unique_ptr<Scene> scene, const InputState& input)
-    : m_RuntimeScene(std::move(scene)), m_SourceInput(input), m_Input(input)
+    : m_RuntimeScene(std::move(scene)), m_SourceInput(input)
 {
 }
 Result<std::unique_ptr<RuntimeSession>>
@@ -61,12 +61,11 @@ RuntimeSession::Start(const Scene& editorScene, const ReflectionRegistry& reflec
             if (script.enabled)
                 assets.Unload(script.script);
         });
-    auto scripts =
-        ScriptEngine::Create(*session->m_RuntimeScene, assets, session->m_Input, bindings);
-    if (!scripts)
-        return Result<std::unique_ptr<RuntimeSession>>::Failure(scripts.GetError());
-    session->m_ScriptEngine = std::move(scripts).Value();
-    auto started = session->m_ScriptEngine->Start();
+    auto execution = RuntimeExecution::Create(*session->m_RuntimeScene, assets, input, bindings);
+    if (!execution)
+        return Result<std::unique_ptr<RuntimeSession>>::Failure(execution.GetError());
+    session->m_Execution = std::move(execution).Value();
+    auto started = session->m_Execution->Start();
     if (!started)
         return Result<std::unique_ptr<RuntimeSession>>::Failure(
             BoundedRuntimeError(started.GetError()));
@@ -86,16 +85,14 @@ Result<void> RuntimeSession::Update(TimeStep timeStep)
         return Result<void>::Failure(ErrorCode::InvalidState, "Runtime is stopped.");
     if (m_Status.state != RuntimeState::Playing)
         return Result<void>::Success();
-    m_Input = m_SourceInput;
     return Advance(timeStep, true);
 }
 Result<void> RuntimeSession::Advance(TimeStep timeStep, bool reload)
 {
     if (!std::isfinite(timeStep.GetSeconds()))
         return Result<void>::Failure(ErrorCode::InvalidArgument, "Invalid runtime timestep.");
-    auto result = reload ? m_ScriptEngine->ReloadChangedScripts() : Result<void>::Success();
-    if (result)
-        result = m_ScriptEngine->Update(timeStep);
+    auto result = reload ? m_Execution->Advance(timeStep, m_SourceInput)
+                         : m_Execution->Advance(timeStep, InputState{}, ScriptReloadPolicy::Skip);
     if (!result)
     {
         m_Status.state = RuntimeState::Faulted;
@@ -129,14 +126,13 @@ Result<void> RuntimeSession::Step()
 {
     if (m_Status.state != RuntimeState::Paused)
         return Result<void>::Failure(ErrorCode::InvalidState, "Pause before stepping.");
-    m_Input = InputState{};
     return Advance(TimeStep::FromSeconds(1.0 / 60.0), false);
 }
 Result<void> RuntimeSession::Stop()
 {
     if (m_Status.state == RuntimeState::Stopped)
         return Result<void>::Success();
-    auto result = m_ScriptEngine->Stop();
+    auto result = m_Execution->Stop();
     if (!result)
         m_Status.lastError = BoundedRuntimeError(result.GetError());
     m_Status.state = RuntimeState::Stopped;
@@ -150,7 +146,7 @@ RuntimeStatus RuntimeSession::GetStatus() const
 {
     auto status = m_Status;
     status.entityCount = m_RuntimeScene->GetEntities().size();
-    status.scriptInstanceCount = m_ScriptEngine ? m_ScriptEngine->InstanceCount() : 0;
+    status.scriptInstanceCount = m_Execution ? m_Execution->InstanceCount() : 0;
     return status;
 }
 Scene& RuntimeSession::GetScene() noexcept

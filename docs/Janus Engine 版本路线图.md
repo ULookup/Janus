@@ -997,7 +997,9 @@ A/B/C 是中间交付门槛，不能代替 v0.9 的完整范围。D 收尾时必
 
 # 12. v0.10 — Game Systems
 
-状态：开发中，首个 Project Settings + Action Input 切片已完成实现与本地验证，尚未合并，见 [Stage A 记录](verification/2026-09-07-v0.10-project-input.md)。整体实施顺序见 [main 进度调研与开发路线](superpowers/plans/2026-09-06-next-development-roadmap.md)，按项目/输入、可玩 UI、动画/音频、物理、Prefab 和综合验收分阶段推进；以下完整版本范围不变，Stage A 不代表整个 v0.10 完成。
+状态：开发中，首个 Project Settings + Action Input 切片已通过 PR #82 合入 main（`c8a7c06`），见 [Stage A 记录](verification/2026-09-07-v0.10-project-input.md)。整体实施顺序见 [main 进度调研与开发路线](superpowers/plans/2026-09-06-next-development-roadmap.md)；最新进度与下一阶段 10-03～10-05 的提案见 [共享 Runtime → 可玩 UI](superpowers/plans/2026-09-07-next-stage-runtime-ui-roadmap.md)。按项目/输入、可玩 UI、动画/音频、物理、Prefab 和综合验收分阶段推进；以下完整版本范围不变，Stage A 不代表整个 v0.10 完成。
+
+10-03 共享 Runtime 执行阶段已在 `codex/v0.10-shared-runtime` 完成本地实现与验证（308/308 CTest、真实双入口启停），尚未合并；见[10-03 记录](verification/2026-09-07-v0.10-shared-runtime.md)。下一工作包为 10-04a UI 布局与图片，本包没有交付 UI 或完成整个 v0.10。
 
 ## 目标
 

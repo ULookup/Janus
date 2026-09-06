@@ -4,9 +4,11 @@
 
 原调研状态（2026-09-06）：开发路线提案；当次只更新文档，不修改公共 API、引擎行为或当前 AGENTS 里程碑。v0.10 的完整范围继续以[版本路线图](../../Janus%20Engine%20版本路线图.md)为准，以下 A–F 是实施阶段，不是新的发布版本。
 
-后续执行更新（2026-09-07）：用户已确认此路线，首个项目配置/Input 切片在 `codex/v0.10-project-input` 完成实现与本地验证，尚未合并。原调研结果和验证记录保留为历史基线；新增契约见 [Stage A 专项设计](../specs/2026-09-06-v0.10-project-input-design.md)，实现与验证见 [Stage A 记录](../../verification/2026-09-07-v0.10-project-input.md)。10-03 共享 Runtime 调度及 B–F 仍为后续任务。
+后续执行更新（2026-09-07）：用户已确认此路线，首个项目配置/Input 切片在 `codex/v0.10-project-input` 完成实现与本地验证，并通过 PR #82 合入 main（`c8a7c06`）。下方调研结果和验证记录保留为 2026-09-06 历史基线，其中项目配置/输入缺口已由 Stage A 补齐；新增契约见 [Stage A 专项设计](../specs/2026-09-06-v0.10-project-input-design.md)，实现与验证见 [Stage A 记录](../../verification/2026-09-07-v0.10-project-input.md)。10-03 共享 Runtime 调度及 B–F 仍为后续任务；最新 main 调研与 10-03～10-05 细化方案见 [共享 Runtime → 可玩 UI](2026-09-07-next-stage-runtime-ui-roadmap.md)。
 
 ## 1. 建议与产品目标
+
+10-03 执行更新（2026-09-07）：共享 Runtime 执行阶段已完成本地实现和验证，待提交/合并；下一包为 10-04a。详见[10-03 记录](../../verification/2026-09-07-v0.10-shared-runtime.md)。本文其余工作包清单保留最初规划，不能作为最新 main 已交付清单。
 
 建议结束 v0.9 的集成收尾，进入 **v0.10 Game Systems**。用一个单机卡牌战斗小样贯穿输入、UI、动画和音频，再以独立物理验证场景补齐 Physics，最后完成 Prefab 与综合验收。小样只服务引擎验证；完整 Roguelike、存档、多场景内容和联网仍属于后续工作。
 

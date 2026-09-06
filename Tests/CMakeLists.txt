@@ -44,6 +44,7 @@ add_executable(
     Editor/ScenePickerTests.cpp
     Editor/ProjectSessionTests.cpp
     Editor/RuntimeSessionTests.cpp
+    Runtime/RuntimeExecutionTests.cpp
     Renderer/RendererTypesTests.cpp
     Renderer/RenderQueueTests.cpp
     Renderer/BatchRendererTests.cpp

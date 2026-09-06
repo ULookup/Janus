@@ -2,7 +2,7 @@
 
 Janus 是一个面向 Human Developer 与 AI Agent 的 C++20 2D 游戏引擎。项目希望让 Editor、Game 和 Agent 通过同一套 Engine Capability 理解、修改、运行并验证游戏世界。
 
-项目已完成 **v0.1 Engine Foundation**、**v0.2 Renderer2D**、**v0.3 ECS + Scene**、**v0.4 Asset + Serialization**、**v0.5 Lua Gameplay Runtime**、**v0.6 Editor Foundation**、**v0.7 Reflection + Command** 和 **v0.8 MCP Agent Foundation**。当前 Janus 已具备磁盘项目加载、稳定 UUID / AssetHandle、Lua Gameplay、离屏 Scene/Game View、metadata-driven Inspector、Reflection-backed Scene persistence、CommandBus、Undo/Redo，以及原生 C++ MCP stdio Agent authoring 能力。**v0.9 Agent Development Loop** 已通过 PR #81 合入 main，包含 Runtime 调试、共享诊断、作者态事务及 Activity；本地验收与集成状态见[实施记录](docs/verification/2026-09-06-v0.9-agent-development-loop.md)。当前正在开发 **v0.10 Game Systems**，首个 Project Settings + Action Input 切片已完成本地验证，分阶段方案见[开发路线提案](docs/superpowers/plans/2026-09-06-next-development-roadmap.md)。
+项目已完成 **v0.1 Engine Foundation**、**v0.2 Renderer2D**、**v0.3 ECS + Scene**、**v0.4 Asset + Serialization**、**v0.5 Lua Gameplay Runtime**、**v0.6 Editor Foundation**、**v0.7 Reflection + Command** 和 **v0.8 MCP Agent Foundation**。当前 Janus 已具备磁盘项目加载、稳定 UUID / AssetHandle、Lua Gameplay、离屏 Scene/Game View、metadata-driven Inspector、Reflection-backed Scene persistence、CommandBus、Undo/Redo，以及原生 C++ MCP stdio Agent authoring 能力。**v0.9 Agent Development Loop** 已通过 PR #81 合入 main，包含 Runtime 调试、共享诊断、作者态事务及 Activity；本地验收与集成状态见[实施记录](docs/verification/2026-09-06-v0.9-agent-development-loop.md)。当前正在开发 **v0.10 Game Systems**，首个 Project Settings + Action Input 切片已通过 PR #82 合入 main（`c8a7c06`）。整体顺序见[开发路线](docs/superpowers/plans/2026-09-06-next-development-roadmap.md)，下一阶段建议先共享 Runtime 执行阶段，再完成可玩 UI，详见[最新 main 调研与路线提案](docs/superpowers/plans/2026-09-07-next-stage-runtime-ui-roadmap.md)。
 
 ## 环境要求
 
@@ -35,6 +35,8 @@ ctest --preset windows-msvc-debug-tests
 生成内容位于 `out/`。不要提交 `out/`、`.vs/`、二进制或本地 IDE 设置。
 
 ## v0.10 Stage A：Project Settings + Action Input
+
+后续 10-03 已在开发分支完成本地实现：managed Application 与 Editor RuntimeSession 共用 `RuntimeExecution`，保持原有 Scene 所有权、Pause/Step/Faulted 与清理契约。全量回归 308/308 通过，详见[共享 Runtime 验收记录](docs/verification/2026-09-07-v0.10-shared-runtime.md)。该变更尚未合并，下一工作包是 UI 布局与图片。
 
 当前开发切片增加 `project.json` 和 Editor 底部的 **Project Settings** 标签，可配置默认 Scene、资源路径、游戏分辨率、VSync、Target FPS 和多个按键到 Action 的映射。没有 manifest 的旧项目仍使用原路径；非法配置明确报错。SandboxProject 已提供示例配置。
 

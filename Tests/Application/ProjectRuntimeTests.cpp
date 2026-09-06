@@ -3,6 +3,7 @@
 #include "Application/ApplicationConfig.h"
 #include "Application/Detail/ApplicationDependencies.h"
 #include "Project/ProjectSettings.h"
+#include "ProjectSession.h"
 
 #include "Core/Event/Event.h"
 #include "Core/FileSystem/FileSystem.h"
@@ -18,10 +19,12 @@
 #include "../Asset/AssetTestUtils.h"
 #include "../Renderer/FakeRenderDevice.h"
 
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <chrono>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -37,6 +40,8 @@ struct RuntimeTestState
     Janus::FrameClock::TimePoint now{};
     Janus::Test::FakeRenderDevice rendererDevice;
     std::vector<Janus::Event> firstPollEvents;
+    std::vector<std::vector<Janus::Event>> frameEvents;
+    std::function<void()> onPresent;
     Janus::usize pollCount = 0;
     Janus::i32 swapInterval = -1;
 };
@@ -57,6 +62,11 @@ public:
             {
                 callback(event);
             }
+        }
+        if (m_State.pollCount < m_State.frameEvents.size())
+        {
+            for (const auto& event : m_State.frameEvents[m_State.pollCount])
+                callback(event);
         }
         ++m_State.pollCount;
     }
@@ -110,6 +120,8 @@ public:
 
     void Present() noexcept override
     {
+        if (m_State.onPresent)
+            m_State.onPresent();
     }
 
   private:
@@ -657,4 +669,264 @@ end }
     REQUIRE(configuredWindow);
     REQUIRE(state.swapInterval == 0);
     REQUIRE(slept);
+}
+
+namespace
+{
+Janus::Vector2 ScriptedPosition(const Janus::Scene& scene)
+{
+    for (const auto entity : scene.GetEntities())
+    {
+        if (scene.GetComponent<Janus::EntityIdentityComponent>(entity)->name == "Scripted")
+            return scene.GetComponent<Janus::TransformComponent>(entity)->position;
+    }
+    return {};
+}
+
+class RuntimeProbeClient final : public Janus::ApplicationClient
+{
+  public:
+    Janus::Result<void> OnInitialize(Janus::Application& application) override
+    {
+        scene = &application.GetScene();
+        initial = ScriptedPosition(*scene);
+        return Janus::Result<void>::Success();
+    }
+    void OnUpdate(Janus::TimeStep step, Janus::Application& application) override
+    {
+        sameScene = sameScene && scene == &application.GetScene();
+        beforeUpdate.push_back(ScriptedPosition(*scene));
+        steps.push_back(step);
+        if (steps.size() == 4)
+            application.RequestExit();
+    }
+    void OnShutdown(Janus::Application& application) noexcept override
+    {
+        sameScene = sameScene && scene == &application.GetScene();
+        shutdown = ScriptedPosition(application.GetScene());
+        ++shutdownCount;
+        if (beforeShutdown)
+            beforeShutdown(application.GetScene());
+    }
+    Janus::Scene* scene = nullptr;
+    Janus::Vector2 initial, shutdown;
+    std::vector<Janus::Vector2> beforeUpdate, presented;
+    std::vector<Janus::TimeStep> steps;
+    bool sameScene = true;
+    int shutdownCount = 0;
+    std::function<void(Janus::Scene&)> beforeShutdown;
+};
+
+void WriteRuntimeProject(const std::filesystem::path& root, std::string_view script)
+{
+    WriteProjectText(root / "Config/AssetRegistry.json", ScriptRegistry);
+    WriteProjectText(root / "Scenes/Battle.scene", ScriptScene);
+    WriteProjectText(root / "Scripts/Test.lua", script);
+    Janus::ProjectSettings settings;
+    settings.inputBindings["Confirm"] = {Janus::KeyCode::Space, Janus::KeyCode::Enter};
+    REQUIRE(Janus::SaveProjectSettings(root, settings));
+}
+} // namespace
+
+TEST_CASE("Managed Application and Editor runtime agree on every input frame and timestep",
+          "[runtime-execution][application][runtime-session][v0.10]")
+{
+    Janus::Test::AssetTempDirectory temp;
+    WriteRuntimeProject(temp.Path(), R"lua(
+return {
+  OnCreate = function(self) self.entity:set_position(10, 0) end,
+  OnUpdate = function(self, dt)
+    local x, y = self.entity:get_position()
+    if Input.is_action_down('Confirm') then x = x + 1 end
+    if Input.was_action_pressed('Confirm') then x = x + 10 end
+    if Input.was_action_released('Confirm') then x = x + 100 end
+    local px, py = Input.pointer_position()
+    if px then x = x + px end
+    if Input.is_pointer_button_down('Left') then x = x + 1000 end
+    self.entity:set_position(x, y + dt)
+  end
+}
+)lua");
+    RuntimeTestState state;
+    state.frameEvents = {{Janus::KeyPressedEvent{Janus::KeyCode::Space, false},
+                          Janus::PointerMovedEvent{{2, 3}},
+                          Janus::PointerButtonPressedEvent{Janus::PointerButton::Left}},
+                         {Janus::KeyPressedEvent{Janus::KeyCode::Space, true}},
+                         {Janus::KeyReleasedEvent{Janus::KeyCode::Space},
+                          Janus::KeyPressedEvent{Janus::KeyCode::Enter, false}},
+                         {Janus::WindowFocusLostEvent{}}};
+    RuntimeProbeClient client;
+    state.onPresent = [&] { client.presented.push_back(ScriptedPosition(*client.scene)); };
+    auto app = Janus::Detail::ApplicationTestAccess::Create(ProjectConfig(temp.Path()),
+                                                            MakeDependencies(state));
+    REQUIRE(app->Run(client));
+    REQUIRE(client.sameScene);
+    REQUIRE(client.initial.x == 0);
+    REQUIRE(client.beforeUpdate.size() == 4);
+    REQUIRE(client.beforeUpdate.front().x == 10);
+    REQUIRE(client.presented.size() == 4);
+    REQUIRE(client.shutdownCount == 1);
+    REQUIRE(client.shutdown.x == client.presented.back().x);
+    REQUIRE(client.steps[0].GetSeconds() == 0);
+    REQUIRE(client.steps[1].GetSeconds() == Catch::Approx(0.016));
+
+    Janus::Test::FakeRenderDevice device;
+    auto renderer = Janus::Detail::Renderer2DTestAccess::Create(device);
+    auto opened =
+        Janus::Editor::ProjectSession::Open(Janus::ProjectRuntimeConfig{temp.Path()}, *renderer);
+    REQUIRE(opened);
+    auto project = std::move(opened).Value();
+    Janus::InputState input;
+    REQUIRE(project->StartRuntime(input));
+    const auto runtimeId = project->GetRuntimeStatus().runtimeId;
+    for (Janus::usize i = 0; i < state.frameEvents.size(); ++i)
+    {
+        input.BeginFrame();
+        for (const auto& event : state.frameEvents[i])
+            input.Apply(event);
+        REQUIRE(project->UpdateRuntime(client.steps[i]));
+        const auto position = ScriptedPosition(project->GetRuntimeSession()->GetScene());
+        REQUIRE(position.x == Catch::Approx(client.presented[i].x));
+        REQUIRE(position.y == Catch::Approx(client.presented[i].y));
+        REQUIRE(project->GetRuntimeStatus().frameIndex == i + 1);
+        REQUIRE(project->GetRuntimeStatus().runtimeId == runtimeId);
+        if (i + 1 < client.beforeUpdate.size())
+            REQUIRE(client.beforeUpdate[i + 1].x == client.presented[i].x);
+    }
+    REQUIRE(client.presented[0].x == 1023);
+    REQUIRE(client.presented[1].x == 2026);
+    REQUIRE(client.presented[2].x == 3029);
+    REQUIRE(client.presented[3].x == 3129);
+    REQUIRE(ScriptedPosition(project->GetEditorScene()).x == 0);
+    REQUIRE(project->StopRuntime());
+    REQUIRE(ScriptedPosition(project->GetEditorScene()).x == 0);
+}
+
+TEST_CASE("Runtime hosts preserve their distinct failure and scene lifetime contracts",
+          "[runtime-execution][application][runtime-session][v0.10]")
+{
+    Janus::Test::AssetTempDirectory temp;
+    WriteRuntimeProject(temp.Path(), R"lua(
+return {
+  OnCreate = function(self) self.entity:set_position(5, 0) end,
+  OnUpdate = function(self, dt)
+    self.entity:set_position(25, 0)
+    error('shared runtime failure')
+  end
+}
+)lua");
+    RuntimeTestState state;
+    RuntimeProbeClient client;
+    auto app = Janus::Detail::ApplicationTestAccess::Create(ProjectConfig(temp.Path()),
+                                                            MakeDependencies(state));
+    const auto failed = app->Run(client);
+    REQUIRE_FALSE(failed);
+    REQUIRE(failed.GetError().code == Janus::ErrorCode::ScriptRuntimeFailed);
+    REQUIRE(client.shutdownCount == 1);
+    REQUIRE(client.shutdown.x == 25);
+    REQUIRE(client.steps.size() == 1);
+    REQUIRE(client.sameScene);
+
+    Janus::Test::FakeRenderDevice device;
+    auto renderer = Janus::Detail::Renderer2DTestAccess::Create(device);
+    auto opened =
+        Janus::Editor::ProjectSession::Open(Janus::ProjectRuntimeConfig{temp.Path()}, *renderer);
+    REQUIRE(opened);
+    auto project = std::move(opened).Value();
+    Janus::InputState input;
+    REQUIRE(project->StartRuntime(input));
+    const auto editorFailed = project->UpdateRuntime(client.steps.front());
+    REQUIRE_FALSE(editorFailed);
+    REQUIRE(editorFailed.GetError().code == failed.GetError().code);
+    REQUIRE(editorFailed.GetError().message.find("shared runtime failure") != std::string::npos);
+    const auto status = project->GetRuntimeStatus();
+    REQUIRE(status.state == Janus::RuntimeState::Faulted);
+    REQUIRE(status.frameIndex == 0);
+    REQUIRE(status.failedFrameIndex == 1);
+    REQUIRE(status.partialUpdate);
+    REQUIRE(ScriptedPosition(project->GetRuntimeSession()->GetScene()).x == 25);
+    REQUIRE(ScriptedPosition(project->GetEditorScene()).x == 0);
+    REQUIRE_FALSE(project->SaveCurrentScene());
+    REQUIRE(project->StopRuntime());
+}
+
+TEST_CASE("Managed shutdown calls the client before scripts and logs destroy errors exactly once",
+          "[runtime-execution][application][v0.10]")
+{
+    Janus::Test::AssetTempDirectory temp;
+    WriteRuntimeProject(temp.Path(), R"lua(
+return { OnDestroy = function(self) error('destroy saw ' .. self.entity:name()) end }
+)lua");
+    RuntimeTestState state;
+    RuntimeProbeClient client;
+    client.beforeShutdown = [](Janus::Scene& scene)
+    {
+        for (const auto entity : scene.GetEntities())
+        {
+            auto* identity = scene.GetComponent<Janus::EntityIdentityComponent>(entity);
+            if (identity->name == "Scripted")
+                identity->name = "client shutdown marker";
+        }
+    };
+    auto app = Janus::Detail::ApplicationTestAccess::Create(ProjectConfig(temp.Path()),
+                                                            MakeDependencies(state));
+    auto logs = app->GetLogStore();
+    REQUIRE(app->Run(client));
+    REQUIRE(client.shutdownCount == 1);
+    app.reset();
+    Janus::LogQuery query;
+    query.level = Janus::LogLevel::Error;
+    auto errors = logs->Read(query);
+    REQUIRE(errors);
+    REQUIRE(errors.Value().entries.size() == 1);
+    REQUIRE(errors.Value().entries.front().message.find("destroy saw client shutdown marker") !=
+            std::string::npos);
+}
+
+TEST_CASE("Paused host skips reload and neutralizes input then restart refreshes cached scripts",
+          "[runtime-execution][runtime-session][v0.10]")
+{
+    Janus::Test::AssetTempDirectory temp;
+    WriteRuntimeProject(temp.Path(), R"lua(
+return { OnUpdate = function(self, dt)
+  assert(not Input.is_action_down('Confirm'))
+  assert(Input.pointer_position() == nil)
+  assert(not Input.is_pointer_button_down('Left'))
+  local x, y = self.entity:get_position()
+  self.entity:set_position(x + 1, y + dt)
+end }
+)lua");
+    Janus::Test::FakeRenderDevice device;
+    auto renderer = Janus::Detail::Renderer2DTestAccess::Create(device);
+    auto opened =
+        Janus::Editor::ProjectSession::Open(Janus::ProjectRuntimeConfig{temp.Path()}, *renderer);
+    REQUIRE(opened);
+    auto project = std::move(opened).Value();
+    Janus::InputState input;
+    input.Apply(Janus::KeyPressedEvent{Janus::KeyCode::Space, false});
+    input.Apply(Janus::PointerMovedEvent{{2, 3}});
+    input.Apply(Janus::PointerButtonPressedEvent{Janus::PointerButton::Left});
+    REQUIRE(project->StartRuntime(input, true));
+    const auto id = project->GetRuntimeStatus().runtimeId;
+    const auto path = temp.Path() / "Scripts/Test.lua";
+    const auto oldTime = std::filesystem::last_write_time(path);
+    WriteProjectText(path, R"lua(
+return { OnCreate = function(self) self.entity:set_position(50, 0) end,
+  OnUpdate = function(self, dt) self.entity:set_position(75, dt) end }
+)lua");
+    std::filesystem::last_write_time(path, oldTime + std::chrono::seconds(2));
+    REQUIRE(project->UpdateRuntime(Janus::TimeStep::FromSeconds(10)));
+    REQUIRE(project->GetRuntimeStatus().frameIndex == 0);
+    REQUIRE(project->StepRuntime());
+    REQUIRE(project->GetRuntimeStatus().state == Janus::RuntimeState::Paused);
+    REQUIRE(project->GetRuntimeStatus().runtimeId == id);
+    REQUIRE(ScriptedPosition(project->GetRuntimeSession()->GetScene()).x == 1);
+    REQUIRE(project->GetRuntimeStatus().simulationTimeSeconds == Catch::Approx(1.0 / 60.0));
+    REQUIRE(project->StopRuntime());
+    REQUIRE(project->StartRuntime(input, true));
+    REQUIRE(project->GetRuntimeStatus().runtimeId != id);
+    REQUIRE(ScriptedPosition(project->GetRuntimeSession()->GetScene()).x == 50);
+    REQUIRE(project->StepRuntime());
+    REQUIRE(ScriptedPosition(project->GetRuntimeSession()->GetScene()).x == 75);
+    REQUIRE(ScriptedPosition(project->GetEditorScene()).x == 0);
 }

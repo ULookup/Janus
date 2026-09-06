@@ -2,7 +2,7 @@
 
 ## Mission
 
-Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.10 Game Systems**, starting with Stage A: Project Settings + Action Input. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
+Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.10 Game Systems**. Stage A: Project Settings + Action Input is integrated; work package 10-03: Shared Runtime Execution is implemented and locally verified. The next work package is 10-04a: UI layout and images. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
 
 This file applies to the entire repository. A more deeply nested `AGENTS.md` may add stricter rules for its subtree.
 
@@ -39,7 +39,15 @@ v0.8 MCP Agent Foundation is complete and is the capability baseline for v0.9.
 - ScriptEngine owns a snapshot of input bindings supplied by the host. Core input defines no game-specific action names and does not depend on JSON, Scene or Editor.
 - Action state aggregates bound keys across frame boundaries. Paused Step remains neutral input at 1/60 second. Native keyboard APIs remain compatible.
 - Editor gameplay input is limited to the displayed Game View; pointer coordinates use the project's logical resolution. Tool panels and letterboxing must not send gameplay input.
-- See docs/superpowers/specs/2026-09-06-v0.10-project-input-design.md for settings apply timing and scope. Stage A does not complete v0.10; shared Runtime scheduling and UI/game systems remain subsequent work.
+- See docs/superpowers/specs/2026-09-06-v0.10-project-input-design.md for settings apply timing and scope. Stage A does not complete v0.10; shared execution is covered below, while fixed-tick scheduling and UI/game systems remain subsequent work.
+
+## v0.10 shared Runtime constraints
+
+- Managed Application and RuntimeSession use Engine/Runtime/RuntimeExecution for script startup, input snapshots, optional reload, update and shutdown. Do not add a second host-specific simulation path for new systems.
+- RuntimeExecution owns its stable InputState and ScriptEngine; the host owns Scene and AssetService and must keep them alive until execution teardown. It does not clone Scene or implement a host state machine.
+- Application preserves client.OnUpdate before simulation and client.OnShutdown before script shutdown. RuntimeSession preserves Clone, Faulted retention and RuntimeStatus; do not force the independent application to retain an Editor-style faulted world.
+- Paused Step passes neutral input, fixed 1/60 second and ScriptReloadPolicy::Skip. Invalid/stopped Advance must not overwrite the initial input snapshot or run scripts. Future fixed-tick scheduling remains a separate Physics design task.
+- See docs/superpowers/specs/2026-09-07-v0.10-shared-runtime-design.md and docs/verification/2026-09-07-v0.10-shared-runtime.md for the 10-03 boundary and validation. UI and the remaining v0.10 game systems are not implemented by this refactor.
 
 ## Source of truth
 

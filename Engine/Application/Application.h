@@ -21,7 +21,7 @@ class ReflectionRegistry;
 class Renderer2D;
 class Scene;
 class SceneRenderer;
-class ScriptEngine;
+class RuntimeExecution;
 class ApplicationClient;
 
 class Application final
@@ -64,7 +64,7 @@ private:
     std::unique_ptr<AssetService> m_AssetService;
     std::unique_ptr<SceneRenderer> m_SceneRenderer;
     std::unique_ptr<Scene> m_Scene;
-    std::unique_ptr<ScriptEngine> m_ScriptEngine;
+    std::unique_ptr<RuntimeExecution> m_Execution;
     InputState m_Input;
     FrameClock m_FrameClock;
 
