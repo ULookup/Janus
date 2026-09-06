@@ -15,6 +15,11 @@ class Scene;
 namespace SceneReflectionIds
 {
 
+inline constexpr ComponentTypeId Canvas = MakeComponentTypeId("Canvas");
+inline constexpr ComponentTypeId UIRect = MakeComponentTypeId("UIRect");
+inline constexpr ComponentTypeId Panel = MakeComponentTypeId("Panel");
+inline constexpr ComponentTypeId Image = MakeComponentTypeId("Image");
+
 inline constexpr ComponentTypeId Transform =
     MakeComponentTypeId("Transform");
 inline constexpr ComponentTypeId SpriteRenderer =

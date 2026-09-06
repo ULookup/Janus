@@ -56,6 +56,9 @@ target_sources(
         Scripting/ScriptEngine.cpp
         Runtime/RuntimeSession.cpp
         Runtime/RuntimeExecution.cpp
+        UI/UILayout.cpp
+        UI/UIReflection.cpp
+        UI/UIReflection.h
 
         Renderer/RendererStatistics.cpp
         Renderer/RenderDevice.h
@@ -140,6 +143,8 @@ target_sources(
         Scripting/ScriptEngine.h
         Runtime/RuntimeSession.h
         Runtime/RuntimeExecution.h
+        UI/UIComponents.h
+        UI/UILayout.h
 
         Renderer/RendererTypes.h
         Renderer/Sprite.h

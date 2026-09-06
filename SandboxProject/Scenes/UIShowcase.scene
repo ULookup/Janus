@@ -1,0 +1,701 @@
+{
+  "schema": "janus.scene",
+  "version": 1,
+  "scene": {
+    "id": "90000000-0000-4000-8000-000000000100",
+    "name": "UI Showcase"
+  },
+  "entities": [
+    {
+      "id": "90000000-0000-4000-8000-000000000001",
+      "name": "Canvas",
+      "parent": null,
+      "siblingOrder": 0,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "Canvas": {
+          "enabled": true
+        },
+        "Panel": {
+          "color": [
+            0.035,
+            0.055,
+            0.085,
+            1
+          ],
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "90000000-0000-4000-8000-000000000002",
+      "name": "Header",
+      "parent": "90000000-0000-4000-8000-000000000001",
+      "siblingOrder": 0,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            0
+          ],
+          "anchorMax": [
+            1,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            32,
+            32
+          ],
+          "size": [
+            -64,
+            12
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Panel": {
+          "color": [
+            0.12,
+            0.75,
+            0.65,
+            1
+          ],
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "90000000-0000-4000-8000-000000000003",
+      "name": "ClippedPanel",
+      "parent": "90000000-0000-4000-8000-000000000001",
+      "siblingOrder": 1,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            0
+          ],
+          "anchorMax": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            32,
+            84
+          ],
+          "size": [
+            760,
+            440
+          ],
+          "enabled": true,
+          "clipChildren": true
+        },
+        "Panel": {
+          "color": [
+            0.075,
+            0.13,
+            0.19,
+            1
+          ],
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "90000000-0000-4000-8000-000000000004",
+      "name": "BackCard",
+      "parent": "90000000-0000-4000-8000-000000000003",
+      "siblingOrder": 0,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            0
+          ],
+          "anchorMax": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            50,
+            48
+          ],
+          "size": [
+            290,
+            300
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Panel": {
+          "color": [
+            0.22,
+            0.37,
+            0.48,
+            1
+          ],
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "90000000-0000-4000-8000-000000000005",
+      "name": "BackImage",
+      "parent": "90000000-0000-4000-8000-000000000004",
+      "siblingOrder": 0,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0.5,
+            0.5
+          ],
+          "anchorMax": [
+            0.5,
+            0.5
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0,
+            0
+          ],
+          "size": [
+            180,
+            180
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Image": {
+          "texture": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "color": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "uvMin": [
+            0,
+            0
+          ],
+          "uvMax": [
+            1,
+            1
+          ],
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "90000000-0000-4000-8000-000000000006",
+      "name": "FrontCard",
+      "parent": "90000000-0000-4000-8000-000000000003",
+      "siblingOrder": 1,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            0
+          ],
+          "anchorMax": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            265,
+            140
+          ],
+          "size": [
+            290,
+            250
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Panel": {
+          "color": [
+            0.75,
+            0.44,
+            0.16,
+            0.95
+          ],
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "90000000-0000-4000-8000-000000000007",
+      "name": "FrontImage",
+      "parent": "90000000-0000-4000-8000-000000000006",
+      "siblingOrder": 0,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0.5,
+            0.5
+          ],
+          "anchorMax": [
+            0.5,
+            0.5
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0,
+            0
+          ],
+          "size": [
+            150,
+            150
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Image": {
+          "texture": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "color": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "uvMin": [
+            0,
+            0
+          ],
+          "uvMax": [
+            1,
+            1
+          ],
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "90000000-0000-4000-8000-000000000008",
+      "name": "ClippedImage",
+      "parent": "90000000-0000-4000-8000-000000000003",
+      "siblingOrder": 2,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            0
+          ],
+          "anchorMax": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            675,
+            65
+          ],
+          "size": [
+            170,
+            170
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Image": {
+          "texture": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "color": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "uvMin": [
+            0,
+            0
+          ],
+          "uvMax": [
+            1,
+            1
+          ],
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "90000000-0000-4000-8000-000000000009",
+      "name": "RightPanel",
+      "parent": "90000000-0000-4000-8000-000000000001",
+      "siblingOrder": 2,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            1,
+            0
+          ],
+          "anchorMax": [
+            1,
+            0
+          ],
+          "pivot": [
+            1,
+            0
+          ],
+          "offset": [
+            -32,
+            84
+          ],
+          "size": [
+            360,
+            440
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Panel": {
+          "color": [
+            0.09,
+            0.18,
+            0.22,
+            1
+          ],
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "90000000-0000-4000-8000-000000000010",
+      "name": "RightImage",
+      "parent": "90000000-0000-4000-8000-000000000009",
+      "siblingOrder": 0,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0.5,
+            0.5
+          ],
+          "anchorMax": [
+            0.5,
+            0.5
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ],
+          "offset": [
+            0,
+            -40
+          ],
+          "size": [
+            180,
+            180
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Image": {
+          "texture": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "color": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "uvMin": [
+            0,
+            0
+          ],
+          "uvMax": [
+            1,
+            1
+          ],
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "90000000-0000-4000-8000-000000000011",
+      "name": "MeterTrack",
+      "parent": "90000000-0000-4000-8000-000000000009",
+      "siblingOrder": 1,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            1
+          ],
+          "anchorMax": [
+            1,
+            1
+          ],
+          "pivot": [
+            0,
+            1
+          ],
+          "offset": [
+            32,
+            -44
+          ],
+          "size": [
+            -64,
+            16
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Panel": {
+          "color": [
+            0.17,
+            0.29,
+            0.32,
+            1
+          ],
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "90000000-0000-4000-8000-000000000012",
+      "name": "MeterFill",
+      "parent": "90000000-0000-4000-8000-000000000011",
+      "siblingOrder": 0,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            0
+          ],
+          "anchorMax": [
+            0.72,
+            1
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            0,
+            0
+          ],
+          "size": [
+            0,
+            0
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Panel": {
+          "color": [
+            0.15,
+            0.8,
+            0.65,
+            1
+          ],
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "90000000-0000-4000-8000-000000000013",
+      "name": "Footer",
+      "parent": "90000000-0000-4000-8000-000000000001",
+      "siblingOrder": 3,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            1
+          ],
+          "anchorMax": [
+            1,
+            1
+          ],
+          "pivot": [
+            0,
+            1
+          ],
+          "offset": [
+            32,
+            -32
+          ],
+          "size": [
+            -64,
+            96
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Panel": {
+          "color": [
+            0.12,
+            0.2,
+            0.27,
+            1
+          ],
+          "enabled": true
+        }
+      }
+    }
+  ]
+}

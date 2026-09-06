@@ -113,13 +113,49 @@ Janus::UUID StructuredEntity(
 
 } // namespace
 
+TEST_CASE("MCP reparent shares undo history rejects invalid input and honors read-only",
+          "[ui][mcp]")
+{
+    ToolFixture fixture;
+    const auto child =
+        StructuredEntity(CallTool(fixture, "scene.create_entity", {{"name", "Child"}}));
+    const auto parent =
+        StructuredEntity(CallTool(fixture, "scene.create_entity", {{"name", "Parent"}}));
+    fixture.dirty = false;
+    auto result = CallTool(
+        fixture, "scene.reparent_entity",
+        {{"entity", child.ToString()}, {"parent", parent.ToString()}, {"siblingIndex", 0}});
+    REQUIRE(result.at("structuredContent").at("ok") == true);
+    CHECK(fixture.dirty);
+    auto entity = fixture.scene.FindEntity(child);
+    CHECK(fixture.scene.GetComponent<Janus::HierarchyComponent>(entity)->parent ==
+          fixture.scene.FindEntity(parent));
+    REQUIRE(fixture.commands.Undo());
+    CHECK_FALSE(fixture.scene.GetComponent<Janus::HierarchyComponent>(entity)->parent.IsValid());
+    REQUIRE(fixture.commands.Redo());
+    fixture.readOnly = true;
+    auto denied = CallTool(fixture, "scene.reparent_entity",
+                           {{"entity", child.ToString()}, {"parent", nullptr}});
+    CHECK(denied.at("isError") == true);
+    fixture.readOnly = false;
+    const auto invalid = fixture.tools.HandleCall(
+        {{"name", "scene.reparent_entity"},
+         {"arguments", {{"entity", child.ToString()}, {"parent", nullptr}, {"siblingIndex", -1}}}},
+        Janus::MCP::McpProtocolEra::Modern2026);
+    RequireDispatchError(invalid);
+    REQUIRE(CallTool(fixture, "scene.reparent_entity",
+                     {{"entity", child.ToString()}, {"parent", nullptr}})
+                .at("structuredContent")
+                .at("ok") == true);
+}
+
 TEST_CASE(
     "Scene MCP tool registration exposes the v0.8 command set",
     "[mcp][tool][scene][v0.8]")
 {
     ToolFixture fixture;
 
-    REQUIRE(fixture.tools.GetToolCount() == 7);
+    REQUIRE(fixture.tools.GetToolCount() == 8);
     REQUIRE(
         fixture.tools.FindTool(
             "scene.create_entity")

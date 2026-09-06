@@ -30,6 +30,28 @@ struct EntitySubtreeSnapshot
     std::vector<EntityAuthoringSnapshot> entities;
 };
 
+class ReparentEntityCommand final : public ICommand
+{
+  public:
+    ReparentEntityCommand(Scene& scene, UUID entity, UUID parent, usize siblingIndex = 0);
+    Result<void> Execute() override;
+    Result<void> Undo() override;
+    Result<void> Redo() override;
+    std::string_view Describe() const noexcept override;
+    Result<usize> EstimateUndoBytes() const override;
+    std::vector<CommandEffect> GetEffects() const override;
+
+  private:
+    Result<void> Apply(UUID parent, usize index);
+    Scene& m_Scene;
+    UUID m_Entity;
+    UUID m_Parent;
+    usize m_Index;
+    UUID m_OldParent;
+    usize m_OldIndex = 0;
+    bool m_Captured = false;
+};
+
 class CreateEntityCommand final : public ICommand
 {
 public:

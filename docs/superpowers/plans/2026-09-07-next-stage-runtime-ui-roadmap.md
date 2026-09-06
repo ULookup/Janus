@@ -4,7 +4,7 @@
 
 状态：下一阶段开发提案。本次只调整文档，不修改公共 API、引擎行为、第三方依赖或版本完成条件。沿用此前已确认的 [A–F 总路线](2026-09-06-next-development-roadmap.md)，本文更新最新进度并细化紧接着的 10-03～10-05；没有重新立项 Stage A，也没有开始实现 Stage B。
 
-执行更新（2026-09-07）：用户随后确认执行。首轮 10-03 已在 `codex/v0.10-shared-runtime` 实现并完成本地验证，通过独立 PR 提交评审，尚未合并；共享 RuntimeExecution 已供两个宿主使用，308/308 CTest 通过，真实 Sandbox/Editor 启停及 Editor Play/Pause/Step/Stop 已验证。详见[专项设计](../specs/2026-09-07-v0.10-shared-runtime-design.md)和[验收记录](../../verification/2026-09-07-v0.10-shared-runtime.md)。下方 main 源码事实和第 9 节仍是实施前的调研基线；下一包为 10-04a，UI 尚未实现。
+执行更新（2026-09-07）：用户随后确认执行。首轮 10-03 已在 `codex/v0.10-shared-runtime` 实现并完成本地验证，通过独立 PR 提交评审，尚未合并；共享 RuntimeExecution 已供两个宿主使用，308/308 CTest 通过，真实 Sandbox/Editor 启停及 Editor Play/Pause/Step/Stop 已验证。详见[专项设计](../specs/2026-09-07-v0.10-shared-runtime-design.md)和[验收记录](../../verification/2026-09-07-v0.10-shared-runtime.md)。下方 main 源码事实和第 9 节仍是实施前的调研基线；续轮 10-04a 已实现单 Canvas、UIRect、Panel/Image、CPU 裁剪、稳定绘制/几何命中顺序以及 Human/MCP Reparent；[专项设计](../specs/2026-09-07-v0.10-ui-layout-design.md)与[验收记录](../../verification/2026-09-07-v0.10-ui-layout.md)记录最终证据。当前下一包为 10-04b Text/字体资产，Button 和可玩单局仍未实现。
 
 ## 1. 建议决策
 

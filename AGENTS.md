@@ -2,7 +2,7 @@
 
 ## Mission
 
-Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.10 Game Systems**. Stage A: Project Settings + Action Input is integrated; work package 10-03: Shared Runtime Execution is implemented and locally verified. The next work package is 10-04a: UI layout and images. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
+Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.10 Game Systems**. Stage A: Project Settings + Action Input is integrated; work package 10-03: Shared Runtime Execution is implemented and locally verified. Work package 10-04a: UI layout and images is implemented locally; the next work package is 10-04b: Text and font assets. The work packages are submitted as stacked PRs; neither is merged yet. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
 
 This file applies to the entire repository. A more deeply nested `AGENTS.md` may add stricter rules for its subtree.
 
@@ -48,6 +48,15 @@ v0.8 MCP Agent Foundation is complete and is the capability baseline for v0.9.
 - Application preserves client.OnUpdate before simulation and client.OnShutdown before script shutdown. RuntimeSession preserves Clone, Faulted retention and RuntimeStatus; do not force the independent application to retain an Editor-style faulted world.
 - Paused Step passes neutral input, fixed 1/60 second and ScriptReloadPolicy::Skip. Invalid/stopped Advance must not overwrite the initial input snapshot or run scripts. Future fixed-tick scheduling remains a separate Physics design task.
 - See docs/superpowers/specs/2026-09-07-v0.10-shared-runtime-design.md and docs/verification/2026-09-07-v0.10-shared-runtime.md for the 10-03 boundary and validation. UI and the remaining v0.10 game systems are not implemented by this refactor.
+
+## v0.10 UI layout constraints
+
+- Engine/UI uses one root screen-space Canvas and the host project logical resolution. UIRect ignores world Transform; unsupported nested/multiple canvases fail explicitly.
+- Canvas/UIRect/Panel/Image authoring uses the active ReflectionRegistry, Scene v1 persistence/cloning, Inspector and shared commands. No parallel UI serialization or direct MCP ECS writes.
+- UILayoutResult defines paint and reverse geometric hit order. UI batching combines only adjacent compatible sprites; world texture sorting must never reorder UI. CPU clipping adjusts both rectangles and UVs.
+- Renderer2D owns its lazy solid-color texture; overlay projection must be committed through UseShader before drawing. World and UI share one clear, target lifetime and cumulative statistics.
+- Reparent preserves local fields and restores parent UUID/sibling order on Undo. Human EditorActions and scene.reparent_entity use ReparentEntityCommand and ProjectSession guards. Root order remains UUID order.
+- UI preview is in Game View. Text, Button/events, complex layout and the playable sample remain subsequent work. See docs/superpowers/specs/2026-09-07-v0.10-ui-layout-design.md.
 
 ## Source of truth
 

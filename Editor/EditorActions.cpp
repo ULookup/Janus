@@ -98,6 +98,16 @@ Result<UUID> EditorActions::CreateEntity(
     return Result<UUID>::Success(id);
 }
 
+Result<void> EditorActions::ReparentEntity(UUID id, UUID parent, usize siblingIndex)
+{
+    auto editable = GetEditableScene();
+    if (!editable)
+        return Result<void>::Failure(editable.GetError());
+    Scene& scene = *editable.Value();
+    return ExecutePrepared(
+        scene, std::make_unique<ReparentEntityCommand>(scene, id, parent, siblingIndex));
+}
+
 Result<void> EditorActions::DeleteEntity(UUID id)
 {
     auto editable = GetEditableScene();

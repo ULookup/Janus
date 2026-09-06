@@ -109,6 +109,32 @@ std::unique_ptr<Janus::Editor::ProjectSession> OpenTempProject(
 
 } // namespace
 
+TEST_CASE("Editor reparent shares command history and Runtime guard", "[ui][editor]")
+{
+    Janus::Test::FakeRenderDevice device;
+    auto renderer = Janus::Detail::Renderer2DTestAccess::Create(device);
+    auto project = OpenProject(*renderer);
+    Janus::Editor::EditorContext context;
+    context.project = project.get();
+    Janus::Editor::EditorActions actions(context);
+    const auto child = actions.CreateEntity("Child");
+    const auto parent = actions.CreateEntity("Parent");
+    REQUIRE(child);
+    REQUIRE(parent);
+    REQUIRE(actions.ReparentEntity(child.Value(), parent.Value()));
+    auto& scene = project->GetEditorScene();
+    CHECK(scene.GetComponent<Janus::HierarchyComponent>(scene.FindEntity(child.Value()))->parent ==
+          scene.FindEntity(parent.Value()));
+    REQUIRE(actions.Undo());
+    CHECK_FALSE(scene.GetComponent<Janus::HierarchyComponent>(scene.FindEntity(child.Value()))
+                    ->parent.IsValid());
+    REQUIRE(actions.Redo());
+    Janus::InputState input;
+    REQUIRE(project->StartRuntime(input));
+    CHECK_FALSE(actions.ReparentEntity(child.Value(), {}));
+    REQUIRE(project->StopRuntime());
+}
+
 TEST_CASE(
     "EditorActions create rename transform and delete authoring entities",
     "[editor][actions][v0.6]")

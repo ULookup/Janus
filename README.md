@@ -36,7 +36,7 @@ ctest --preset windows-msvc-debug-tests
 
 ## v0.10 Stage A：Project Settings + Action Input
 
-后续 10-03 已在开发分支完成本地实现：managed Application 与 Editor RuntimeSession 共用 `RuntimeExecution`，保持原有 Scene 所有权、Pause/Step/Faulted 与清理契约。全量回归 308/308 通过，详见[共享 Runtime 验收记录](docs/verification/2026-09-07-v0.10-shared-runtime.md)。该变更尚未合并，下一工作包是 UI 布局与图片。
+后续 10-03 已在开发分支完成本地实现：managed Application 与 Editor RuntimeSession 共用 `RuntimeExecution`，保持原有 Scene 所有权、Pause/Step/Faulted 与清理契约。全量回归 308/308 通过，详见[共享 Runtime 验收记录](docs/verification/2026-09-07-v0.10-shared-runtime.md)。该变更尚未合并。10-04a 现已在同一开发分支实现 Canvas/UIRect/Panel/Image、裁剪与共享 Reparent；使用方式、验证结果及局限见[UI 布局验收记录](docs/verification/2026-09-07-v0.10-ui-layout.md)。下一包为 10-04b Text/字体资产。
 
 当前开发切片增加 `project.json` 和 Editor 底部的 **Project Settings** 标签，可配置默认 Scene、资源路径、游戏分辨率、VSync、Target FPS 和多个按键到 Action 的映射。没有 manifest 的旧项目仍使用原路径；非法配置明确报错。SandboxProject 已提供示例配置。
 
