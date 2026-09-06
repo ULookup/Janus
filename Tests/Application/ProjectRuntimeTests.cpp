@@ -2,6 +2,7 @@
 #include "Application/ApplicationClient.h"
 #include "Application/ApplicationConfig.h"
 #include "Application/Detail/ApplicationDependencies.h"
+#include "Project/ProjectSettings.h"
 
 #include "Core/Event/Event.h"
 #include "Core/FileSystem/FileSystem.h"
@@ -37,6 +38,7 @@ struct RuntimeTestState
     Janus::Test::FakeRenderDevice rendererDevice;
     std::vector<Janus::Event> firstPollEvents;
     Janus::usize pollCount = 0;
+    Janus::i32 swapInterval = -1;
 };
 
 class FakeWindow final : public Janus::Window
@@ -94,19 +96,24 @@ private:
 class FakeGraphicsContext final : public Janus::GraphicsContext
 {
 public:
-    Janus::Result<void> MakeCurrent() override
-    {
-        return Janus::Result<void>::Success();
+  explicit FakeGraphicsContext(RuntimeTestState& state) : m_State(state) {}
+  Janus::Result<void> MakeCurrent() override
+  {
+      return Janus::Result<void>::Success();
     }
 
-    Janus::Result<void> SetSwapInterval(Janus::i32) override
+    Janus::Result<void> SetSwapInterval(Janus::i32 interval) override
     {
+        m_State.swapInterval = interval;
         return Janus::Result<void>::Success();
     }
 
     void Present() noexcept override
     {
     }
+
+  private:
+    RuntimeTestState& m_State;
 };
 
 class ProjectClient final : public Janus::ApplicationClient
@@ -243,10 +250,10 @@ Janus::Detail::ApplicationDependencies MakeDependencies(RuntimeTestState& state)
             std::move(window));
     };
 
-    dependencies.createGraphicsContext = [](Janus::Window&)
+    dependencies.createGraphicsContext = [&state](Janus::Window&)
     {
         std::unique_ptr<Janus::GraphicsContext> context =
-            std::make_unique<FakeGraphicsContext>();
+            std::make_unique<FakeGraphicsContext>(state);
         return Janus::Result<
             std::unique_ptr<Janus::GraphicsContext>>::Success(
             std::move(context));
@@ -602,4 +609,52 @@ return Script
     REQUIRE(result.GetError().message.find("runtime boom") != std::string::npos);
     REQUIRE(client.initialized);
     REQUIRE(client.shutdown);
+}
+
+TEST_CASE("Managed Application loads project actions window settings and frame cap",
+          "[v0.10][project-settings]")
+{
+    RuntimeTestState state;
+    Janus::Test::AssetTempDirectory temp;
+    WriteProjectText(temp.Path() / "Config/AssetRegistry.json", ScriptRegistry);
+    WriteProjectText(temp.Path() / "Scenes/Configured.scene", ScriptScene);
+    WriteProjectText(temp.Path() / "Scripts/Test.lua", R"lua(
+return { OnUpdate = function(self, dt)
+    assert(Input.is_action_down('Confirm'))
+    assert(Input.was_action_pressed('Confirm'))
+end }
+)lua");
+    Janus::ProjectSettings settings;
+    settings.defaultScene = "Scenes/Configured.scene";
+    settings.width = 960;
+    settings.height = 540;
+    settings.vsync = false;
+    settings.targetFps = 30;
+    settings.inputBindings["Confirm"] = {Janus::KeyCode::Space};
+    REQUIRE(Janus::SaveProjectSettings(temp.Path(), settings));
+    state.firstPollEvents.push_back(Janus::KeyPressedEvent{Janus::KeyCode::Space, false});
+    auto dependencies = MakeDependencies(state);
+    auto createWindow = dependencies.createWindow;
+    bool configuredWindow = false, slept = false;
+    dependencies.createWindow = [&](const Janus::WindowConfig& window)
+    {
+        configuredWindow = window.width == 960 && window.height == 540;
+        return createWindow(window);
+    };
+    dependencies.sleepUntil = [&](Janus::FrameClock::TimePoint deadline)
+    {
+        const auto milliseconds =
+            std::chrono::duration_cast<std::chrono::milliseconds>(deadline.time_since_epoch())
+                .count();
+        REQUIRE(milliseconds == 33);
+        slept = true;
+    };
+    Janus::ApplicationConfig config;
+    config.project = Janus::ProjectRuntimeConfig{temp.Path()};
+    ProjectClient client;
+    auto app = Janus::Detail::ApplicationTestAccess::Create(config, std::move(dependencies));
+    REQUIRE(app->Run(client));
+    REQUIRE(configuredWindow);
+    REQUIRE(state.swapInterval == 0);
+    REQUIRE(slept);
 }

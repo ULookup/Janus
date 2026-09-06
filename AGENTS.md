@@ -2,7 +2,7 @@
 
 ## Mission
 
-Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.9 Agent Development Loop**. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
+Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.10 Game Systems**, starting with Stage A: Project Settings + Action Input. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
 
 This file applies to the entire repository. A more deeply nested `AGENTS.md` may add stricter rules for its subtree.
 
@@ -31,6 +31,15 @@ v0.8 MCP Agent Foundation is complete and is the capability baseline for v0.9.
 - CommandBus groups already-executed pending commands at Commit; rollback preserves the redo tail. Limits are 64 commands / 60 seconds / 8 MiB conservative undo reservation. Save and Runtime are outside transactions.
 - Compensation failure freezes authoring until explicit Human discard/reload. MCP must refresh Scene bindings after a scene revision changes. Cleanup occurs on the host owner thread.
 - Diagnostic stores are bounded and session-owned; Core profiling/commands must not depend on Scene, Renderer, Editor or JSON. Never treat CPU timing as GPU timing.
+
+## v0.10 Stage A constraints
+
+- Engine/Project owns versioned project settings loading, validation and atomic saving. Missing project.json preserves legacy defaults; malformed configuration must fail explicitly. ProjectRuntimeConfig path overrides are optional and take precedence over the manifest.
+- ProjectSession guards settings saves during Runtime, transactions and recovery. Project settings are outside Scene Undo/transactions and must not change Scene dirty/history; file-write failure preserves the active settings.
+- ScriptEngine owns a snapshot of input bindings supplied by the host. Core input defines no game-specific action names and does not depend on JSON, Scene or Editor.
+- Action state aggregates bound keys across frame boundaries. Paused Step remains neutral input at 1/60 second. Native keyboard APIs remain compatible.
+- Editor gameplay input is limited to the displayed Game View; pointer coordinates use the project's logical resolution. Tool panels and letterboxing must not send gameplay input.
+- See docs/superpowers/specs/2026-09-06-v0.10-project-input-design.md for settings apply timing and scope. Stage A does not complete v0.10; shared Runtime scheduling and UI/game systems remain subsequent work.
 
 ## Source of truth
 

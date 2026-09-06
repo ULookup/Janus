@@ -223,6 +223,35 @@ namespace Janus
                 break;
             }
 
+            case SDL_EVENT_WINDOW_FOCUS_LOST:
+                if (SDL_GetWindowFromEvent(&event) == m_Window)
+                    callback(WindowFocusLostEvent{});
+                break;
+            case SDL_EVENT_MOUSE_MOTION:
+                if (SDL_GetWindowFromEvent(&event) == m_Window)
+                    callback(PointerMovedEvent{{event.motion.x, event.motion.y}});
+                break;
+            case SDL_EVENT_MOUSE_BUTTON_DOWN:
+            case SDL_EVENT_MOUSE_BUTTON_UP:
+                if (SDL_GetWindowFromEvent(&event) == m_Window)
+                {
+                    std::optional<PointerButton> button;
+                    if (event.button.button == 1)
+                        button = PointerButton::Left;
+                    if (event.button.button == 2)
+                        button = PointerButton::Middle;
+                    if (event.button.button == 3)
+                        button = PointerButton::Right;
+                    callback(PointerMovedEvent{{event.button.x, event.button.y}});
+                    if (button)
+                    {
+                        if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
+                            callback(PointerButtonPressedEvent{*button});
+                        else
+                            callback(PointerButtonReleasedEvent{*button});
+                    }
+                }
+                break;
             case SDL_EVENT_KEY_DOWN:
             {
                 SDL_Window* eventWindow =

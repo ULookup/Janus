@@ -10,12 +10,14 @@
 #include "Platform/Graphics/GraphicsContext.h"
 #include "Platform/Platform.h"
 #include "Platform/Window/Window.h"
+#include "Project/ProjectSettings.h"
 #include "Renderer/Renderer2D.h"
 #include "Scene/Scene.h"
 #include "Scene/SceneDeserializer.h"
-#include "Scene/SceneRenderer.h"
 #include "Scene/SceneReflection.h"
+#include "Scene/SceneRenderer.h"
 #include "Scripting/ScriptEngine.h"
+#include <thread>
 
 #include <filesystem>
 #include <memory>
@@ -66,6 +68,8 @@ ApplicationDependencies CreateDefaultApplicationDependencies()
         return FrameClock::Clock::now();
     };
 
+    dependencies.sleepUntil = [](FrameClock::TimePoint time)
+    { std::this_thread::sleep_until(time); };
     return dependencies;
 }
 
@@ -73,48 +77,6 @@ ApplicationDependencies CreateDefaultApplicationDependencies()
 
 namespace Janus
 {
-namespace
-{
-
-Result<std::filesystem::path> ResolveProjectFile(
-    const ProjectRuntimeConfig& project,
-    const std::filesystem::path& relativePath,
-    std::string_view label)
-{
-    if (project.root.empty())
-    {
-        return Result<std::filesystem::path>::Failure(
-            ErrorCode::InvalidArgument,
-            "Project root must not be empty.");
-    }
-
-    if (relativePath.empty()
-        || relativePath.is_absolute()
-        || relativePath.has_root_name()
-        || relativePath.has_root_directory())
-    {
-        return Result<std::filesystem::path>::Failure(
-            ErrorCode::InvalidArgument,
-            std::string(label) + " must be project-relative.");
-    }
-
-    const std::filesystem::path normalized = relativePath.lexically_normal();
-    for (const auto& part : normalized)
-    {
-        if (part == std::filesystem::path(".."))
-        {
-            return Result<std::filesystem::path>::Failure(
-                ErrorCode::InvalidArgument,
-                std::string(label) + " cannot escape the project root.");
-        }
-    }
-
-    return Result<std::filesystem::path>::Success(
-        project.root / normalized);
-}
-
-} // namespace
-
 Application::Application(ApplicationConfig config)
     : Application(
         std::move(config),
@@ -148,6 +110,28 @@ Result<void> Application::Run(ApplicationClient& client)
 
     Log::Initialize(m_Config.logOutput, m_Logs);
 
+    ProjectSettings settings;
+    if (m_Config.executionMode == ApplicationExecutionMode::ManagedRuntime && m_Config.project)
+    {
+        auto loaded = LoadProjectSettings(*m_Config.project);
+        if (!loaded)
+        {
+            auto error = loaded.GetError();
+            Cleanup(&client, false);
+            return Result<void>::Failure(error);
+        }
+        settings = std::move(loaded).Value();
+        m_Config.window.width = settings.width;
+        m_Config.window.height = settings.height;
+        m_Config.window.title = settings.name;
+        m_Config.vsync = settings.vsync;
+        m_Config.targetFps = settings.targetFps;
+    }
+    if (m_Config.targetFps > 1000)
+    {
+        Cleanup(&client, false);
+        return Result<void>::Failure(ErrorCode::InvalidArgument, "Target FPS must be 0-1000.");
+    }
     auto platformResult = m_Dependencies.initializePlatform();
     if (!platformResult)
     {
@@ -186,14 +170,12 @@ Result<void> Application::Run(ApplicationClient& client)
         return Result<void>::Failure(std::move(error));
     }
 
-    const auto swapIntervalResult =
-        m_GraphicsContext->SetSwapInterval(1);
+    const auto swapIntervalResult = m_GraphicsContext->SetSwapInterval(m_Config.vsync ? 1 : 0);
 
     if (!swapIntervalResult)
     {
-        JANUS_CORE_WARN(
-            "Failed to enable VSync; continuing: {}",
-            swapIntervalResult.GetError().message);
+        JANUS_CORE_WARN("Failed to configure VSync; continuing: {}",
+                        swapIntervalResult.GetError().message);
     }
 
     auto rendererResult = m_Dependencies.createRenderer2D();
@@ -233,10 +215,7 @@ Result<void> Application::Run(ApplicationClient& client)
             const ProjectRuntimeConfig& project = *m_Config.project;
             projectRoot = project.root;
 
-            auto registryPath = ResolveProjectFile(
-                project,
-                project.assetRegistryPath,
-                "Asset registry path");
+            auto registryPath = ResolveProjectPath(project.root, settings.assetRegistry);
             if (!registryPath)
             {
                 Error error = std::move(registryPath.GetError());
@@ -244,10 +223,7 @@ Result<void> Application::Run(ApplicationClient& client)
                 return Result<void>::Failure(std::move(error));
             }
 
-            auto scenePath = ResolveProjectFile(
-                project,
-                project.startupScenePath,
-                "Startup Scene path");
+            auto scenePath = ResolveProjectPath(project.root, settings.defaultScene);
             if (!scenePath)
             {
                 Error error = std::move(scenePath.GetError());
@@ -302,10 +278,8 @@ Result<void> Application::Run(ApplicationClient& client)
 
     if (managedRuntime)
     {
-        auto scriptEngineResult = ScriptEngine::Create(
-            *m_Scene,
-            *m_AssetService,
-            m_Input);
+        auto scriptEngineResult =
+            ScriptEngine::Create(*m_Scene, *m_AssetService, m_Input, settings.inputBindings);
         if (!scriptEngineResult)
         {
             Error error = std::move(scriptEngineResult.GetError());
@@ -326,6 +300,8 @@ Result<void> Application::Run(ApplicationClient& client)
 
     while (!m_ExitRequested && !m_Window->ShouldClose())
     {
+        const auto frameStart =
+            m_Config.targetFps != 0 ? m_Dependencies.now() : FrameClock::TimePoint{};
         m_Input.BeginFrame();
 
         m_Window->PollEvents(
@@ -408,6 +384,10 @@ Result<void> Application::Run(ApplicationClient& client)
         }
 
         m_GraphicsContext->Present();
+        if (m_Config.targetFps != 0 && m_Dependencies.sleepUntil)
+            m_Dependencies.sleepUntil(frameStart +
+                                      std::chrono::duration_cast<FrameClock::Clock::duration>(
+                                          std::chrono::duration<double>(1.0 / m_Config.targetFps)));
     }
 
     Cleanup(&client, true);

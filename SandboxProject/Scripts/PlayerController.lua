@@ -1,5 +1,13 @@
 local PlayerController = {}
 
+-- Keep older projects without project.json playable with the original key bindings.
+local function is_down(action, key, alternate)
+    if Input.has_action(action) then
+        return Input.is_action_down(action)
+    end
+    return Input.is_key_down(key) or Input.is_key_down(alternate)
+end
+
 function PlayerController.OnCreate(self)
     self.speed = 180.0
 end
@@ -8,16 +16,16 @@ function PlayerController.OnUpdate(self, dt)
     local x, y = self.entity:get_position()
     local distance = self.speed * dt
 
-    if Input.is_key_down("D") or Input.is_key_down("ArrowRight") then
+    if is_down("MoveRight", "D", "ArrowRight") then
         x = x + distance
     end
-    if Input.is_key_down("A") or Input.is_key_down("ArrowLeft") then
+    if is_down("MoveLeft", "A", "ArrowLeft") then
         x = x - distance
     end
-    if Input.is_key_down("W") or Input.is_key_down("ArrowUp") then
+    if is_down("MoveUp", "W", "ArrowUp") then
         y = y + distance
     end
-    if Input.is_key_down("S") or Input.is_key_down("ArrowDown") then
+    if is_down("MoveDown", "S", "ArrowDown") then
         y = y - distance
     end
 

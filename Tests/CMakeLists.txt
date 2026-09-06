@@ -6,6 +6,7 @@ add_executable(
     Core/FileSystemTests.cpp
     Core/UUIDTests.cpp
     Core/EventInputTests.cpp
+    Project/ProjectSettingsTests.cpp
     Core/LogTests.cpp
     Core/ProfilerTests.cpp
     Core/LogStoreTests.cpp

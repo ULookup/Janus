@@ -19,8 +19,9 @@ enum class ApplicationExecutionMode
 struct ProjectRuntimeConfig
 {
     std::filesystem::path root;
-    std::filesystem::path assetRegistryPath = "Config/AssetRegistry.json";
-    std::filesystem::path startupScenePath = "Scenes/Battle.scene";
+    // Explicit overrides win over project.json; omitted values use manifest/legacy defaults.
+    std::optional<std::filesystem::path> assetRegistryPath;
+    std::optional<std::filesystem::path> startupScenePath;
 };
 
 struct ApplicationConfig
@@ -32,6 +33,8 @@ struct ApplicationConfig
     LogOutput logOutput =
         LogOutput::StandardOutput;
     std::optional<ProjectRuntimeConfig> project;
+    bool vsync = true;
+    u32 targetFps = 0;
 };
 
 } // namespace Janus

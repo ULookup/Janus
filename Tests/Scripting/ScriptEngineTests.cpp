@@ -54,6 +54,50 @@ std::unique_ptr<Janus::ScriptEngine> CreateEngine(
 
 } // namespace
 
+TEST_CASE("Lua action queries report transitions and reject unknown names",
+          "[v0.10][input-actions]")
+{
+    Janus::Test::AssetTempDirectory temp;
+    Janus::AssetRegistry registry;
+    auto script = RegisterScript(temp, registry, "Scripts/Action.lua", R"lua(
+local Script = {}
+function Script.OnUpdate(self, dt)
+  assert(Input.has_action("Confirm"))
+  assert(not Input.has_action("Typo"))
+  if Input.was_action_pressed("Confirm") then self.entity:set_position(10, 0) end
+  if Input.was_action_released("Confirm") then self.entity:set_position(20, 0) end
+end
+return Script
+)lua");
+    Janus::Test::FakeRenderDevice device;
+    auto renderer = Janus::Detail::Renderer2DTestAccess::Create(device);
+    Janus::AssetService assets(temp.Path(), registry, *renderer);
+    Janus::Scene scene;
+    auto entity = scene.CreateEntity("Action");
+    REQUIRE(scene.AddComponent<Janus::LuaScriptComponent>(entity,
+                                                          Janus::LuaScriptComponent{script, true}));
+    Janus::InputState input;
+    auto result =
+        Janus::ScriptEngine::Create(scene, assets, input, {{"Confirm", {Janus::KeyCode::Space}}});
+    REQUIRE(result);
+    auto engine = std::move(result).Value();
+    REQUIRE(engine->Start());
+    input.Apply(Janus::KeyPressedEvent{Janus::KeyCode::Space, false});
+    REQUIRE(engine->Update(Janus::TimeStep::FromSeconds(0.01)));
+    REQUIRE(scene.GetComponent<Janus::TransformComponent>(entity)->position.x == 10);
+    input.BeginFrame();
+    input.Apply(Janus::WindowFocusLostEvent{});
+    REQUIRE(engine->Update(Janus::TimeStep::FromSeconds(0.01)));
+    REQUIRE(scene.GetComponent<Janus::TransformComponent>(entity)->position.x == 20);
+    REQUIRE(engine->Stop());
+    REQUIRE(Janus::FileSystem::WriteText(
+        temp.Path() / "Scripts/Action.lua",
+        "return { OnUpdate = function(self, dt) Input.is_action_down('Typo') end }"));
+    assets.Unload(script);
+    REQUIRE(engine->Start());
+    REQUIRE_FALSE(engine->Update(Janus::TimeStep::FromSeconds(0.01)));
+}
+
 TEST_CASE(
     "ScriptEngine isolates per-entity state and runs lifecycle callbacks",
     "[scripting][script-engine][lifecycle]")

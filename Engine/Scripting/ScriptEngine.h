@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Core/Error/Result.h"
+#include "Core/Input/InputActions.h"
 #include "Core/Time/TimeStep.h"
 #include "Core/Types.h"
 
@@ -16,25 +17,24 @@ class Scene;
 class ScriptEngine final
 {
 public:
-    [[nodiscard]] static Result<std::unique_ptr<ScriptEngine>> Create(
-        Scene& scene,
-        AssetService& assets,
-        const InputState& input);
+  [[nodiscard]] static Result<std::unique_ptr<ScriptEngine>>
+  Create(Scene& scene, AssetService& assets, const InputState& input,
+         const InputBindings& bindings = {});
 
-    ~ScriptEngine();
+  ~ScriptEngine();
 
-    ScriptEngine(const ScriptEngine&) = delete;
-    ScriptEngine& operator=(const ScriptEngine&) = delete;
-    ScriptEngine(ScriptEngine&&) = delete;
-    ScriptEngine& operator=(ScriptEngine&&) = delete;
+  ScriptEngine(const ScriptEngine&) = delete;
+  ScriptEngine& operator=(const ScriptEngine&) = delete;
+  ScriptEngine(ScriptEngine&&) = delete;
+  ScriptEngine& operator=(ScriptEngine&&) = delete;
 
-    [[nodiscard]] Result<void> Start();
-    [[nodiscard]] Result<void> ReloadChangedScripts();
-    [[nodiscard]] Result<void> Update(TimeStep timeStep);
-    [[nodiscard]] Result<void> Stop();
+  [[nodiscard]] Result<void> Start();
+  [[nodiscard]] Result<void> ReloadChangedScripts();
+  [[nodiscard]] Result<void> Update(TimeStep timeStep);
+  [[nodiscard]] Result<void> Stop();
 
-    [[nodiscard]] bool IsRunning() const noexcept;
-    [[nodiscard]] usize InstanceCount() const noexcept;
+  [[nodiscard]] bool IsRunning() const noexcept;
+  [[nodiscard]] usize InstanceCount() const noexcept;
 
 private:
     struct Impl;

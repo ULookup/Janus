@@ -27,6 +27,7 @@ struct ApplicationDependencies
     std::function<Result<std::unique_ptr<Renderer2D>>()> createRenderer2D;
     std::function<std::unique_ptr<Scene>()> createScene;
     std::function<FrameClock::TimePoint()> now;
+    std::function<void(FrameClock::TimePoint)> sleepUntil;
 };
 
 [[nodiscard]] ApplicationDependencies CreateDefaultApplicationDependencies();

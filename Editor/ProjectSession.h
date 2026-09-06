@@ -9,6 +9,7 @@
 #include "Core/Reflection/ReflectionRegistry.h"
 #include "Core/Time/TimeStep.h"
 #include "Diagnostics/DiagnosticsFrame.h"
+#include "Project/ProjectSettings.h"
 #include "Runtime/RuntimeSession.h"
 
 #include <chrono>
@@ -42,6 +43,11 @@ public:
   ProjectSession(ProjectSession&&) = delete;
   ProjectSession& operator=(ProjectSession&&) = delete;
 
+  [[nodiscard]] const ProjectSettings& GetProjectSettings() const noexcept
+  {
+      return m_Settings;
+  }
+  [[nodiscard]] Result<void> SaveProjectSettings(const ProjectSettings& settings);
   [[nodiscard]] const std::filesystem::path& GetProjectRoot() const noexcept;
   [[nodiscard]] const std::filesystem::path& GetCurrentScenePath() const noexcept;
   [[nodiscard]] const AssetRegistry& GetAssetRegistry() const noexcept;
@@ -114,6 +120,7 @@ private:
                  std::unique_ptr<Scene> editorScene, Renderer2D& renderer,
                  std::shared_ptr<LogStore> logs);
 
+  ProjectSettings m_Settings;
   std::filesystem::path m_ProjectRoot;
   std::filesystem::path m_CurrentScenePath;
   ReflectionRegistry m_ReflectionRegistry;
