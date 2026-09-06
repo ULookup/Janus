@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import queue
 import shutil
 import subprocess
@@ -52,20 +51,16 @@ def require(condition: bool, message: str) -> None:
 
 
 class JanusStdioClient:
-    def __init__(self, editor: Path, project: Path) -> None:
+    def __init__(self, host: Path, project: Path) -> None:
         self._stdout_queue: queue.Queue[str] = queue.Queue()
         self._stderr_lines: list[str] = []
         self._all_stdout_lines: list[str] = []
 
-        child_environment = os.environ.copy()
-        child_environment["JANUS_MCP_STARTUP_TRACE"] = "1"
-
         self._process = subprocess.Popen(
             [
-                str(editor),
+                str(host),
                 "--project",
                 str(project),
-                "--mcp-stdio",
             ],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -74,12 +69,11 @@ class JanusStdioClient:
             encoding="utf-8",
             errors="replace",
             bufsize=1,
-            env=child_environment,
         )
 
-        require(self._process.stdin is not None, "JanusEditor stdin pipe unavailable.")
-        require(self._process.stdout is not None, "JanusEditor stdout pipe unavailable.")
-        require(self._process.stderr is not None, "JanusEditor stderr pipe unavailable.")
+        require(self._process.stdin is not None, "Janus MCP external host stdin pipe unavailable.")
+        require(self._process.stdout is not None, "Janus MCP external host stdout pipe unavailable.")
+        require(self._process.stderr is not None, "Janus MCP external host stderr pipe unavailable.")
 
         self._stdout_thread = threading.Thread(
             target=self._collect_stdout,
@@ -110,7 +104,7 @@ class JanusStdioClient:
     def _send(self, message: dict[str, Any]) -> None:
         if self._process.poll() is not None:
             raise E2EFailure(
-                "JanusEditor exited before request could be sent.\n"
+                "Janus MCP external host exited before request could be sent.\n"
                 + self.stderr_text()
             )
 
@@ -138,7 +132,7 @@ class JanusStdioClient:
             line = self._stdout_queue.get(timeout=timeout_seconds)
         except queue.Empty as exc:
             raise E2EFailure(
-                f"Timed out waiting for JanusEditor response to {method}.\n"
+                f"Timed out waiting for Janus MCP external host response to {method}.\n"
                 + self.stderr_text()
             ) from exc
 
@@ -176,18 +170,17 @@ class JanusStdioClient:
     def stop(self) -> None:
         self.close_stdin()
 
-        # --mcp-stdio intentionally hosts MCP inside the visible Editor process.
-        # EOF stops the protocol worker, but the Human Editor may remain open.
-        # The external test owns this child process, so terminate it after all
-        # protocol-visible state and persisted files have been verified.
-        if self._process.poll() is None:
-            self._process.terminate()
-
+        # The test fixture exits when stdio reaches EOF. Give it a bounded
+        # graceful shutdown window so worker/dispatcher cleanup is exercised.
         try:
             self._process.wait(timeout=5.0)
         except subprocess.TimeoutExpired:
-            self._process.kill()
-            self._process.wait(timeout=5.0)
+            self._process.terminate()
+            try:
+                self._process.wait(timeout=2.0)
+            except subprocess.TimeoutExpired:
+                self._process.kill()
+                self._process.wait(timeout=2.0)
 
         self._stdout_thread.join(timeout=1.0)
         self._stderr_thread.join(timeout=1.0)
@@ -324,19 +317,19 @@ def verify_catalogs(client: JanusStdioClient, first_id: int, modern: bool) -> in
     return request_id
 
 
-def run_modern(editor: Path, source_project: Path) -> None:
+def run_modern(host: Path, source_project: Path) -> None:
     with tempfile.TemporaryDirectory(prefix="janus-mcp-modern-") as temp_root:
         project = Path(temp_root) / "SandboxProject"
         shutil.copytree(source_project, project)
 
-        client = JanusStdioClient(editor, project)
+        client = JanusStdioClient(host, project)
         try:
             discover = require_result(
                 client.request(
                     1,
                     "server/discover",
                     modern_params(),
-                    timeout_seconds=45.0,
+                    timeout_seconds=10.0,
                 ),
                 "server/discover",
             )
@@ -535,12 +528,12 @@ def run_modern(editor: Path, source_project: Path) -> None:
             client.stop()
 
 
-def run_legacy(editor: Path, source_project: Path) -> None:
+def run_legacy(host: Path, source_project: Path) -> None:
     with tempfile.TemporaryDirectory(prefix="janus-mcp-legacy-") as temp_root:
         project = Path(temp_root) / "SandboxProject"
         shutil.copytree(source_project, project)
 
-        client = JanusStdioClient(editor, project)
+        client = JanusStdioClient(host, project)
         try:
             initialized = require_result(
                 client.request(
@@ -554,7 +547,7 @@ def run_legacy(editor: Path, source_project: Path) -> None:
                             "version": "0.8-test",
                         },
                     },
-                    timeout_seconds=45.0,
+                    timeout_seconds=10.0,
                 ),
                 "initialize",
             )
@@ -583,22 +576,22 @@ def run_legacy(editor: Path, source_project: Path) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--editor", required=True, type=Path)
+    parser.add_argument("--host", required=True, type=Path)
     parser.add_argument("--project", required=True, type=Path)
     parser.add_argument("--era", required=True, choices=("modern", "legacy"))
     args = parser.parse_args()
 
-    editor = args.editor.resolve()
+    host = args.host.resolve()
     source_project = args.project.resolve()
 
-    require(editor.is_file(), f"JanusEditor executable not found: {editor}")
+    require(host.is_file(), f"Janus MCP external host executable not found: {host}")
     require(source_project.is_dir(), f"SandboxProject not found: {source_project}")
 
     started = time.monotonic()
     if args.era == "modern":
-        run_modern(editor, source_project)
+        run_modern(host, source_project)
     else:
-        run_legacy(editor, source_project)
+        run_legacy(host, source_project)
 
     elapsed = time.monotonic() - started
     print(
