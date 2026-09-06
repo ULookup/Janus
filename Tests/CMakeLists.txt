@@ -103,46 +103,68 @@ catch_discover_tests(JanusTests)
 # External MCP process E2E
 # ============================================================
 
-if(TARGET JanusEditor)
+add_executable(
+    JanusMcpExternalHost
 
-    add_test(
-        NAME
-            MCP.ExternalStdio.Modern
+    MCP/McpExternalHost.cpp
+)
 
-        COMMAND
-            ${Python3_EXECUTABLE}
-            ${CMAKE_CURRENT_SOURCE_DIR}/MCP/mcp_external_e2e.py
-            --editor
-            $<TARGET_FILE:JanusEditor>
-            --project
-            ${CMAKE_SOURCE_DIR}/SandboxProject
-            --era
-            modern
-    )
+target_include_directories(
+    JanusMcpExternalHost
 
-    add_test(
-        NAME
-            MCP.ExternalStdio.Legacy
+    PRIVATE
 
-        COMMAND
-            ${Python3_EXECUTABLE}
-            ${CMAKE_CURRENT_SOURCE_DIR}/MCP/mcp_external_e2e.py
-            --editor
-            $<TARGET_FILE:JanusEditor>
-            --project
-            ${CMAKE_SOURCE_DIR}/SandboxProject
-            --era
-            legacy
-    )
+        ${CMAKE_CURRENT_SOURCE_DIR}/Renderer
+)
 
-    set_tests_properties(
+target_link_libraries(
+    JanusMcpExternalHost
+
+    PRIVATE
+
+        JanusEngine
+        JanusMCP
+        JanusEditorCore
+)
+
+janus_set_warnings(JanusMcpExternalHost)
+
+add_test(
+    NAME
         MCP.ExternalStdio.Modern
+
+    COMMAND
+        ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/MCP/mcp_external_e2e.py
+        --host
+        $<TARGET_FILE:JanusMcpExternalHost>
+        --project
+        ${CMAKE_SOURCE_DIR}/SandboxProject
+        --era
+        modern
+)
+
+add_test(
+    NAME
         MCP.ExternalStdio.Legacy
 
-        PROPERTIES
+    COMMAND
+        ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/MCP/mcp_external_e2e.py
+        --host
+        $<TARGET_FILE:JanusMcpExternalHost>
+        --project
+        ${CMAKE_SOURCE_DIR}/SandboxProject
+        --era
+        legacy
+)
 
-            TIMEOUT 90
-            RUN_SERIAL TRUE
-    )
+set_tests_properties(
+    MCP.ExternalStdio.Modern
+    MCP.ExternalStdio.Legacy
 
-endif()
+    PROPERTIES
+
+        TIMEOUT 30
+        RUN_SERIAL TRUE
+)
