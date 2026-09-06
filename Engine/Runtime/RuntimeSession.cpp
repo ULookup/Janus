@@ -46,7 +46,8 @@ RuntimeSession::RuntimeSession(std::unique_ptr<Scene> scene, const InputState& i
 }
 Result<std::unique_ptr<RuntimeSession>>
 RuntimeSession::Start(const Scene& editorScene, const ReflectionRegistry& reflection,
-                      AssetService& assets, const InputState& input, bool startPaused)
+                      AssetService& assets, const InputState& input, bool startPaused,
+                      const InputBindings& bindings)
 {
     auto cloned = SceneCloner::Clone(editorScene, reflection);
     if (!cloned)
@@ -60,7 +61,8 @@ RuntimeSession::Start(const Scene& editorScene, const ReflectionRegistry& reflec
             if (script.enabled)
                 assets.Unload(script.script);
         });
-    auto scripts = ScriptEngine::Create(*session->m_RuntimeScene, assets, session->m_Input);
+    auto scripts =
+        ScriptEngine::Create(*session->m_RuntimeScene, assets, session->m_Input, bindings);
     if (!scripts)
         return Result<std::unique_ptr<RuntimeSession>>::Failure(scripts.GetError());
     session->m_ScriptEngine = std::move(scripts).Value();

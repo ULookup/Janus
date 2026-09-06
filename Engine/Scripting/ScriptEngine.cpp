@@ -49,6 +49,7 @@ struct BindingContext
 {
     Scene* scene = nullptr;
     const InputState* input = nullptr;
+    const InputBindings* bindings = nullptr;
 };
 
 struct LuaEntityRef
@@ -68,47 +69,6 @@ struct DesiredInstance
     UUID entityId;
     AssetHandle script;
 };
-
-struct KeyBinding
-{
-    std::string_view name;
-    KeyCode key;
-};
-
-constexpr std::array<KeyBinding, 21> KeyBindings{{
-    {"Escape", KeyCode::Escape},
-    {"Space", KeyCode::Space},
-    {"Enter", KeyCode::Enter},
-    {"ArrowUp", KeyCode::ArrowUp},
-    {"ArrowDown", KeyCode::ArrowDown},
-    {"ArrowLeft", KeyCode::ArrowLeft},
-    {"ArrowRight", KeyCode::ArrowRight},
-    {"W", KeyCode::W},
-    {"A", KeyCode::A},
-    {"S", KeyCode::S},
-    {"D", KeyCode::D},
-    {"Digit0", KeyCode::Digit0},
-    {"Digit1", KeyCode::Digit1},
-    {"Digit2", KeyCode::Digit2},
-    {"Digit3", KeyCode::Digit3},
-    {"Digit4", KeyCode::Digit4},
-    {"Digit5", KeyCode::Digit5},
-    {"Digit6", KeyCode::Digit6},
-    {"Digit7", KeyCode::Digit7},
-    {"Digit8", KeyCode::Digit8},
-    {"Digit9", KeyCode::Digit9}}};
-
-[[nodiscard]] std::optional<KeyCode> ParseKeyCode(std::string_view name) noexcept
-{
-    for (const KeyBinding& binding : KeyBindings)
-    {
-        if (binding.name == name)
-        {
-            return binding.key;
-        }
-    }
-    return std::nullopt;
-}
 
 [[nodiscard]] BindingContext* GetBindingContext(lua_State* state)
 {
@@ -246,6 +206,56 @@ int InputWasKeyReleased(lua_State* state)
     return 1;
 }
 
+int InputHasAction(lua_State* state)
+{
+    auto* context = GetBindingContext(state);
+    const char* name = luaL_checkstring(state, 1);
+    lua_pushboolean(state, context->bindings->contains(name));
+    return 1;
+}
+template <int Kind> int InputAction(lua_State* state)
+{
+    auto* context = GetBindingContext(state);
+    const char* name = luaL_checkstring(state, 1);
+    const auto action = QueryInputAction(*context->bindings, *context->input, name);
+    if (!action)
+        return luaL_error(state, "Unknown Janus action '%s'.", name);
+    lua_pushboolean(state, Kind == 0   ? action->down
+                           : Kind == 1 ? action->pressed
+                                       : action->released);
+    return 1;
+}
+int InputPointerPosition(lua_State* state)
+{
+    const auto position = GetBindingContext(state)->input->GetPointerPosition();
+    if (!position)
+    {
+        lua_pushnil(state);
+        return 1;
+    }
+    lua_pushnumber(state, position->x);
+    lua_pushnumber(state, position->y);
+    return 2;
+}
+template <int Kind> int InputPointerButton(lua_State* state)
+{
+    const auto* input = GetBindingContext(state)->input;
+    const char* name = luaL_checkstring(state, 1);
+    PointerButton button;
+    const std::string_view view(name);
+    if (view == "Left")
+        button = PointerButton::Left;
+    else if (view == "Right")
+        button = PointerButton::Right;
+    else if (view == "Middle")
+        button = PointerButton::Middle;
+    else
+        return luaL_error(state, "Unknown Janus pointer button '%s'.", name);
+    lua_pushboolean(state, Kind == 0   ? input->IsPointerButtonDown(button)
+                           : Kind == 1 ? input->WasPointerButtonPressed(button)
+                                       : input->WasPointerButtonReleased(button));
+    return 1;
+}
 int ReadOnlyNewIndex(lua_State* state)
 {
     return luaL_error(state, "Input table is read-only.");
@@ -281,11 +291,18 @@ void RegisterEntityBinding(lua_State* state)
 
 void RegisterInputBinding(lua_State* state)
 {
-    static const luaL_Reg Methods[] = {
-        {"is_key_down", InputIsKeyDown},
-        {"was_key_pressed", InputWasKeyPressed},
-        {"was_key_released", InputWasKeyReleased},
-        {nullptr, nullptr}};
+    static const luaL_Reg Methods[] = {{"has_action", InputHasAction},
+                                       {"is_action_down", InputAction<0>},
+                                       {"was_action_pressed", InputAction<1>},
+                                       {"was_action_released", InputAction<2>},
+                                       {"pointer_position", InputPointerPosition},
+                                       {"is_pointer_button_down", InputPointerButton<0>},
+                                       {"was_pointer_button_pressed", InputPointerButton<1>},
+                                       {"was_pointer_button_released", InputPointerButton<2>},
+                                       {"is_key_down", InputIsKeyDown},
+                                       {"was_key_pressed", InputWasKeyPressed},
+                                       {"was_key_released", InputWasKeyReleased},
+                                       {nullptr, nullptr}};
 
     lua_newtable(state);
     lua_newtable(state);
@@ -344,16 +361,10 @@ int TracebackHandler(lua_State* state)
 
 struct ScriptEngine::Impl
 {
-    Impl(
-        Scene& sceneRef,
-        AssetService& assetService,
-        const InputState& inputState,
-        std::unique_ptr<LuaVirtualMachine> machine)
-        : scene(sceneRef),
-          assets(assetService),
-          input(inputState),
-          virtualMachine(std::move(machine)),
-          bindingContext{&scene, &input}
+    Impl(Scene& sceneRef, AssetService& assetService, const InputState& inputState,
+         const InputBindings& actionBindings, std::unique_ptr<LuaVirtualMachine> machine)
+        : scene(sceneRef), assets(assetService), input(inputState), bindings(actionBindings),
+          virtualMachine(std::move(machine)), bindingContext{&scene, &input, &bindings}
     {
     }
 
@@ -904,6 +915,7 @@ struct ScriptEngine::Impl
     Scene& scene;
     AssetService& assets;
     const InputState& input;
+    InputBindings bindings;
     std::unique_ptr<LuaVirtualMachine> virtualMachine;
     BindingContext bindingContext;
     std::unordered_map<UUID, ScriptInstance, UUIDHash> instances;
@@ -914,11 +926,13 @@ struct ScriptEngine::Impl
     bool running = false;
 };
 
-Result<std::unique_ptr<ScriptEngine>> ScriptEngine::Create(
-    Scene& scene,
-    AssetService& assets,
-    const InputState& input)
+Result<std::unique_ptr<ScriptEngine>> ScriptEngine::Create(Scene& scene, AssetService& assets,
+                                                           const InputState& input,
+                                                           const InputBindings& bindings)
 {
+    auto valid = ValidateInputBindings(bindings);
+    if (!valid)
+        return Result<std::unique_ptr<ScriptEngine>>::Failure(valid.GetError());
     auto machine = LuaVirtualMachine::Create();
     if (!machine)
     {
@@ -926,11 +940,7 @@ Result<std::unique_ptr<ScriptEngine>> ScriptEngine::Create(
             machine.GetError());
     }
 
-    auto impl = std::make_unique<Impl>(
-        scene,
-        assets,
-        input,
-        std::move(machine).Value());
+    auto impl = std::make_unique<Impl>(scene, assets, input, bindings, std::move(machine).Value());
     impl->InitializeBindings();
 
     return Result<std::unique_ptr<ScriptEngine>>::Success(

@@ -1,4 +1,5 @@
 #include "EditorApplication.h"
+#include "Panels/ProjectSettingsPanel.h"
 
 #include "EditorActions.h"
 #include "EditorCamera.h"
@@ -316,6 +317,7 @@ Result<void> EditorApplication::OnInitialize(Application& application)
     }
 
     m_ProjectSession = std::move(session).Value();
+    m_ProjectSettingsPanel = std::make_unique<ProjectSettingsPanel>();
 
     m_EditorContext = std::make_unique<EditorContext>();
     m_EditorContext->project = m_ProjectSession.get();
@@ -514,9 +516,7 @@ void EditorApplication::OnUpdate(
         {
             if (ImGui::Button("Play"))
             {
-                const auto started =
-                    m_ProjectSession->StartRuntime(
-                        application.GetInput());
+                const auto started = m_ProjectSession->StartRuntime(m_GameInput);
                 m_ProjectSession->GetCommandBus().RecordOperation(CommandActor::Human,
                                                                   "runtime.play", started);
                 if (!started)
@@ -762,6 +762,11 @@ void EditorApplication::OnUpdate(
 
         if (ImGui::BeginTabBar("UtilityTabs"))
         {
+            if (ImGui::BeginTabItem("Project Settings"))
+            {
+                m_ProjectSettingsPanel->Draw(*m_ProjectSession);
+                ImGui::EndTabItem();
+            }
             if (ImGui::BeginTabItem("Asset Browser"))
             {
                 const auto assetError =
@@ -877,6 +882,8 @@ void EditorApplication::OnUpdate(
 
     bool renderSceneView = false;
     bool renderGameView = false;
+    bool acceptGameInput = false;
+    InputState gameInput;
     std::optional<Vector2> pendingScenePick;
 
     if (m_ProjectSession != nullptr
@@ -1030,11 +1037,10 @@ void EditorApplication::OnUpdate(
             {
                 const ImVec2 available =
                     ImGui::GetContentRegionAvail();
-                const EditorPanelRect fitted =
-                    FitAspectRatio(
-                        available.x,
-                        available.y,
-                        16.0f / 9.0f);
+                const EditorPanelRect fitted = FitAspectRatio(
+                    available.x, available.y,
+                    static_cast<f32>(m_ProjectSession->GetProjectSettings().width) /
+                        static_cast<f32>(m_ProjectSession->GetProjectSettings().height));
 
                 if (HasUsableContentSize(
                         ImVec2{fitted.width, fitted.height}))
@@ -1084,6 +1090,15 @@ void EditorApplication::OnUpdate(
                                 fitted.height},
                             ImVec2{0.0f, 1.0f},
                             ImVec2{1.0f, 0.0f});
+                        const auto item = ImGui::GetItemRectMin();
+                        const auto windowOrigin = ImGui::GetMainViewport()->Pos;
+                        const auto& settings = m_ProjectSession->GetProjectSettings();
+                        acceptGameInput = ImGui::IsItemHovered() && !ImGui::GetIO().WantTextInput;
+                        gameInput = application.GetInput().ForViewport(
+                            {item.x - windowOrigin.x, item.y - windowOrigin.y},
+                            {fitted.width, fitted.height},
+                            {static_cast<f32>(settings.width), static_cast<f32>(settings.height)},
+                            acceptGameInput);
                         renderGameView = true;
                     }
                     else
@@ -1100,6 +1115,18 @@ void EditorApplication::OnUpdate(
 
         ImGui::End();
     }
+
+    if (acceptGameInput)
+        m_GameInput = gameInput;
+    else if (m_GameInputActive)
+    {
+        // Losing the viewport releases held controls once; tool panels cannot feed gameplay.
+        m_GameInput.BeginFrame();
+        m_GameInput.Apply(WindowFocusLostEvent{});
+    }
+    else
+        m_GameInput = {};
+    m_GameInputActive = acceptGameInput;
 
     if (m_ProjectSession != nullptr && m_ProjectSession->GetRuntimeState() == RuntimeState::Playing)
     {

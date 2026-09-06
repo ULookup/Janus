@@ -20,6 +20,8 @@ target_sources(
         Core/UUID/UUID.cpp
         Core/Time/FrameClock.cpp
         Core/Input/InputState.cpp
+        Core/Input/InputActions.cpp
+        Project/ProjectSettings.cpp
         Core/Math/Mat4.cpp
         Core/Command/CommandBus.cpp
         Core/Reflection/ReflectionRegistry.cpp
@@ -99,6 +101,8 @@ target_sources(
 
         Core/Event/Event.h
         Core/Input/InputState.h
+        Core/Input/InputActions.h
+        Project/ProjectSettings.h
 
         Core/Math/Vector2.h
         Core/Math/Mat4.h

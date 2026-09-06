@@ -76,6 +76,7 @@ if(JANUS_BUILD_EDITOR)
         Panels/ConsolePanel.cpp
         Panels/HierarchyPanel.cpp
         Panels/InspectorPanel.cpp
+        Panels/ProjectSettingsPanel.cpp
     )
 
     target_link_libraries(

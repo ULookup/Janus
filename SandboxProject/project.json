@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "name": "Janus Sandbox",
+  "defaultScene": "Scenes/Battle.scene",
+  "assetRegistry": "Config/AssetRegistry.json",
+  "assetRoot": "Assets",
+  "scriptRoot": "Scripts",
+  "width": 1280,
+  "height": 720,
+  "vsync": true,
+  "targetFps": 0,
+  "inputBindings": {
+    "MoveLeft": ["A", "ArrowLeft"],
+    "MoveRight": ["D", "ArrowRight"],
+    "MoveUp": ["W", "ArrowUp"],
+    "MoveDown": ["S", "ArrowDown"],
+    "Confirm": ["Space", "Enter"]
+  }
+}

@@ -3,6 +3,7 @@
 
 #include "Application/Application.h"
 #include "Application/ApplicationConfig.h"
+#include "Project/ProjectSettings.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -27,7 +28,15 @@ int main(int argc, char** argv)
     Janus::Editor::EditorLaunchOptions launch =
         std::move(options).Value();
 
+    auto settings = Janus::LoadProjectSettings({launch.projectRoot});
+    if (!settings)
+    {
+        std::fprintf(stderr, "Project settings invalid: %s\n", settings.GetError().message.c_str());
+        return EXIT_FAILURE;
+    }
     Janus::ApplicationConfig config;
+    config.vsync = settings.Value().vsync;
+    config.targetFps = settings.Value().targetFps;
     config.window.title = "Janus Editor";
     config.window.width = 1440;
     config.window.height = 900;

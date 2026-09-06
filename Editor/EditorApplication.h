@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Application/ApplicationClient.h"
+#include "Core/Input/InputState.h"
 #include "Renderer/RendererTypes.h"
 
 #include <filesystem>
@@ -30,6 +31,7 @@ class HierarchyPanel;
 class InspectorPanel;
 class McpEditorHost;
 class ProjectSession;
+class ProjectSettingsPanel;
 
 class EditorApplication final : public ApplicationClient
 {
@@ -51,6 +53,9 @@ private:
     std::filesystem::path m_ProjectRoot;
     bool m_McpStdio = false;
     std::unique_ptr<ProjectSession> m_ProjectSession;
+    std::unique_ptr<ProjectSettingsPanel> m_ProjectSettingsPanel;
+    InputState m_GameInput;
+    bool m_GameInputActive = false;
     std::unique_ptr<MCP::AllowAllMcpPermissionPolicy> m_McpPermissionPolicy;
     std::unique_ptr<McpEditorHost> m_McpHost;
     std::unique_ptr<EditorContext> m_EditorContext;

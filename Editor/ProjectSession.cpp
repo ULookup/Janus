@@ -16,66 +16,21 @@
 
 namespace Janus::Editor
 {
-namespace
-{
-
-Result<std::filesystem::path> ResolveProjectFile(
-    const ProjectRuntimeConfig& project,
-    const std::filesystem::path& relativePath,
-    std::string_view label)
-{
-    if (project.root.empty())
-    {
-        return Result<std::filesystem::path>::Failure(
-            ErrorCode::InvalidArgument,
-            "Project root must not be empty.");
-    }
-
-    if (relativePath.empty()
-        || relativePath.is_absolute()
-        || relativePath.has_root_name()
-        || relativePath.has_root_directory())
-    {
-        return Result<std::filesystem::path>::Failure(
-            ErrorCode::InvalidArgument,
-            std::string(label) + " must be project-relative.");
-    }
-
-    const std::filesystem::path normalized = relativePath.lexically_normal();
-    for (const auto& part : normalized)
-    {
-        if (part == std::filesystem::path(".."))
-        {
-            return Result<std::filesystem::path>::Failure(
-                ErrorCode::InvalidArgument,
-                std::string(label) + " cannot escape the project root.");
-        }
-    }
-
-    return Result<std::filesystem::path>::Success(
-        project.root / normalized);
-}
-
-} // namespace
-
 Result<std::unique_ptr<ProjectSession>> ProjectSession::Open(const ProjectRuntimeConfig& config,
                                                              Renderer2D& renderer,
                                                              std::shared_ptr<LogStore> logs)
 {
-    auto registryPath = ResolveProjectFile(
-        config,
-        config.assetRegistryPath,
-        "Asset registry path");
+    auto settings = LoadProjectSettings(config);
+    if (!settings)
+        return Result<std::unique_ptr<ProjectSession>>::Failure(settings.GetError());
+    auto registryPath = ResolveProjectPath(config.root, settings.Value().assetRegistry);
     if (!registryPath)
     {
         return Result<std::unique_ptr<ProjectSession>>::Failure(
             registryPath.GetError());
     }
 
-    auto scenePath = ResolveProjectFile(
-        config,
-        config.startupScenePath,
-        "Startup Scene path");
+    auto scenePath = ResolveProjectPath(config.root, settings.Value().defaultScene);
     if (!scenePath)
     {
         return Result<std::unique_ptr<ProjectSession>>::Failure(
@@ -105,12 +60,13 @@ Result<std::unique_ptr<ProjectSession>> ProjectSession::Open(const ProjectRuntim
             scene.GetError());
     }
 
-    auto session = std::unique_ptr<ProjectSession>(new ProjectSession(
-        config.root, config.startupScenePath.lexically_normal(), std::move(reflection).Value(),
-        std::move(registry).Value(), std::move(scene).Value(), renderer, std::move(logs)));
+    auto session = std::unique_ptr<ProjectSession>(
+        new ProjectSession(config.root, settings.Value().defaultScene.lexically_normal(),
+                           std::move(reflection).Value(), std::move(registry).Value(),
+                           std::move(scene).Value(), renderer, std::move(logs)));
 
-    return Result<std::unique_ptr<ProjectSession>>::Success(
-        std::move(session));
+    session->m_Settings = std::move(settings).Value();
+    return Result<std::unique_ptr<ProjectSession>>::Success(std::move(session));
 }
 
 ProjectSession::ProjectSession(std::filesystem::path projectRoot,
@@ -128,6 +84,19 @@ ProjectSession::ProjectSession(std::filesystem::path projectRoot,
 }
 
 ProjectSession::~ProjectSession() = default;
+
+Result<void> ProjectSession::SaveProjectSettings(const ProjectSettings& settings)
+{
+    if (HasRuntime() || m_CommandBus.HasTransaction() || m_CommandBus.RecoveryRequired())
+        return Result<void>::Failure(
+            ErrorCode::InvalidState,
+            "Stop runtime and finish transaction/recovery before saving project settings.");
+    auto saved = Janus::SaveProjectSettings(m_ProjectRoot, settings);
+    if (!saved)
+        return saved;
+    m_Settings = settings;
+    return Result<void>::Success();
+}
 
 const std::filesystem::path& ProjectSession::GetProjectRoot() const noexcept
 {
@@ -192,7 +161,7 @@ Result<void> ProjectSession::StartRuntime(const InputState& input, bool startPau
         return Result<void>::Failure(ErrorCode::InvalidState,
                                      "Finish authoring transaction or recovery before Play.");
     auto runtime = RuntimeSession::Start(*m_EditorScene, m_ReflectionRegistry, *m_AssetService,
-                                         input, startPaused);
+                                         input, startPaused, m_Settings.inputBindings);
     if (!runtime)
     {
         m_LastRuntimeStatus = {};

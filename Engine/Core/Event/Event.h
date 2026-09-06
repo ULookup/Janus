@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Core/Math/Vector2.h"
 #include "Core/Types.h"
 
 #include <variant>
@@ -54,10 +55,31 @@ struct KeyReleasedEvent final
     KeyCode key = KeyCode::Escape;
 };
 
-using Event = std::variant<
-    WindowCloseEvent,
-    WindowResizeEvent,
-    KeyPressedEvent,
-    KeyReleasedEvent>;
+enum class PointerButton : u8
+{
+    Left,
+    Right,
+    Middle,
+    Count
+};
+struct PointerMovedEvent final
+{
+    Vector2 position;
+};
+struct PointerButtonPressedEvent final
+{
+    PointerButton button;
+};
+struct PointerButtonReleasedEvent final
+{
+    PointerButton button;
+};
+struct WindowFocusLostEvent final
+{
+};
+
+using Event = std::variant<WindowCloseEvent, WindowResizeEvent, KeyPressedEvent, KeyReleasedEvent,
+                           PointerMovedEvent, PointerButtonPressedEvent, PointerButtonReleasedEvent,
+                           WindowFocusLostEvent>;
 
 } // namespace Janus

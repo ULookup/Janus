@@ -2,7 +2,7 @@
 
 Janus 是一个面向 Human Developer 与 AI Agent 的 C++20 2D 游戏引擎。项目希望让 Editor、Game 和 Agent 通过同一套 Engine Capability 理解、修改、运行并验证游戏世界。
 
-项目已完成 **v0.1 Engine Foundation**、**v0.2 Renderer2D**、**v0.3 ECS + Scene**、**v0.4 Asset + Serialization**、**v0.5 Lua Gameplay Runtime**、**v0.6 Editor Foundation**、**v0.7 Reflection + Command** 和 **v0.8 MCP Agent Foundation**。当前 Janus 已具备磁盘项目加载、稳定 UUID / AssetHandle、Lua Gameplay、离屏 Scene/Game View、metadata-driven Inspector、Reflection-backed Scene persistence、CommandBus、Undo/Redo，以及原生 C++ MCP stdio Agent authoring 能力。**v0.9 Agent Development Loop** 已在当前开发分支落地，包含 Runtime 调试、共享诊断、作者态事务及 Activity；本地验收与集成状态见[实施记录](docs/verification/2026-09-06-v0.9-agent-development-loop.md)。
+项目已完成 **v0.1 Engine Foundation**、**v0.2 Renderer2D**、**v0.3 ECS + Scene**、**v0.4 Asset + Serialization**、**v0.5 Lua Gameplay Runtime**、**v0.6 Editor Foundation**、**v0.7 Reflection + Command** 和 **v0.8 MCP Agent Foundation**。当前 Janus 已具备磁盘项目加载、稳定 UUID / AssetHandle、Lua Gameplay、离屏 Scene/Game View、metadata-driven Inspector、Reflection-backed Scene persistence、CommandBus、Undo/Redo，以及原生 C++ MCP stdio Agent authoring 能力。**v0.9 Agent Development Loop** 已通过 PR #81 合入 main，包含 Runtime 调试、共享诊断、作者态事务及 Activity；本地验收与集成状态见[实施记录](docs/verification/2026-09-06-v0.9-agent-development-loop.md)。当前正在开发 **v0.10 Game Systems**，首个 Project Settings + Action Input 切片已完成本地验证，分阶段方案见[开发路线提案](docs/superpowers/plans/2026-09-06-next-development-roadmap.md)。
 
 ## 环境要求
 
@@ -33,6 +33,14 @@ ctest --preset windows-msvc-debug-tests
 ```
 
 生成内容位于 `out/`。不要提交 `out/`、`.vs/`、二进制或本地 IDE 设置。
+
+## v0.10 Stage A：Project Settings + Action Input
+
+当前开发切片增加 `project.json` 和 Editor 底部的 **Project Settings** 标签，可配置默认 Scene、资源路径、游戏分辨率、VSync、Target FPS 和多个按键到 Action 的映射。没有 manifest 的旧项目仍使用原路径；非法配置明确报错。SandboxProject 已提供示例配置。
+
+Lua 可以使用 `Input.is_action_down("MoveLeft")`、`Input.was_action_pressed(...)`、`Input.was_action_released(...)` 和 `Input.has_action(...)`；旧 key API 保留。Game View 接收其显示区域内的输入，工具面板和黑边不向 Gameplay 传递键鼠。`Input.pointer_position()` 返回左上原点的项目逻辑坐标或 nil，鼠标按钮支持 Left/Right/Middle。
+
+设置保存独立于 Scene 保存及 Undo/事务，运行中、事务中和故障恢复期间会被拒绝。Input 下次 Play 生效，Scene/registry 路径下次打开项目生效，VSync/FPS 下次启动生效。完整配置、验证和后续边界见 [Stage A 实施记录](docs/verification/2026-09-07-v0.10-project-input.md)。当前尚未完成或发布整个 v0.10。
 
 ## v0.9 Agent Development Loop
 

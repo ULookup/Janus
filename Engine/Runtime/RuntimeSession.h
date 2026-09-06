@@ -1,5 +1,6 @@
 #pragma once
 #include "Core/Error/Result.h"
+#include "Core/Input/InputActions.h"
 #include "Core/Input/InputState.h"
 #include "Core/Time/TimeStep.h"
 #include "Core/UUID/UUID.h"
@@ -39,7 +40,7 @@ class RuntimeSession final
   public:
     [[nodiscard]] static Result<std::unique_ptr<RuntimeSession>>
     Start(const Scene& editorScene, const ReflectionRegistry& reflection, AssetService& assets,
-          const InputState& input, bool startPaused = false);
+          const InputState& input, bool startPaused = false, const InputBindings& bindings = {});
     ~RuntimeSession();
     RuntimeSession(const RuntimeSession&) = delete;
     RuntimeSession& operator=(const RuntimeSession&) = delete;

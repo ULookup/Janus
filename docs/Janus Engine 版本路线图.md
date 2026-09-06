@@ -875,7 +875,7 @@ Hosted Windows CI 的真实 OpenGL driver 会在 shader compilation 上阻塞，
 
 # 11. v0.9 — Agent Development Loop
 
-状态：本地实现完成，待集成到 main。
+状态：已通过 PR #81 集成到 main（`273e35b`）；本地验收完成。
 
 实施与构建/测试证据见 [v0.9 验证记录](verification/2026-09-06-v0.9-agent-development-loop.md)。尚未发布 Release。
 
@@ -996,6 +996,8 @@ A/B/C 是中间交付门槛，不能代替 v0.9 的完整范围。D 收尾时必
 ---
 
 # 12. v0.10 — Game Systems
+
+状态：开发中，首个 Project Settings + Action Input 切片已完成实现与本地验证，尚未合并，见 [Stage A 记录](verification/2026-09-07-v0.10-project-input.md)。整体实施顺序见 [main 进度调研与开发路线](superpowers/plans/2026-09-06-next-development-roadmap.md)，按项目/输入、可玩 UI、动画/音频、物理、Prefab 和综合验收分阶段推进；以下完整版本范围不变，Stage A 不代表整个 v0.10 完成。
 
 ## 目标
 
