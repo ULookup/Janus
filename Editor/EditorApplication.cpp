@@ -32,7 +32,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstdio>
 #include <cstdlib>
 #include <iostream>
 #include <optional>
@@ -47,20 +46,6 @@ namespace
 
 constexpr u32 InitialViewWidth = 640;
 constexpr u32 InitialViewHeight = 360;
-
-void TraceMcpStartup(const char* stage)
-{
-    if (std::getenv("JANUS_MCP_STARTUP_TRACE") == nullptr)
-    {
-        return;
-    }
-
-    std::fprintf(
-        stderr,
-        "[Janus MCP startup] %s\n",
-        stage);
-    std::fflush(stderr);
-}
 
 [[nodiscard]] bool HasUsableContentSize(
     const ImVec2& size) noexcept
@@ -268,8 +253,6 @@ EditorApplication::~EditorApplication() = default;
 
 Result<void> EditorApplication::OnInitialize(Application& application)
 {
-    TraceMcpStartup("EditorApplication::OnInitialize enter");
-
     auto& window = application.GetWindow();
     auto* nativeWindow = static_cast<SDL_Window*>(window.GetNativeHandle());
     if (nativeWindow == nullptr)
@@ -312,7 +295,6 @@ Result<void> EditorApplication::OnInitialize(Application& application)
             "Failed to initialize Dear ImGui OpenGL3 backend.");
     }
     m_ImGuiRendererInitialized = true;
-    TraceMcpStartup("ImGui backends initialized");
 
     window.SetNativeEventCallback(
         [](const void* nativeEvent)
@@ -335,7 +317,6 @@ Result<void> EditorApplication::OnInitialize(Application& application)
     }
 
     m_ProjectSession = std::move(session).Value();
-    TraceMcpStartup("ProjectSession opened");
 
     m_EditorContext = std::make_unique<EditorContext>();
     m_EditorContext->project = m_ProjectSession.get();
@@ -419,7 +400,6 @@ Result<void> EditorApplication::OnInitialize(Application& application)
     }
 
     m_GameViewTarget = gameTarget.Value();
-    TraceMcpStartup("Editor render targets created");
 
     if (m_McpStdio)
     {
@@ -456,8 +436,6 @@ Result<void> EditorApplication::OnInitialize(Application& application)
             return Result<void>::Failure(
                 error);
         }
-
-        TraceMcpStartup("MCP host started");
     }
 
     m_EditorConsole->PushInfo(
