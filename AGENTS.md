@@ -2,22 +2,31 @@
 
 ## Mission
 
-Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.8 MCP Agent Foundation**. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
+Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.9 Agent Development Loop**. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
 
 This file applies to the entire repository. A more deeply nested `AGENTS.md` may add stricter rules for its subtree.
 
-## v0.7 capability baseline
+## v0.8 capability baseline
 
-v0.7 Reflection + Command is the completed authoring capability baseline for v0.8.
+v0.8 MCP Agent Foundation is complete and is the capability baseline for v0.9.
 
-- `ReflectionRegistry` is explicitly owned by the active host/session; do not introduce a global Reflection singleton.
+- `ReflectionRegistry` remains explicitly owned by the active host/session; do not introduce a global Reflection singleton.
 - Scene persistence and cloning consume the active ReflectionRegistry explicitly.
-- `ProjectSession` owns the Human authoring `CommandBus`.
-- Editor panels route mutations through `EditorActions`; EditorActions constructs Engine Scene commands instead of mutating reflected ECS state directly.
-- MCP must consume Engine `ReflectionRegistry + CommandBus + Scene commands` directly. MCP must not depend on EditorActions or ImGui.
+- `ProjectSession` owns the shared Human/Agent authoring `CommandBus`.
+- Human Editor panels route through `EditorActions`; MCP never depends on EditorActions or ImGui.
+- Native `JanusMCP` owns JSON-RPC/stdio protocol, ToolRegistry, ResourceRegistry, Reflection schema adaptation, Scene Resources/Tools, dispatcher primitives, and permission abstractions.
+- Production Agent entry is `JanusEditor --project <path> --mcp-stdio`.
+- The primary MCP protocol era is `2026-07-28`; `2025-11-25` stdio initialize compatibility remains supported.
+- stdout is protocol-only in MCP stdio mode. Diagnostics/logging must use stderr or another non-protocol sink.
+- MCP I/O workers may parse/serialize protocol data but must not mutate EditorScene, CommandBus, Reflection-backed authoring state, dirty state, or save state directly.
+- Live Editor resource/tool handling crosses `McpMainThreadDispatcher` before permission enforcement and capability routing.
+- Current operation classes are ProjectRead, SceneRead, SceneWrite, and SceneSave. The local Editor stdio policy currently allows the exposed v0.8 operations, but handlers must remain policy-agnostic.
 - Entity mutation identity is persistent UUID, never ECS index/generation.
-- Scene v1 serialized names are a compatibility contract.
-- v0.8 does not introduce Transaction/Audit merely because commands exist; those remain v0.9 scope unless the roadmap is explicitly changed.
+- Scene v1 serialized names remain a compatibility contract.
+- MCP Scene writes reuse existing Engine Scene commands. Do not add a parallel direct ECS mutation path.
+- During Play, v0.8 write tools remain authoring-read-only while read resources continue to describe EditorScene.
+- v0.8 external process tests use the test-only `JanusMcpExternalHost` with `FakeRenderDevice` to remove GPU-driver nondeterminism. Do not turn that fixture into a production MCP executable or duplicate production handlers inside it.
+- v0.9 may add runtime control/resources, structured logs, Profiler, Transaction, and Audit/Agent Activity. Extend the existing capability/dispatcher/permission boundaries rather than bypassing them.
 
 ## Source of truth
 
