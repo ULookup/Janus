@@ -6,8 +6,6 @@
 
 #include <glad/gl.h>
 
-#include <cstdio>
-#include <cstdlib>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -45,20 +43,6 @@ void main()
     FragColor = texture(uTexture, vUV) * vColor;
 }
 )";
-
-void TraceMcpOpenGLStartup(const char* stage)
-{
-    if (std::getenv("JANUS_MCP_STARTUP_TRACE") == nullptr)
-    {
-        return;
-    }
-
-    std::fprintf(
-        stderr,
-        "[Janus MCP startup] OpenGL %s\n",
-        stage);
-    std::fflush(stderr);
-}
 
 #if defined(JANUS_DEBUG)
 
@@ -136,19 +120,9 @@ void EnableOpenGLDebugOutput()
     u32 type,
     const char* source)
 {
-    TraceMcpOpenGLStartup(
-        type == GL_VERTEX_SHADER
-            ? "vertex shader compile begin"
-            : "fragment shader compile begin");
-
     const u32 shader = glCreateShader(type);
     glShaderSource(shader, 1, &source, nullptr);
     glCompileShader(shader);
-
-    TraceMcpOpenGLStartup(
-        type == GL_VERTEX_SHADER
-            ? "vertex shader compile end"
-            : "fragment shader compile end");
 
     int success = 0;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
@@ -189,14 +163,10 @@ void EnableOpenGLDebugOutput()
             "Failed to compile the built-in renderer shader.");
     }
 
-    TraceMcpOpenGLStartup("program link begin");
-
     const u32 program = glCreateProgram();
     glAttachShader(program, vertexShader);
     glAttachShader(program, fragmentShader);
     glLinkProgram(program);
-
-    TraceMcpOpenGLStartup("program link end");
 
     int success = 0;
     glGetProgramiv(program, GL_LINK_STATUS, &success);
@@ -223,8 +193,6 @@ void EnableOpenGLDebugOutput()
 Result<std::unique_ptr<OpenGLRenderDevice>>
     OpenGLRenderDevice::Create()
 {
-    TraceMcpOpenGLStartup("glad load begin");
-
     if (!gladLoadGL(
             reinterpret_cast<GLADloadfunc>(
                 SDL_GL_GetProcAddress)))
@@ -233,8 +201,6 @@ Result<std::unique_ptr<OpenGLRenderDevice>>
             ErrorCode::RendererInitFailed,
             "Failed to load OpenGL functions with glad.");
     }
-
-    TraceMcpOpenGLStartup("glad load end");
 
     auto device = std::unique_ptr<OpenGLRenderDevice>(
         new OpenGLRenderDevice());
@@ -245,7 +211,6 @@ Result<std::unique_ptr<OpenGLRenderDevice>>
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    TraceMcpOpenGLStartup("blend configured");
 
     const auto programResult = LinkProgram();
 
@@ -254,8 +219,6 @@ Result<std::unique_ptr<OpenGLRenderDevice>>
         return Result<std::unique_ptr<OpenGLRenderDevice>>::Failure(
             programResult.GetError());
     }
-
-    TraceMcpOpenGLStartup("built-in program ready");
 
     device->m_Shaders[1] = programResult.Value();
     device->m_NextHandle = 2;
