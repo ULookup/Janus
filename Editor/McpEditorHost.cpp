@@ -5,8 +5,6 @@
 #include "Resources/SceneResources.h"
 #include "Tools/SceneTools.h"
 
-#include <cstdio>
-#include <cstdlib>
 #include <string>
 #include <utility>
 
@@ -326,14 +324,6 @@ MCP::McpDispatchResult McpEditorHost::DispatchRequest(
 
 void McpEditorHost::RunWorker() noexcept
 {
-    if (std::getenv("JANUS_MCP_STARTUP_TRACE") != nullptr)
-    {
-        std::fprintf(
-            stderr,
-            "[Janus MCP startup] stdio worker entered\n");
-        std::fflush(stderr);
-    }
-
     auto served =
         MCP::ServeStdioProtocol(
             m_Transport,
