@@ -758,7 +758,7 @@ AssetReference 的通用 Inspector 在 v0.7 负责展示 UUID 与类型 metadata
 
 # 10. v0.8 — MCP Agent Foundation
 
-状态：下一里程碑
+状态：已完成
 
 ## 目标
 
@@ -852,9 +852,30 @@ Permission
 
 且用户可以在 Editor 中 Undo。
 
+## 已完成验证
+
+v0.8 已落地：
+
+- native C++ JSON-RPC / stdio MCP stack；
+- 2026-07-28 modern lifecycle 与 2025-11-25 legacy compatibility；
+- deterministic ToolRegistry / ResourceRegistry / JSON Schema 2020-12；
+- Reflection 驱动的 MCP property schema 与 authoring read model；
+- Project / Scene / Hierarchy / Entity / Asset Resources；
+- Create/Delete/Rename/Add/Remove/SetProperty/Save Tools；
+- live JanusEditor MCP host、main-thread dispatcher 与 permission foundation；
+- MCP mutation 与 Human authoring 共享 ProjectSession CommandBus；
+- Play Mode write rejection、authoring read semantics、dirty/save semantics；
+- protocol-only stdout 与 stderr diagnostics；
+- GPU-independent real child-process stdio E2E，覆盖 modern/legacy transport 与 Scene persistence；
+- Windows MSVC full regression：264/264 tests passed。
+
+Hosted Windows CI 的真实 OpenGL driver 会在 shader compilation 上阻塞，因此 external protocol E2E 使用 test-only process fixture 隔离 GPU；live JanusEditor 的 shared Scene/CommandBus/Undo 行为由独立 Editor integration tests 覆盖。该测试分层不改变生产路径：真实用户/Agent 仍通过 `JanusEditor --project <path> --mcp-stdio` 使用 MCP。
+
 ---
 
 # 11. v0.9 — Agent Development Loop
+
+状态：下一里程碑
 
 ## 目标
 

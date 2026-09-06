@@ -2,7 +2,7 @@
 
 Janus 是一个面向 Human Developer 与 AI Agent 的 C++20 2D 游戏引擎。项目希望让 Editor、Game 和 Agent 通过同一套 Engine Capability 理解、修改、运行并验证游戏世界。
 
-项目已完成 **v0.1 Engine Foundation**、**v0.2 Renderer2D**、**v0.3 ECS + Scene**、**v0.4 Asset + Serialization**、**v0.5 Lua Gameplay Runtime**、**v0.6 Editor Foundation** 和 **v0.7 Reflection + Command**。当前 Janus 已具备磁盘项目加载、稳定 UUID / AssetHandle、Lua Gameplay、离屏 Scene/Game View、metadata-driven Inspector、Reflection-backed Scene persistence、CommandBus、Undo/Redo、Asset Browser、Scene Save、Console、Scene Grid 与 Edit/Play 世界隔离。下一里程碑为 **v0.8 MCP Agent Foundation**。
+项目已完成 **v0.1 Engine Foundation**、**v0.2 Renderer2D**、**v0.3 ECS + Scene**、**v0.4 Asset + Serialization**、**v0.5 Lua Gameplay Runtime**、**v0.6 Editor Foundation**、**v0.7 Reflection + Command** 和 **v0.8 MCP Agent Foundation**。当前 Janus 已具备磁盘项目加载、稳定 UUID / AssetHandle、Lua Gameplay、离屏 Scene/Game View、metadata-driven Inspector、Reflection-backed Scene persistence、CommandBus、Undo/Redo，以及原生 C++ MCP stdio Agent authoring 能力。下一里程碑为 **v0.9 Agent Development Loop**。
 
 ## 环境要求
 
@@ -33,6 +33,88 @@ ctest --preset windows-msvc-debug-tests
 ```
 
 生成内容位于 `out/`。不要提交 `out/`、`.vs/`、二进制或本地 IDE 设置。
+
+## v0.8 MCP Agent Foundation 工作流
+
+v0.8 让外部 Agent 成为 Janus 的正式 Engine Client。生产路径仍由 `JanusEditor` 承载：
+
+```powershell
+JanusEditor --project <project-root> --mcp-stdio
+```
+
+启用 MCP stdio 后，stdout 只用于协议帧，Janus 日志与诊断输出到 stderr。当前支持主协议 `2026-07-28`，同时兼容 `2025-11-25` 的 legacy initialize 生命周期。
+
+整体 authoring 路径为：
+
+```text
+External MCP Client
+        │
+        ▼
+JSON-RPC / stdio
+        │
+        ▼
+   McpEditorHost
+        │
+ protocol worker
+        │
+        ▼
+McpMainThreadDispatcher
+        │
+        ▼
+ permission policy
+        │
+   ┌────┴────┐
+   ▼         ▼
+Resources   Tools
+   │         │
+   │         ▼
+   │    Scene Commands
+   │         │
+   └────┬────┘
+        ▼
+   ProjectSession
+   ├── EditorScene
+   ├── ReflectionRegistry
+   ├── AssetRegistry
+   └── CommandBus
+```
+
+首批 Resources：
+
+```text
+engine://project/info
+engine://scene/current
+engine://scene/hierarchy
+engine://entity/{uuid}
+engine://asset/{uuid}
+```
+
+首批 Tools：
+
+```text
+scene.create_entity
+scene.delete_entity
+scene.rename_entity
+scene.add_component
+scene.remove_component
+scene.set_component_property
+scene.save
+```
+
+`scene.set_component_property` 的 schema 与 typed JSON 转换来自 Reflection metadata；MCP 不维护第二份组件属性表。所有作者态 mutation 在 Editor 主线程进入同一个 `ProjectSession::CommandBus`，因此 Agent 修改会标记 Scene dirty，并可被 Human 的 Undo/Redo 历史撤销或重做。Play Mode 期间写工具遵循与 Human 相同的作者态只读规则；读取资源仍描述 EditorScene，而不是 RuntimeScene。
+
+权限层当前把操作显式分类为 ProjectRead、SceneRead、SceneWrite、SceneSave。默认本地 `JanusEditor --mcp-stdio` 使用 allow-all policy，但授权 seam 已独立于 Tool/Resource handler，后续可以替换策略而不改业务能力。
+
+v0.8 的明确边界：
+
+- 不包含 Streamable HTTP / OAuth / remote transport；
+- 不包含 runtime.play / pause / stop / step；
+- 不包含 Runtime Scene resource、Profiler、structured runtime logs；
+- 不包含 Transaction / grouped command / Audit / Agent Activity；
+- 不暴露任意 shell、文件系统或网络能力；
+- 不新增 MCP 专用 Undo API，Human 与 Agent 继续共享同一个 CommandBus history。
+
+自动化验证分成两层：live Editor integration 测试验证 `McpEditorHost + ProjectSession` 的主线程、dirty、Play 与 Human Undo 语义；独立子进程 stdio E2E 验证真实进程边界、modern/legacy 协议、Resources/Tools、Scene Save 与 stdout purity。这样协议 CI 不依赖 hosted runner 的 GPU/OpenGL 驱动，同时两层都复用生产的 MCP/ProjectSession capability graph。
 
 ## v0.7 Reflection + Command 工作流
 
@@ -167,7 +249,7 @@ Janus/
 ├── Engine/          引擎静态库与公共 API
 ├── Editor/          JanusEditor、EditorCore 与 authoring panels
 ├── Sandbox/         最小运行时客户端和验证程序
-├── SandboxProject/  v0.7 Editor / Reflection / Lua / Asset workflow fixture
+├── SandboxProject/  v0.8 Editor / MCP / Reflection / Lua / Asset workflow fixture
 ├── Tests/           自动测试
 ├── docs/            PRD、技术架构和版本路线图
 └── AGENTS.md        代码 Agent 的仓库级工作规则

@@ -98,3 +98,73 @@ janus_set_warnings(JanusTests)
 
 include(Catch)
 catch_discover_tests(JanusTests)
+
+# ============================================================
+# External MCP process E2E
+# ============================================================
+
+add_executable(
+    JanusMcpExternalHost
+
+    MCP/McpExternalHost.cpp
+)
+
+target_include_directories(
+    JanusMcpExternalHost
+
+    PRIVATE
+
+        ${CMAKE_CURRENT_SOURCE_DIR}/Renderer
+)
+
+target_link_libraries(
+    JanusMcpExternalHost
+
+    PRIVATE
+
+        JanusEngine
+        JanusMCP
+        JanusEditorCore
+)
+
+janus_set_warnings(JanusMcpExternalHost)
+
+add_test(
+    NAME
+        MCP.ExternalStdio.Modern
+
+    COMMAND
+        ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/MCP/mcp_external_e2e.py
+        --host
+        $<TARGET_FILE:JanusMcpExternalHost>
+        --project
+        ${CMAKE_SOURCE_DIR}/SandboxProject
+        --era
+        modern
+)
+
+add_test(
+    NAME
+        MCP.ExternalStdio.Legacy
+
+    COMMAND
+        ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/MCP/mcp_external_e2e.py
+        --host
+        $<TARGET_FILE:JanusMcpExternalHost>
+        --project
+        ${CMAKE_SOURCE_DIR}/SandboxProject
+        --era
+        legacy
+)
+
+set_tests_properties(
+    MCP.ExternalStdio.Modern
+    MCP.ExternalStdio.Legacy
+
+    PROPERTIES
+
+        TIMEOUT 30
+        RUN_SERIAL TRUE
+)
