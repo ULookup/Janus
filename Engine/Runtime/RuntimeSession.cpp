@@ -47,7 +47,8 @@ RuntimeSession::RuntimeSession(std::unique_ptr<Scene> scene, const InputState& i
 Result<std::unique_ptr<RuntimeSession>>
 RuntimeSession::Start(const Scene& editorScene, const ReflectionRegistry& reflection,
                       AssetService& assets, const InputState& input, bool startPaused,
-                      const InputBindings& bindings, Viewport logicalViewport)
+                      const InputBindings& bindings, Viewport logicalViewport,
+                      AudioDeviceFactory audioFactory)
 {
     auto cloned = SceneCloner::Clone(editorScene, reflection);
     if (!cloned)
@@ -62,11 +63,11 @@ RuntimeSession::Start(const Scene& editorScene, const ReflectionRegistry& reflec
                 assets.Unload(script.script);
         });
     auto execution = RuntimeExecution::Create(*session->m_RuntimeScene, assets, input, bindings,
-                                              logicalViewport);
+                                              logicalViewport, std::move(audioFactory));
     if (!execution)
         return Result<std::unique_ptr<RuntimeSession>>::Failure(execution.GetError());
     session->m_Execution = std::move(execution).Value();
-    auto started = session->m_Execution->Start();
+    auto started = session->m_Execution->Start(startPaused);
     if (!started)
         return Result<std::unique_ptr<RuntimeSession>>::Failure(
             BoundedRuntimeError(started.GetError()));
@@ -114,6 +115,7 @@ Result<void> RuntimeSession::Pause()
         return Result<void>::Failure(ErrorCode::InvalidState,
                                      "Runtime cannot pause in this state.");
     m_Execution->CancelUI();
+    m_Execution->SetAudioSuspended(true);
     m_Status.state = RuntimeState::Paused;
     return Result<void>::Success();
 }
@@ -124,6 +126,7 @@ Result<void> RuntimeSession::Resume()
                                      "Runtime cannot resume; stop and restart.");
     if (m_Status.state == RuntimeState::Paused)
         m_Execution->PrimeUI(m_SourceInput);
+    m_Execution->SetAudioSuspended(false);
     m_Status.state = RuntimeState::Playing;
     return Result<void>::Success();
 }
@@ -161,6 +164,10 @@ RuntimeStatus RuntimeSession::GetStatus() const
 std::optional<ScriptSnapshot> RuntimeSession::GetSnapshot() const
 {
     return m_Execution ? m_Execution->GetSnapshot() : std::nullopt;
+}
+const AudioSystem& RuntimeSession::GetAudio() const noexcept
+{
+    return m_Execution->GetAudio();
 }
 const AnimationSystem& RuntimeSession::GetAnimations() const noexcept
 {

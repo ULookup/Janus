@@ -1,4 +1,5 @@
 #include "Animation/AnimatorComponent.h"
+#include "Audio/AudioSourceComponent.h"
 #include "Tools/SceneTools.h"
 
 #include "Asset/AssetRegistry.h"
@@ -647,4 +648,39 @@ TEST_CASE("MCP discovers animation clips and authors Animator through guarded co
     fixture.readOnly = true;
     REQUIRE(set("speed", 2).at("isError") == true);
     CHECK(fixture.scene.GetComponent<Janus::AnimatorComponent>(entity)->speed == 1);
+}
+
+TEST_CASE("MCP discovers audio clips and authors AudioSource through guarded commands",
+          "[audio][mcp]")
+{
+    ToolFixture fixture;
+    auto clip = fixture.assets.Register(Janus::AssetType::AudioClip, "Audio/Tone.wav");
+    REQUIRE(clip);
+    auto texture = fixture.assets.Register(Janus::AssetType::Texture, "Animations/Atlas.png");
+    REQUIRE(texture);
+    const auto search = CallTool(fixture, "assets.search", {{"type", "audio-clip"}});
+    REQUIRE(search.at("structuredContent").at("assets").size() == 1);
+    CHECK_FALSE(fixture.dirty);
+    const auto entity = fixture.scene.CreateEntity("Animated");
+    const auto id =
+        fixture.scene.GetComponent<Janus::EntityIdentityComponent>(entity)->id.ToString();
+    REQUIRE(CallTool(fixture, "scene.add_component", {{"entity", id}, {"component", "AudioSource"}})
+                .at("structuredContent")
+                .at("ok") == true);
+    auto set = [&](const char* property, Janus::MCP::Json value)
+    {
+        return CallTool(fixture, "scene.set_component_property",
+                        {{"entity", id},
+                         {"component", "AudioSource"},
+                         {"property", property},
+                         {"value", value}});
+    };
+    REQUIRE(set("clip", texture.Value().ToString()).at("isError") == true);
+    REQUIRE(set("clip", clip.Value().ToString()).at("structuredContent").at("ok") == true);
+    REQUIRE(set("enabled", true).at("structuredContent").at("ok") == true);
+    REQUIRE(fixture.commands.Undo());
+    CHECK_FALSE(fixture.scene.GetComponent<Janus::AudioSourceComponent>(entity)->enabled);
+    fixture.readOnly = true;
+    REQUIRE(set("volume", 0.5).at("isError") == true);
+    CHECK(fixture.scene.GetComponent<Janus::AudioSourceComponent>(entity)->volume == 1);
 }

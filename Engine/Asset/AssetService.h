@@ -29,6 +29,8 @@ public:
     AssetService(AssetService&&) = delete;
     AssetService& operator=(AssetService&&) = delete;
 
+    [[nodiscard]] Result<std::shared_ptr<const AudioClip>> LoadAudioClip(AssetHandle handle);
+
     // Valid until this clip, its texture dependency, or the cache is unloaded.
     [[nodiscard]] Result<const AnimationClip*> LoadAnimationClip(AssetHandle handle);
 

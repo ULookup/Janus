@@ -62,6 +62,10 @@ def run(host: Path, source: Path, modern: bool) -> None:
                 snap = read("?runtimeId=" + rid)
                 require(snap["runtime"]["state"] == "Paused", "Step changed pause state")
                 require(snap["publishedFrameIndex"] == frame, "Publication frame mismatch")
+                require(not snap["fields"]["audioAvailable"], "Paused Step opened audio output")
+                require(snap["fields"]["musicAudioStatus"] == "Playing", "Loop state unavailable")
+                if frame >= 3:
+                    require(snap["fields"]["cardAudioStatus"] == "Playing", "Card sound state missing")
                 expected_hp = 12 - 4 * max(0, (frame - 1) // 2)
                 require(snap["fields"]["enemyHp"] == expected_hp, f"Damage mismatch: {snap}")
             require(snap["fields"]["phase"] == "victory", "Victory missing")

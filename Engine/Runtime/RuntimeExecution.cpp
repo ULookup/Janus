@@ -17,15 +17,18 @@ RuntimeExecution::RuntimeExecution(Scene& scene, const InputState& initialInput,
 
 Result<std::unique_ptr<RuntimeExecution>>
 RuntimeExecution::Create(Scene& scene, AssetService& assets, const InputState& initialInput,
-                         const InputBindings& bindings, Viewport logicalViewport)
+                         const InputBindings& bindings, Viewport logicalViewport,
+                         AudioDeviceFactory audioFactory)
 {
     auto execution = std::unique_ptr<RuntimeExecution>(
         new RuntimeExecution(scene, initialInput, logicalViewport));
     execution->m_Animations = std::make_unique<AnimationSystem>(scene, assets);
+    execution->m_Audio = std::make_unique<AudioSystem>(scene, assets, std::move(audioFactory));
     auto scripts = ScriptEngine::Create(scene, assets, execution->m_Input, bindings);
     if (!scripts)
         return Result<std::unique_ptr<RuntimeExecution>>::Failure(scripts.GetError());
     execution->m_ScriptEngine = std::move(scripts).Value();
+    execution->m_ScriptEngine->SetAudio(execution->m_Audio.get());
     execution->m_ScriptEngine->SetAnimations(execution->m_Animations.get());
     return Result<std::unique_ptr<RuntimeExecution>>::Success(std::move(execution));
 }
@@ -38,7 +41,7 @@ RuntimeExecution::~RuntimeExecution()
         JANUS_CORE_ERROR("Runtime execution shutdown: {}", stopped.GetError().message);
 }
 
-Result<void> RuntimeExecution::Start()
+Result<void> RuntimeExecution::Start(bool audioSuspended)
 {
     if (IsRunning())
         return Result<void>::Failure(ErrorCode::InvalidState, "Runtime is already started.");
@@ -48,9 +51,19 @@ Result<void> RuntimeExecution::Start()
     auto animations = m_Animations->Start();
     if (!animations)
         return animations;
+    m_Audio->SetSuspended(audioSuspended);
+    auto audio = m_Audio->Start();
+    if (!audio)
+    {
+        m_Animations->Stop();
+        return audio;
+    }
     auto scripts = m_ScriptEngine->Start();
     if (!scripts)
+    {
+        m_Audio->Stop();
         m_Animations->Stop();
+    }
     return scripts;
 }
 
@@ -62,6 +75,17 @@ Result<void> RuntimeExecution::Advance(TimeStep timeStep, const InputState& inpu
     if (!IsRunning())
         return Result<void>::Failure(ErrorCode::InvalidState,
                                      "Runtime execution must be started before Advance.");
+    // Any callback/content failure must silence already queued audio before host fault retention.
+    struct AudioFaultGuard
+    {
+        AudioSystem& audio;
+        bool succeeded = false;
+        ~AudioFaultGuard()
+        {
+            if (!succeeded)
+                audio.SetSuspended(true);
+        }
+    } audioGuard{*m_Audio};
     std::vector<UUID> clicks;
     if (dispatchUI)
     {
@@ -94,13 +118,22 @@ Result<void> RuntimeExecution::Advance(TimeStep timeStep, const InputState& inpu
     auto updated = m_ScriptEngine->Update(timeStep);
     if (!updated)
         return updated;
-    return m_Animations->Advance(timeStep);
+    auto animated = m_Animations->Advance(timeStep);
+    if (!animated)
+        return animated;
+    auto audio = m_Audio->Advance(timeStep);
+    audioGuard.succeeded = static_cast<bool>(audio);
+    return audio;
 }
 
 Result<void> RuntimeExecution::Stop()
 {
     m_UI.Cancel();
+    if (m_Audio)
+        m_Audio->SetSuspended(true);
     auto result = m_ScriptEngine ? m_ScriptEngine->Stop() : Result<void>::Success();
+    if (m_Audio)
+        m_Audio->Stop();
     if (m_Animations)
         m_Animations->Stop();
     return result;

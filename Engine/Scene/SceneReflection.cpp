@@ -1,5 +1,6 @@
 #include "Scene/SceneReflection.h"
 #include "Animation/AnimatorComponent.h"
+#include "Audio/AudioSourceComponent.h"
 
 #include "Asset/AssetMetadata.h"
 #include "Asset/AssetRegistry.h"
@@ -112,6 +113,11 @@ Result<void*> GetMutableComponent(
             return Result<void*>::Success(value);
         }
     }
+    else if (component == AudioSource)
+    {
+        if (auto* value = scene.GetComponent<AudioSourceComponent>(entity); value != nullptr)
+            return Result<void*>::Success(value);
+    }
     else if (component == Animator)
     {
         if (auto* value = scene.GetComponent<AnimatorComponent>(entity); value != nullptr)
@@ -185,6 +191,8 @@ Result<bool> HasBoundComponent(
             scene.HasComponent<LuaScriptComponent>(entity));
     }
 
+    if (component == AudioSource)
+        return Result<bool>::Success(scene.HasComponent<AudioSourceComponent>(entity));
     if (component == Animator)
         return Result<bool>::Success(scene.HasComponent<AnimatorComponent>(entity));
     if (component == Canvas)
@@ -246,6 +254,11 @@ Result<const void*> GetConstComponent(
         {
             return Result<const void*>::Success(value);
         }
+    }
+    else if (component == AudioSource)
+    {
+        if (const auto* value = scene.GetComponent<AudioSourceComponent>(entity); value != nullptr)
+            return Result<const void*>::Success(value);
     }
     else if (component == Animator)
     {
@@ -892,6 +905,9 @@ Result<void> RegisterBuiltinSceneReflection(
             }});
     if (!script)
         return script;
+    auto audio = RegisterAudioReflection(registry);
+    if (!audio)
+        return audio;
     auto animation = RegisterAnimationReflection(registry);
     if (!animation)
         return animation;
@@ -1006,6 +1022,10 @@ Result<void> SceneReflection::AddComponent(
             entity.Value(),
             LuaScriptComponent{AssetHandle{}, false});
     }
+    else if (component == AudioSource)
+    {
+        added = scene.AddComponent<AudioSourceComponent>(entity.Value(), AudioSourceComponent{});
+    }
     else if (component == Animator)
     {
         added = scene.AddComponent<AnimatorComponent>(entity.Value(), AnimatorComponent{});
@@ -1092,6 +1112,10 @@ Result<void> SceneReflection::RemoveComponent(
     {
         removed = scene.RemoveComponent<LuaScriptComponent>(
             entity.Value());
+    }
+    else if (component == AudioSource)
+    {
+        removed = scene.RemoveComponent<AudioSourceComponent>(entity.Value());
     }
     else if (component == Animator)
     {

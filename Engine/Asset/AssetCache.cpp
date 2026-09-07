@@ -4,6 +4,21 @@
 
 namespace Janus
 {
+std::shared_ptr<const AudioClip> AssetCache::FindAudioClip(AssetHandle handle) const noexcept
+{
+    const auto found = m_Audio.find(handle);
+    return found == m_Audio.end() ? nullptr : found->second;
+}
+bool AssetCache::StoreAudioClip(AssetHandle handle, std::shared_ptr<const AudioClip> clip)
+{
+    if (!handle.IsValid() || Contains(handle) || !clip || clip->Duration() <= 0)
+        return false;
+    return m_Audio.emplace(handle, std::move(clip)).second;
+}
+bool AssetCache::RemoveAudioClip(AssetHandle handle) noexcept
+{
+    return m_Audio.erase(handle) != 0;
+}
 const AnimationClip* AssetCache::FindAnimationClip(AssetHandle handle) const noexcept
 {
     const auto found = m_Animations.find(handle);
@@ -133,7 +148,7 @@ bool AssetCache::Contains(AssetHandle handle) const noexcept
 {
     return m_Textures.contains(handle) || m_ShaderSources.contains(handle) ||
            m_LuaScriptSources.contains(handle) || m_Fonts.contains(handle) ||
-           m_Animations.contains(handle);
+           m_Animations.contains(handle) || m_Audio.contains(handle);
 }
 
 usize AssetCache::TextureCount() const noexcept
@@ -153,6 +168,7 @@ usize AssetCache::LuaScriptSourceCount() const noexcept
 
 void AssetCache::Clear() noexcept
 {
+    m_Audio.clear();
     m_Animations.clear();
     m_Textures.clear();
     m_Fonts.clear();

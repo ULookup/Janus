@@ -2,7 +2,11 @@
 local Script = {}
 
 local function reset()
-    if JanusCombat.play then JanusCombat.play:stop_animation() end
+    if JanusCombat.play then
+        JanusCombat.play:stop_animation()
+        JanusCombat.play:stop_audio()
+    end
+    if JanusCombat.music then JanusCombat.music:play_audio() end
     JanusCombat.phase = "menu"
     JanusCombat.enemyHp = 12
     JanusCombat.playerHp = 6
@@ -14,6 +18,10 @@ end
 
 local function refresh()
     local b = JanusCombat
+    local cardStatus, cardCursor = "Stopped", 0
+    if b.play then cardStatus, cardCursor = b.play:audio_state() end
+    local musicStatus, musicCursor = b.status:audio_state()
+    local audioAvailable, audioError = b.status:audio_output()
     local hints = {
         menu = "START A BATTLE - SELECT A CARD - PLAY YOUR CARD",
         battle = "SELECT STRIKE OR WAIT, THEN PLAY YOUR CARD",
@@ -28,7 +36,10 @@ local function refresh()
         phase = b.phase, enemyHp = b.enemyHp, playerHp = b.playerHp,
         turn = b.turn, lastDamage = b.lastDamage, lastRetaliation = b.lastRetaliation,
         selectedCard = b.selectedCard,
-        canPlay = b.phase == "battle" and b.selectedCard ~= "none"
+        canPlay = b.phase == "battle" and b.selectedCard ~= "none",
+        cardAudioStatus = cardStatus, cardAudioCursor = cardCursor,
+        musicAudioStatus = musicStatus, musicAudioCursor = musicCursor,
+        audioAvailable = audioAvailable, audioError = audioError
     })
 end
 
@@ -52,6 +63,7 @@ local function act(action)
             b.lastRetaliation = b.enemyHp > 0 and 2 or 0
             b.playerHp = math.max(0, b.playerHp - b.lastRetaliation)
             b.play:play_animation()
+            b.play:play_audio()
             if b.enemyHp == 0 then b.phase = "victory"
             elseif b.playerHp == 0 then b.phase = "defeat" end
         end
@@ -63,7 +75,7 @@ function Script.OnCreate(self)
     local name = self.entity:name()
     -- The controller has the smallest scripted UUID; startup order is explicit in the scene.
     if name == "Status" or name == "Verification" then
-        JanusCombat = {status = self.entity}
+        JanusCombat = {status = self.entity, music = self.entity}
         reset()
         self.verificationStep = 0
         refresh()

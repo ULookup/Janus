@@ -422,7 +422,7 @@ McpToolDescriptor SearchAssetsTool(const AssetRegistry* assets)
                {"type",
                 {{"type", "string"},
                  {"enum", Json::array({"texture", "shader_source", "lua-script", "font",
-                                       "animation-clip"})}}},
+                                       "animation-clip", "audio-clip"})}}},
                {"offset", {{"type", "integer"}, {"minimum", 0}, {"maximum", 2147483647}}},
                {"limit", {{"type", "integer"}, {"minimum", 1}, {"maximum", 100}}}}}},
         Json{{"type", "object"}},

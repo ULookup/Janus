@@ -1,5 +1,6 @@
 #include "Scripting/ScriptEngine.h"
 #include "Animation/AnimationSystem.h"
+#include "Audio/AudioSystem.h"
 #include "UI/TextLayout.h"
 
 #include "Asset/AssetService.h"
@@ -51,6 +52,7 @@ char BindingContextRegistryKey = 0;
 struct BindingContext
 {
     AnimationSystem* animations = nullptr;
+    AudioSystem* audio = nullptr;
     Scene* scene = nullptr;
     const InputState* input = nullptr;
     const InputBindings* bindings = nullptr;
@@ -155,6 +157,113 @@ int EntityGetText(lua_State* state)
         return luaL_error(state, "Janus Entity is missing TextComponent.");
     lua_pushlstring(state, text->content.data(), text->content.size());
     return 1;
+}
+
+int EntityPlayAudio(lua_State* state)
+{
+    auto* context = GetBindingContext(state);
+    const auto* reference = CheckEntityRef(state);
+    static_cast<void>(ResolveEntity(state, *context, *reference));
+    if (!context->audio)
+        return luaL_error(state, "Audio control requires managed RuntimeExecution.");
+    AssetHandle clip;
+    bool valid = true;
+    if (!lua_isnoneornil(state, 2))
+    {
+        luaL_checktype(state, 2, LUA_TSTRING);
+        size_t size = 0;
+        const char* text = lua_tolstring(state, 2, &size);
+        {
+            auto parsed = AssetHandle::Parse(std::string_view(text, size));
+            valid = static_cast<bool>(parsed);
+            if (valid)
+                clip = parsed.Value();
+        }
+    }
+    if (!valid)
+        return luaL_error(state, "Audio clip requires a valid UUID.");
+    // Result owns strings; destroy it before Lua's longjmp error boundary.
+    {
+        auto result = context->audio->Play(UUID(reference->bytes), clip);
+        valid = static_cast<bool>(result);
+        if (!valid)
+            lua_pushlstring(state, result.GetError().message.data(),
+                            result.GetError().message.size());
+    }
+    return valid ? 0 : lua_error(state);
+}
+enum class AudioOperation
+{
+    Pause,
+    Resume,
+    Stop,
+    Volume,
+    Loop
+};
+template <AudioOperation operation> int EntityControlAudio(lua_State* state)
+{
+    auto* context = GetBindingContext(state);
+    const auto* reference = CheckEntityRef(state);
+    static_cast<void>(ResolveEntity(state, *context, *reference));
+    if (!context->audio)
+        return luaL_error(state, "Audio control requires managed RuntimeExecution.");
+    f32 volume = 0;
+    bool loop = false;
+    if constexpr (operation == AudioOperation::Volume)
+        volume = static_cast<f32>(luaL_checknumber(state, 2));
+    if constexpr (operation == AudioOperation::Loop)
+    {
+        luaL_checktype(state, 2, LUA_TBOOLEAN);
+        loop = lua_toboolean(state, 2) != 0;
+    }
+    bool valid = false;
+    {
+        const UUID id(reference->bytes);
+        auto result = Result<void>::Success();
+        if constexpr (operation == AudioOperation::Pause)
+            result = context->audio->Pause(id);
+        if constexpr (operation == AudioOperation::Resume)
+            result = context->audio->Resume(id);
+        if constexpr (operation == AudioOperation::Stop)
+            result = context->audio->Stop(id);
+        if constexpr (operation == AudioOperation::Volume)
+            result = context->audio->SetVolume(id, volume);
+        if constexpr (operation == AudioOperation::Loop)
+            result = context->audio->SetLoop(id, loop);
+        valid = static_cast<bool>(result);
+        if (!valid)
+            lua_pushlstring(state, result.GetError().message.data(),
+                            result.GetError().message.size());
+    }
+    return valid ? 0 : lua_error(state);
+}
+int EntityAudioState(lua_State* state)
+{
+    auto* context = GetBindingContext(state);
+    const auto* reference = CheckEntityRef(state);
+    static_cast<void>(ResolveEntity(state, *context, *reference));
+    if (!context->audio)
+        return luaL_error(state, "Audio observation requires managed RuntimeExecution.");
+    const auto* playback = context->audio->GetState(UUID(reference->bytes));
+    lua_pushstring(state, playback ? AudioPlaybackStatusName(playback->status) : "Stopped");
+    lua_pushnumber(state, playback ? playback->cursorSeconds : 0);
+    lua_pushnumber(state, playback ? playback->volume : 0);
+    lua_pushboolean(state, playback && playback->loop);
+    return 4;
+}
+int EntityAudioOutput(lua_State* state)
+{
+    auto* context = GetBindingContext(state);
+    static_cast<void>(ResolveEntity(state, *context, *CheckEntityRef(state)));
+    if (!context->audio)
+        return luaL_error(state, "Audio observation requires managed RuntimeExecution.");
+    lua_pushboolean(state, context->audio->IsOutputAvailable());
+    const auto& error = context->audio->GetOutputError();
+    if (error)
+        lua_pushlstring(state, error->message.data(), error->message.size());
+    else
+        lua_pushliteral(state, "");
+    return 2;
 }
 
 int EntityPlayAnimation(lua_State* state)
@@ -474,16 +583,25 @@ void RegisterEntityBinding(lua_State* state)
 {
     if (luaL_newmetatable(state, EntityMetatableName) != 0)
     {
-        static const luaL_Reg Methods[] = {{"id", EntityId},
-                                           {"play_animation", EntityPlayAnimation},
-                                           {"stop_animation", EntityStopAnimation},
-                                           {"animation_state", EntityAnimationState},
-                                           {"name", EntityName},
-                                           {"get_position", EntityGetPosition},
-                                           {"get_text", EntityGetText},
-                                           {"set_text", EntitySetText},
-                                           {"set_position", EntitySetPosition},
-                                           {nullptr, nullptr}};
+        static const luaL_Reg Methods[] = {
+            {"id", EntityId},
+            {"play_audio", EntityPlayAudio},
+            {"pause_audio", EntityControlAudio<AudioOperation::Pause>},
+            {"resume_audio", EntityControlAudio<AudioOperation::Resume>},
+            {"stop_audio", EntityControlAudio<AudioOperation::Stop>},
+            {"set_audio_volume", EntityControlAudio<AudioOperation::Volume>},
+            {"set_audio_loop", EntityControlAudio<AudioOperation::Loop>},
+            {"audio_state", EntityAudioState},
+            {"audio_output", EntityAudioOutput},
+            {"play_animation", EntityPlayAnimation},
+            {"stop_animation", EntityStopAnimation},
+            {"animation_state", EntityAnimationState},
+            {"name", EntityName},
+            {"get_position", EntityGetPosition},
+            {"get_text", EntityGetText},
+            {"set_text", EntitySetText},
+            {"set_position", EntitySetPosition},
+            {nullptr, nullptr}};
 
         lua_pushvalue(state, -1);
         lua_setfield(state, -2, "__index");
@@ -569,7 +687,8 @@ struct ScriptEngine::Impl
     Impl(Scene& sceneRef, AssetService& assetService, const InputState& inputState,
          const InputBindings& actionBindings, std::unique_ptr<LuaVirtualMachine> machine)
         : scene(sceneRef), assets(assetService), input(inputState), bindings(actionBindings),
-          virtualMachine(std::move(machine)), bindingContext{nullptr, &scene, &input, &bindings}
+          virtualMachine(std::move(machine)),
+          bindingContext{nullptr, nullptr, &scene, &input, &bindings}
     {
     }
 
@@ -1281,6 +1400,10 @@ void ScriptEngine::SetSnapshotContext(UUID runtimeId, u64 frameIndex)
 {
     m_Impl->bindingContext.runtimeId = runtimeId;
     m_Impl->bindingContext.frameIndex = frameIndex;
+}
+void ScriptEngine::SetAudio(AudioSystem* audio)
+{
+    m_Impl->bindingContext.audio = audio;
 }
 void ScriptEngine::SetAnimations(AnimationSystem* animations)
 {

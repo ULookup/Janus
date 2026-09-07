@@ -9,6 +9,8 @@ std::string_view AssetTypeName(AssetType type) noexcept
 {
     switch (type)
     {
+    case AssetType::AudioClip:
+        return "audio-clip";
     case AssetType::AnimationClip:
         return "animation-clip";
     case AssetType::Texture:
@@ -26,6 +28,8 @@ std::string_view AssetTypeName(AssetType type) noexcept
 
 Result<AssetType> ParseAssetType(std::string_view name)
 {
+    if (name == "audio-clip")
+        return Result<AssetType>::Success(AssetType::AudioClip);
     if (name == "animation-clip")
         return Result<AssetType>::Success(AssetType::AnimationClip);
     if (name == "font")

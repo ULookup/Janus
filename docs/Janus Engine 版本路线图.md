@@ -1,5 +1,7 @@
 # Janus Engine 版本路线图
 
+当前执行状态（2026-09-07）：main 已同步到 `fbb1dc5`，包含 Stage A、共享 Runtime、UI 布局/Text；战斗/动画已提交且 #88 已进入战斗依赖分支 `669c436`，仍未进入 main。10-07 Audio 在 `codex/v0.10-audio` 实现，当前下一包为 **10-08 Physics**，之后 10-09 Prefab 与 10-10 综合验收。详见[最新调研路线](superpowers/plans/2026-09-07-audio-next-stage-roadmap.md)、[音频设计](superpowers/specs/2026-09-07-v0.10-audio-design.md)及[验收](verification/2026-09-07-v0.10-audio.md)。本文后续“未提交/下一包动画/音频”的执行段落属于历史状态；以本段为当前状态，不改变 v0.10 八项完整范围或发布门槛。
+
 ## 1. 路线图目标
 
 Janus Engine 采用：

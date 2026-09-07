@@ -41,6 +41,16 @@
       "handle": "ad100000-0000-4000-8000-000000000005",
       "type": "lua-script",
       "path": "Scripts/AnimationShowcase.lua"
+    },
+    {
+      "handle": "ae100000-0000-4000-8000-000000000001",
+      "type": "audio-clip",
+      "path": "Audio/Card.wav"
+    },
+    {
+      "handle": "ae100000-0000-4000-8000-000000000002",
+      "type": "audio-clip",
+      "path": "Audio/Background.wav"
     }
   ]
 }

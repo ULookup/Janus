@@ -1798,3 +1798,8 @@ Game/ 是复用共享 Runtime 和既有 UI 的独立磁盘游戏项目，固定�
 ## v0.10 / 10-06 Animation 实现补充
 
 RuntimeExecution 在 Lua 初始化前启动 AnimationSystem，在每帧 Lua Update 后推进动画。AnimationClip 是 AssetCache/AssetService 管理的 CPU 帧表，使用注册 Texture atlas；AnimationSystem 以实体 UUID 持有独立 Clip 副本、游标和 pose。Animator 的 clip/enabled/playOnStart/speed 通过 active Reflection、Scene v1 与共享命令保存；Renderer/UILayout 只读运行时 pose 覆盖纹理/UV，不改作者态。循环使用总时长取余；明确 Play/Switch 才重启，Stop 恢复基础显示，非循环结束保留最后帧。两个宿主共享此执行顺序，Pause 不推进，neutral Step 固定 1/60 且不自动重载。布局可接收同一可选 AnimationSystem，使只有动画纹理的 Image 也参与绘制/命中顺序。见[设计](superpowers/specs/2026-09-07-v0.10-animation-design.md)与[验收](verification/2026-09-07-v0.10-animation.md)。上方 Animation 未实现属于历史状态；Fixed Update/Physics、Audio 和 Prefab 仍待后续包。
+
+
+## v0.10 / 10-07 Audio 实现补充
+
+RuntimeExecution 拥有 AudioSystem 与惰性 AudioDevice，在 Lua、Animation 后混合推进；暂停/故障清空输出，单步静音推进逻辑，停止在 Lua 清理后释放设备。audio-clip 采用有界 PCM16 WAV，由 AssetCache 与 UUID voice 共享不可变 PCM；AudioSource 的 clip/enabled/playOnStart/volume/loop 通过 active Reflection、Scene v1、Clone 和共享命令贯通 Human/Agent。SDL 3.4.14 作为既有成熟后端保留在 PRIVATE Platform 实现内，未增加依赖。设备不可用可诊断且静音继续；内容错误明确失败。播放状态可经 Lua 显式发布到既有 snapshot，读取不执行脚本。详见[设计](superpowers/specs/2026-09-07-v0.10-audio-design.md)和[验收](verification/2026-09-07-v0.10-audio.md)。本补充覆盖前文 Audio 未实现的历史描述；下一包为 Physics，Prefab 和综合验收仍待完成。

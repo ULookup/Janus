@@ -15,6 +15,7 @@ class Scene;
 namespace SceneReflectionIds
 {
 
+inline constexpr ComponentTypeId AudioSource = MakeComponentTypeId("AudioSource");
 inline constexpr ComponentTypeId Animator = MakeComponentTypeId("Animator");
 inline constexpr ComponentTypeId Canvas = MakeComponentTypeId("Canvas");
 inline constexpr ComponentTypeId UIRect = MakeComponentTypeId("UIRect");

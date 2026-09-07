@@ -94,6 +94,13 @@
         "LuaScript": {
           "script": "fc100000-0000-4000-8000-000000000001",
           "enabled": true
+        },
+        "AudioSource": {
+          "clip": "ae100000-0000-4000-8000-000000000002",
+          "enabled": true,
+          "playOnStart": true,
+          "volume": 0.15,
+          "loop": true
         }
       }
     },
@@ -614,6 +621,13 @@
           "enabled": true,
           "playOnStart": false,
           "speed": 1
+        },
+        "AudioSource": {
+          "clip": "ae100000-0000-4000-8000-000000000001",
+          "enabled": true,
+          "playOnStart": false,
+          "volume": 0.6,
+          "loop": false
         }
       }
     },

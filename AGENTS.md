@@ -2,7 +2,7 @@
 
 ## Mission
 
-Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.10 Game Systems**. Stage A, 10-03 Shared Runtime and 10-04a/b UI layout/text are integrated in main (`fbb1dc5`, PR #85, fetched 2026-09-07). 10-05a Button/events is implemented at `973659d`. Work packages 10-05b playable combat/snapshots and 10-06 AnimationClip/Animator are committed separately for stacked review: `codex/v0.10-playable-combat` targets `codex/v0.10-ui-text`, and `codex/v0.10-animation` targets the combat branch. Button PR #86 is merged into Text at `451c2e1`, but is not in main. See their design and verification records before integration. The next work package is **10-07 Audio**; Physics, Prefab and integrated acceptance follow. v0.10 is not complete or released. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
+Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.10 Game Systems**. Local main is synchronized to origin/main `fbb1dc5` (#85, fetched 2026-09-07), containing Stage A, Shared Runtime and UI layout/text. Button #86 is in Text; Combat `92b8d13` and Animation `25a3052` are committed, and #88 merged Animation into the combat branch at `669c436`; these systems are still not in main. **10-07 Audio** is implemented on `codex/v0.10-audio`, based on that dependency chain plus main. See docs/superpowers/plans/2026-09-07-audio-next-stage-roadmap.md and the audio design/verification records for current evidence; earlier uncommitted/next-animation descriptions are historical. The next work package is **10-08 Physics**, followed by Prefab and integrated acceptance. v0.10 is not complete or released. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
 
 This file applies to the entire repository. A more deeply nested `AGENTS.md` may add stricter rules for its subtree.
 
@@ -173,3 +173,14 @@ A change is complete only when:
 - engine://runtime/snapshot is RuntimeRead through the existing owner-thread dispatcher and permission path. Unknown fields/old runtime IDs fail; no MCP input injection.
 - CombatVerification.scene calls the same game rule function during neutral Update/Step; it validates rules and observation, separately from pointer/keyboard UI tests.
 - See docs/superpowers/specs/2026-09-07-v0.10-playable-combat-design.md and docs/verification/2026-09-07-v0.10-playable-combat.md.
+
+
+## v0.10 Audio constraints
+
+- AudioClip is bounded PCM16 WAV CPU data (mono/stereo, 8–96 kHz, <=120 seconds / 32 MiB), shared immutably by AssetCache and playback. Unload cannot invalidate active voices; new Runtime Start refreshes configured clips.
+- AudioSource persists only clip/enabled/playOnStart/volume/loop through active Reflection, Scene v1 and shared commands. Runtime UUID-keyed voices and device state are transient.
+- RuntimeExecution owns AudioSystem and its lazy device, runs Lua then Animation then Audio, and destroys Lua before audio resources. SDL 3.4.14 stays private behind AudioDevice; device threads never read Scene or Lua.
+- At most 64 enabled sources; Play validates before replacement, Pause retains cursor, Resume respects per-source pause, Stop resets. Volume/loop Lua controls affect runtime state only.
+- Runtime Pause/Faulted clears queued output. Neutral Step advances logical cursors silently; startPaused never opens output. Stop/startup failure releases voices and device. Device failure is a bounded observable silent fallback; content errors retain normal Runtime failure semantics.
+- Mixer output is 48 kHz stereo, at most 100 ms per Advance, queued at most 200 ms. Cursors follow simulation time, not a measured hardware clock. No streaming/spatial/DSP or music synchronization guarantee.
+- See docs/superpowers/specs/2026-09-07-v0.10-audio-design.md and docs/verification/2026-09-07-v0.10-audio.md. Game owns sample sounds and publishes playback fields through the existing snapshot path.
