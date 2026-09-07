@@ -2,6 +2,7 @@
 
 #include "Asset/AssetMetadata.h"
 #include "Asset/AssetRegistry.h"
+#include "Asset/Loader/AnimationClipLoader.h"
 #include "Asset/Loader/FontLoader.h"
 #include "Asset/Loader/LuaScriptSourceLoader.h"
 #include "Asset/Loader/ShaderSourceLoader.h"
@@ -56,6 +57,30 @@ Result<const FontAsset*> AssetService::LoadFont(AssetHandle handle)
     if (!m_Cache.StoreFont(handle, std::move(font).Value()))
         return Output::Failure(ErrorCode::InvalidState, "Failed to cache Font asset.");
     return Output::Success(m_Cache.FindFont(handle));
+}
+
+Result<const AnimationClip*> AssetService::LoadAnimationClip(AssetHandle handle)
+{
+    using Output = Result<const AnimationClip*>;
+    if (const auto* cached = m_Cache.FindAnimationClip(handle))
+        return Output::Success(cached);
+    const auto* metadata = m_Registry.Find(handle);
+    if (!metadata)
+        return Output::Failure(ErrorCode::AssetNotFound, "AnimationClip is not registered.");
+    if (metadata->type != AssetType::AnimationClip)
+        return Output::Failure(ErrorCode::AssetTypeMismatch, "Asset is not an AnimationClip.");
+    auto clip = AnimationClipLoader::Load(ResolvePath(metadata->relativePath));
+    if (!clip)
+        return Output::Failure(clip.GetError());
+    const auto* texture = m_Registry.Find(clip.Value().texture);
+    if (!texture)
+        return Output::Failure(ErrorCode::AssetNotFound, "Animation texture is not registered.");
+    if (texture->type != AssetType::Texture)
+        return Output::Failure(ErrorCode::AssetTypeMismatch,
+                               "Animation texture must be a Texture.");
+    if (!m_Cache.StoreAnimationClip(handle, std::move(clip).Value()))
+        return Output::Failure(ErrorCode::InvalidState, "Failed to cache AnimationClip.");
+    return Output::Success(m_Cache.FindAnimationClip(handle));
 }
 
 Result<TextureHandle> AssetService::LoadTexture(AssetHandle handle)
@@ -241,6 +266,8 @@ bool AssetService::IsLoaded(AssetHandle handle) const noexcept
 
 bool AssetService::Unload(AssetHandle handle) noexcept
 {
+    const bool removedAnimation = m_Cache.RemoveAnimationClip(handle);
+    const bool invalidatedAnimations = m_Cache.RemoveAnimationsForTexture(handle) != 0;
     const bool removedFont = m_Cache.RemoveFont(handle);
     // Invalidating an atlas also invalidates dependent metrics/dimension validation.
     const bool invalidated = m_Cache.RemoveFontsForAtlas(handle) != 0;
@@ -255,7 +282,8 @@ bool AssetService::Unload(AssetHandle handle) noexcept
         return true;
     }
 
-    return m_Cache.RemoveLuaScriptSource(handle) || removedFont || invalidated;
+    return m_Cache.RemoveLuaScriptSource(handle) || removedFont || invalidated ||
+           removedAnimation || invalidatedAnimations;
 }
 
 void AssetService::Clear() noexcept

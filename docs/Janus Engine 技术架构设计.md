@@ -1793,3 +1793,8 @@ RuntimeExecution 拥有 UIInteraction 的临时焦点/捕获状态，布局收�
 ## v0.10 / 10-05b Combat 与诊断快照实现补充
 
 Game/ 是复用共享 Runtime 和既有 UI 的独立磁盘游戏项目，固定卡牌规则完全位于 Lua。ScriptEngine 缓存脚本显式发布的有界平坦标量映射，RuntimeExecution 赋运行 UUID/发布帧，RuntimeSession 使用同一身份；Application/RuntimeSession 暴露相同只读快照。MCP 的 engine://runtime/snapshot 经 RuntimeRead 和主线程权限链读取缓存，不调用 Lua。Stop 清理，Faulted 保留最后原子发布及失败帧状态；不改 Scene 作者态或 neutral Step。见[设计](superpowers/specs/2026-09-07-v0.10-playable-combat-design.md)和[验收](verification/2026-09-07-v0.10-playable-combat.md)。上方 10-05b 尚未实现的表述为历史状态；Animation/Audio/Physics/Prefab 仍未由本包实现。
+
+
+## v0.10 / 10-06 Animation 实现补充
+
+RuntimeExecution 在 Lua 初始化前启动 AnimationSystem，在每帧 Lua Update 后推进动画。AnimationClip 是 AssetCache/AssetService 管理的 CPU 帧表，使用注册 Texture atlas；AnimationSystem 以实体 UUID 持有独立 Clip 副本、游标和 pose。Animator 的 clip/enabled/playOnStart/speed 通过 active Reflection、Scene v1 与共享命令保存；Renderer/UILayout 只读运行时 pose 覆盖纹理/UV，不改作者态。循环使用总时长取余；明确 Play/Switch 才重启，Stop 恢复基础显示，非循环结束保留最后帧。两个宿主共享此执行顺序，Pause 不推进，neutral Step 固定 1/60 且不自动重载。布局可接收同一可选 AnimationSystem，使只有动画纹理的 Image 也参与绘制/命中顺序。见[设计](superpowers/specs/2026-09-07-v0.10-animation-design.md)与[验收](verification/2026-09-07-v0.10-animation.md)。上方 Animation 未实现属于历史状态；Fixed Update/Physics、Audio 和 Prefab 仍待后续包。

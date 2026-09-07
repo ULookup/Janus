@@ -1,0 +1,261 @@
+{
+  "schema": "janus.scene",
+  "version": 1,
+  "scene": {
+    "id": "ad100000-0000-4000-8000-000000000100",
+    "name": "Animation Showcase"
+  },
+  "entities": [
+    {
+      "id": "ad100000-0000-4000-8000-000000000010",
+      "name": "Camera",
+      "parent": null,
+      "siblingOrder": 0,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "Camera": {
+          "zoom": 1,
+          "primary": true
+        }
+      }
+    },
+    {
+      "id": "ad100000-0000-4000-8000-000000000011",
+      "name": "Robot",
+      "parent": null,
+      "siblingOrder": 0,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "SpriteRenderer": {
+          "texture": "ad100000-0000-4000-8000-000000000001",
+          "size": [
+            320,
+            320
+          ],
+          "color": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "layer": 0,
+          "uvMin": [
+            0.0015625,
+            0.50390625
+          ],
+          "uvMax": [
+            0.1984375,
+            0.99609375
+          ],
+          "enabled": true
+        },
+        "Animator": {
+          "clip": "ad100000-0000-4000-8000-000000000003",
+          "enabled": true,
+          "playOnStart": true,
+          "speed": 1
+        },
+        "LuaScript": {
+          "script": "ad100000-0000-4000-8000-000000000005",
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "fc200000-0000-4000-8000-000000000001",
+      "name": "Canvas",
+      "parent": null,
+      "siblingOrder": 0,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "Canvas": {
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "fc200000-0000-4000-8000-000000000003",
+      "name": "Title",
+      "parent": "fc200000-0000-4000-8000-000000000001",
+      "siblingOrder": 1,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            0
+          ],
+          "anchorMax": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            70,
+            28
+          ],
+          "size": [
+            1140,
+            55
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Text": {
+          "font": "fa100000-0000-4000-8000-000000000002",
+          "content": "10-06 / SPRITE ANIMATION",
+          "fontSize": 36,
+          "color": [
+            0.9,
+            0.95,
+            1,
+            1
+          ],
+          "alignment": "left",
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "fc200000-0000-4000-8000-000000000026",
+      "name": "Help",
+      "parent": "fc200000-0000-4000-8000-000000000001",
+      "siblingOrder": 8,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            0
+          ],
+          "anchorMax": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            70,
+            620
+          ],
+          "size": [
+            1140,
+            65
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Text": {
+          "font": "fa100000-0000-4000-8000-000000000002",
+          "content": "ENTER: LOOP / REPLAY    SPACE: STOP    D: ONE-SHOT / SWITCH",
+          "fontSize": 22,
+          "color": [
+            0.9,
+            0.95,
+            1,
+            1
+          ],
+          "alignment": "left",
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "ad100000-0000-4000-8000-000000000012",
+      "name": "Background",
+      "parent": null,
+      "siblingOrder": 0,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "SpriteRenderer": {
+          "texture": "ad100000-0000-4000-8000-000000000001",
+          "size": [
+            4000,
+            3000
+          ],
+          "color": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "layer": -1,
+          "uvMin": [
+            0.8015625,
+            0.50390625
+          ],
+          "uvMax": [
+            0.9984375,
+            0.99609375
+          ],
+          "enabled": true
+        }
+      }
+    }
+  ]
+}

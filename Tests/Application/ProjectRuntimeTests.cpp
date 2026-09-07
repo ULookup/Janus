@@ -1,3 +1,4 @@
+#include "Animation/AnimationSystem.h"
 #include "Application/Application.h"
 #include "Application/ApplicationClient.h"
 #include "Application/ApplicationConfig.h"
@@ -1003,4 +1004,74 @@ TEST_CASE(
         REQUIRE(snapshot->runtimeId == project->GetRuntimeStatus().runtimeId);
     }
     REQUIRE_FALSE(project->IsDirty());
+}
+
+TEST_CASE("Animation showcase Play Stop Switch matches Application and Editor frame for frame",
+          "[animation][application]")
+{
+    RuntimeTestState state;
+    state.frameEvents.resize(40);
+    for (const auto [frame, key] :
+         {std::pair{3, Janus::KeyCode::Space}, std::pair{5, Janus::KeyCode::Enter},
+          std::pair{8, Janus::KeyCode::D}})
+        state.frameEvents[frame] = {Janus::KeyPressedEvent{key, false},
+                                    Janus::KeyReleasedEvent{key}};
+    class Client final : public Janus::ApplicationClient
+    {
+      public:
+        Janus::Result<void> OnInitialize(Janus::Application&) override
+        {
+            return Janus::Result<void>::Success();
+        }
+        void OnUpdate(Janus::TimeStep step, Janus::Application&) override
+        {
+            steps.push_back(step);
+        }
+        std::vector<Janus::TimeStep> steps;
+    } client;
+    const auto root = std::filesystem::path(JANUS_TEST_SOURCE_DIR).parent_path() / "Game";
+    Janus::ProjectRuntimeConfig projectConfig{root};
+    projectConfig.startupScenePath = "Scenes/AnimationShowcase.scene";
+    Janus::ApplicationConfig config;
+    config.project = projectConfig;
+    auto app = Janus::Detail::ApplicationTestAccess::Create(config, MakeDependencies(state));
+    std::vector<Janus::ScriptSnapshot> snapshots;
+    state.onPresent = [&]
+    {
+        REQUIRE(app->GetSnapshot());
+        snapshots.push_back(*app->GetSnapshot());
+        if (snapshots.size() == state.frameEvents.size())
+            app->RequestExit();
+    };
+    auto result = app->Run(client);
+    INFO((result ? "success" : result.GetError().message));
+    REQUIRE(result);
+    REQUIRE(snapshots.size() == 40);
+    CHECK(std::get<bool>(snapshots[0].fields.at("playing")));
+    CHECK_FALSE(std::get<bool>(snapshots[3].fields.at("playing")));
+    CHECK(std::get<bool>(snapshots[5].fields.at("playing")));
+    CHECK(std::get<double>(snapshots[8].fields.at("animationFrame")) == 0);
+    CHECK_FALSE(std::get<bool>(snapshots.back().fields.at("playing")));
+    Janus::Test::FakeRenderDevice device;
+    auto renderer = Janus::Detail::Renderer2DTestAccess::Create(device);
+    auto opened = Janus::Editor::ProjectSession::Open(projectConfig, *renderer);
+    REQUIRE(opened);
+    auto project = std::move(opened).Value();
+    Janus::InputState input;
+    REQUIRE(project->StartRuntime(input));
+    for (Janus::usize i = 0; i < snapshots.size(); ++i)
+    {
+        input.BeginFrame();
+        for (const auto& event : state.frameEvents[i])
+            input.Apply(event);
+        REQUIRE(project->UpdateRuntime(client.steps[i]));
+        REQUIRE(project->GetRuntimeSession()->GetSnapshot()->fields == snapshots[i].fields);
+    }
+    REQUIRE(project->PauseRuntime());
+    const auto id = Janus::UUID::Parse("ad100000-0000-4000-8000-000000000011").Value();
+    const auto time = project->GetRuntimeSession()->GetAnimations().GetPose(id)->elapsedSeconds;
+    REQUIRE(project->UpdateRuntime(Janus::TimeStep::FromSeconds(10)));
+    CHECK(project->GetRuntimeSession()->GetAnimations().GetPose(id)->elapsedSeconds == time);
+    REQUIRE(project->StopRuntime());
+    CHECK_FALSE(project->IsDirty());
 }

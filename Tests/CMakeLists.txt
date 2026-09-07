@@ -46,6 +46,7 @@ add_executable(
     Editor/RuntimeSessionTests.cpp
     Runtime/RuntimeExecutionTests.cpp
     Game/CombatTests.cpp
+    Animation/AnimationTests.cpp
     UI/UILayoutTests.cpp
     UI/UIRenderTests.cpp
     UI/TextTests.cpp

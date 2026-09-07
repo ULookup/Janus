@@ -1,4 +1,5 @@
 #include "Scene/SceneRenderer.h"
+#include "Animation/AnimationSystem.h"
 
 #include "Asset/AssetService.h"
 #include "Renderer/Renderer2D.h"
@@ -21,14 +22,23 @@ namespace Janus
 
 Result<void> SceneRenderer::Render(Scene& scene, AssetService& assets, Renderer2D& renderer,
                                    Viewport viewport, Viewport logicalViewport,
-                                   const UIInteractionState* uiState)
+                                   const UIInteractionState* uiState,
+                                   const AnimationSystem* animations)
 {
     const auto camera = ResolvePrimaryCamera(scene);
     if (!camera)
         return Result<void>::Failure(camera.GetError());
 
-    return RenderPrepared(SceneRenderRequest{
-        scene, assets, renderer, camera.Value(), viewport, {}, logicalViewport, true, uiState});
+    return RenderPrepared(SceneRenderRequest{scene,
+                                             assets,
+                                             renderer,
+                                             camera.Value(),
+                                             viewport,
+                                             {},
+                                             logicalViewport,
+                                             true,
+                                             uiState,
+                                             animations});
 }
 
 Result<void> SceneRenderer::Render(
@@ -64,19 +74,18 @@ Result<void> SceneRenderer::RenderPrepared(
 
     request.scene.View<TransformComponent, SpriteRendererComponent>()
         .ForEach(
-            [&](ECS::Entity entity,
-                TransformComponent& transform,
+            [&](ECS::Entity entity, TransformComponent& transform,
                 SpriteRendererComponent& spriteComponent)
             {
-                if (extractionError.has_value()
-                    || !spriteComponent.enabled
-                    || !spriteComponent.texture.IsValid())
+                const auto id = request.scene.GetComponent<EntityIdentityComponent>(entity)->id;
+                const auto* pose = request.animations ? request.animations->GetPose(id) : nullptr;
+                const auto texture = pose ? pose->texture : spriteComponent.texture;
+                if (extractionError.has_value() || !spriteComponent.enabled || !texture.IsValid())
                 {
                     return;
                 }
 
-                auto textureResult =
-                    request.assets.LoadTexture(spriteComponent.texture);
+                auto textureResult = request.assets.LoadTexture(texture);
                 if (!textureResult)
                 {
                     const auto* identity =
@@ -104,6 +113,8 @@ Result<void> SceneRenderer::RenderPrepared(
                 sprite.color = spriteComponent.color;
                 sprite.layer = spriteComponent.layer;
                 sprite.uv = spriteComponent.uv;
+                if (pose)
+                    sprite.uv = {pose->uvMin, pose->uvMax};
                 sprite.blendMode = BlendMode::Alpha;
 
                 sprites.push_back(sprite);
@@ -122,7 +133,7 @@ Result<void> SceneRenderer::RenderPrepared(
     std::vector<Sprite> overlay;
     if (request.includeUI)
     {
-        auto layout = UILayout::Build(request.scene, logical);
+        auto layout = UILayout::Build(request.scene, logical, request.animations);
         if (!layout)
             return Result<void>::Failure(layout.GetError());
         for (const auto& item : layout.Value().items)
@@ -174,7 +185,12 @@ Result<void> SceneRenderer::RenderPrepared(
             else
             {
                 const auto& image = *request.scene.GetComponent<ImageComponent>(entity);
-                auto texture = request.assets.LoadTexture(AssetHandle{image.texture.id});
+                const auto* pose =
+                    request.animations ? request.animations->GetPose(item.entity) : nullptr;
+                const auto uvMin = pose ? pose->uvMin : image.uvMin;
+                const auto uvMax = pose ? pose->uvMax : image.uvMax;
+                auto texture = request.assets.LoadTexture(pose ? pose->texture
+                                                               : AssetHandle{image.texture.id});
                 if (!texture)
                     return Result<void>::Failure(texture.GetError().code,
                                                  "UI Image " + item.entity.ToString() + ": " +
@@ -183,13 +199,13 @@ Result<void> SceneRenderer::RenderPrepared(
                 color = image.color;
                 const Vector2 size{item.rect.max.x - item.rect.min.x,
                                    item.rect.max.y - item.rect.min.y};
-                const Vector2 uvSize{image.uvMax.x - image.uvMin.x, image.uvMax.y - image.uvMin.y};
+                const Vector2 uvSize{uvMax.x - uvMin.x, uvMax.y - uvMin.y};
                 sprite.uv.min = {
-                    image.uvMin.x + uvSize.x * (item.visible.min.x - item.rect.min.x) / size.x,
-                    image.uvMin.y + uvSize.y * (item.visible.min.y - item.rect.min.y) / size.y};
+                    uvMin.x + uvSize.x * (item.visible.min.x - item.rect.min.x) / size.x,
+                    uvMin.y + uvSize.y * (item.visible.min.y - item.rect.min.y) / size.y};
                 sprite.uv.max = {
-                    image.uvMin.x + uvSize.x * (item.visible.max.x - item.rect.min.x) / size.x,
-                    image.uvMin.y + uvSize.y * (item.visible.max.y - item.rect.min.y) / size.y};
+                    uvMin.x + uvSize.x * (item.visible.max.x - item.rect.min.x) / size.x,
+                    uvMin.y + uvSize.y * (item.visible.max.y - item.rect.min.y) / size.y};
             }
             sprite.color = {color.r, color.g, color.b, color.a};
             sprite.size = {item.visible.max.x - item.visible.min.x,

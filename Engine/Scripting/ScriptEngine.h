@@ -16,6 +16,7 @@ namespace Janus
 class AssetService;
 class InputState;
 class Scene;
+class AnimationSystem;
 
 class ScriptEngine final
 {
@@ -43,6 +44,7 @@ public:
 
 private:
   friend class RuntimeExecution;
+  void SetAnimations(AnimationSystem* animations);
   void SetSnapshotContext(UUID runtimeId, u64 frameIndex);
   struct Impl;
 

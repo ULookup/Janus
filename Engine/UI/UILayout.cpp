@@ -1,4 +1,5 @@
 #include "UI/UILayout.h"
+#include "Animation/AnimationSystem.h"
 #include "Scene/Scene.h"
 #include "UI/UIComponents.h"
 #include <algorithm>
@@ -47,7 +48,8 @@ UUID UILayoutResult::HitTest(Vector2 point) const noexcept
     return {};
 }
 
-Result<UILayoutResult> UILayout::Build(const Scene& scene, Viewport logicalViewport)
+Result<UILayoutResult> UILayout::Build(const Scene& scene, Viewport logicalViewport,
+                                       const AnimationSystem* animations)
 {
     using Output = Result<UILayoutResult>;
     if (logicalViewport.width == 0 || logicalViewport.height == 0)
@@ -113,7 +115,8 @@ Result<UILayoutResult> UILayout::Build(const Scene& scene, Viewport logicalViewp
             if (panel && panel->enabled)
                 result.items.push_back({id, UIDrawKind::Panel, bounds, visible});
             const auto* image = scene.GetComponent<ImageComponent>(entity);
-            if (image && image->enabled && image->texture.id.IsValid())
+            if (image && image->enabled &&
+                (image->texture.id.IsValid() || (animations && animations->GetPose(id))))
                 result.items.push_back({id, UIDrawKind::Image, bounds, visible});
             const auto* text = scene.GetComponent<TextComponent>(entity);
             if (text && text->enabled && !text->content.empty())
