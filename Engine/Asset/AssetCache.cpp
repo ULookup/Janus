@@ -5,6 +5,27 @@
 namespace Janus
 {
 
+const FontAsset* AssetCache::FindFont(AssetHandle handle) const noexcept
+{
+    const auto found = m_Fonts.find(handle);
+    return found == m_Fonts.end() ? nullptr : &found->second;
+}
+bool AssetCache::StoreFont(AssetHandle handle, FontAsset font)
+{
+    if (!handle.IsValid() || Contains(handle) || !font.atlas.IsValid())
+        return false;
+    return m_Fonts.emplace(handle, std::move(font)).second;
+}
+bool AssetCache::RemoveFont(AssetHandle handle) noexcept
+{
+    return m_Fonts.erase(handle) != 0;
+}
+usize AssetCache::RemoveFontsForAtlas(AssetHandle atlas) noexcept
+{
+    return std::erase_if(m_Fonts,
+                         [atlas](const auto& entry) { return entry.second.atlas == atlas; });
+}
+
 const TextureHandle* AssetCache::FindTexture(
     AssetHandle handle) const noexcept
 {
@@ -90,9 +111,8 @@ bool AssetCache::RemoveLuaScriptSource(AssetHandle handle) noexcept
 
 bool AssetCache::Contains(AssetHandle handle) const noexcept
 {
-    return m_Textures.contains(handle)
-        || m_ShaderSources.contains(handle)
-        || m_LuaScriptSources.contains(handle);
+    return m_Textures.contains(handle) || m_ShaderSources.contains(handle) ||
+           m_LuaScriptSources.contains(handle) || m_Fonts.contains(handle);
 }
 
 usize AssetCache::TextureCount() const noexcept
@@ -113,6 +133,7 @@ usize AssetCache::LuaScriptSourceCount() const noexcept
 void AssetCache::Clear() noexcept
 {
     m_Textures.clear();
+    m_Fonts.clear();
     m_ShaderSources.clear();
     m_LuaScriptSources.clear();
 }

@@ -344,11 +344,9 @@ Result<void> Application::Run(ApplicationClient& client)
                 m_Window->GetWidth(),
                 m_Window->GetHeight()};
 
-            const auto renderResult = m_SceneRenderer->Render(
-                *m_Scene,
-                *m_AssetService,
-                *m_Renderer2D,
-                viewport);
+            const auto renderResult =
+                m_SceneRenderer->Render(*m_Scene, *m_AssetService, *m_Renderer2D, viewport,
+                                        Viewport{settings.width, settings.height});
 
             if (!renderResult)
             {

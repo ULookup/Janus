@@ -4,6 +4,8 @@
 #include "Asset/AssetRegistry.h"
 #include "Scene/Components.h"
 #include "Scene/Scene.h"
+#include "UI/UIComponents.h"
+#include "UI/UIReflection.h"
 
 #include <string>
 #include <utility>
@@ -109,6 +111,31 @@ Result<void*> GetMutableComponent(
             return Result<void*>::Success(value);
         }
     }
+    else if (component == Canvas)
+    {
+        if (auto* value = scene.GetComponent<CanvasComponent>(entity); value != nullptr)
+            return Result<void*>::Success(value);
+    }
+    else if (component == UIRect)
+    {
+        if (auto* value = scene.GetComponent<UIRectComponent>(entity); value != nullptr)
+            return Result<void*>::Success(value);
+    }
+    else if (component == Panel)
+    {
+        if (auto* value = scene.GetComponent<PanelComponent>(entity); value != nullptr)
+            return Result<void*>::Success(value);
+    }
+    else if (component == Image)
+    {
+        if (auto* value = scene.GetComponent<ImageComponent>(entity); value != nullptr)
+            return Result<void*>::Success(value);
+    }
+    else if (component == Text)
+    {
+        if (auto* value = scene.GetComponent<TextComponent>(entity); value != nullptr)
+            return Result<void*>::Success(value);
+    }
     else
     {
         return Result<void*>::Failure(
@@ -146,6 +173,17 @@ Result<bool> HasBoundComponent(
         return Result<bool>::Success(
             scene.HasComponent<LuaScriptComponent>(entity));
     }
+
+    if (component == Canvas)
+        return Result<bool>::Success(scene.HasComponent<CanvasComponent>(entity));
+    if (component == UIRect)
+        return Result<bool>::Success(scene.HasComponent<UIRectComponent>(entity));
+    if (component == Panel)
+        return Result<bool>::Success(scene.HasComponent<PanelComponent>(entity));
+    if (component == Image)
+        return Result<bool>::Success(scene.HasComponent<ImageComponent>(entity));
+    if (component == Text)
+        return Result<bool>::Success(scene.HasComponent<TextComponent>(entity));
 
     return Result<bool>::Failure(
         ErrorCode::InvalidArgument,
@@ -193,6 +231,31 @@ Result<const void*> GetConstComponent(
         {
             return Result<const void*>::Success(value);
         }
+    }
+    else if (component == Canvas)
+    {
+        if (const auto* value = scene.GetComponent<CanvasComponent>(entity); value != nullptr)
+            return Result<const void*>::Success(value);
+    }
+    else if (component == UIRect)
+    {
+        if (const auto* value = scene.GetComponent<UIRectComponent>(entity); value != nullptr)
+            return Result<const void*>::Success(value);
+    }
+    else if (component == Panel)
+    {
+        if (const auto* value = scene.GetComponent<PanelComponent>(entity); value != nullptr)
+            return Result<const void*>::Success(value);
+    }
+    else if (component == Image)
+    {
+        if (const auto* value = scene.GetComponent<ImageComponent>(entity); value != nullptr)
+            return Result<const void*>::Success(value);
+    }
+    else if (component == Text)
+    {
+        if (const auto* value = scene.GetComponent<TextComponent>(entity); value != nullptr)
+            return Result<const void*>::Success(value);
     }
     else
     {
@@ -782,16 +845,14 @@ Result<void> RegisterBuiltinSceneReflection(
         return camera;
     }
 
-    return registry.RegisterComponent(
-        ComponentDescriptor{
+    auto script =
+        registry.RegisterComponent(ComponentDescriptor{
             LuaScript,
             "LuaScript",
             "LuaScript",
             true,
             true,
-            {
-                LuaScriptAssetDescriptor(),
-                LuaScriptEnabledDescriptor()},
+            {LuaScriptAssetDescriptor(), LuaScriptEnabledDescriptor()},
             [](const void* component)
             {
                 const auto* script =
@@ -804,6 +865,9 @@ Result<void> RegisterBuiltinSceneReflection(
                 }
                 return Result<void>::Success();
             }});
+    if (!script)
+        return script;
+    return RegisterUIReflection(registry);
 }
 
 Result<ReflectionRegistry>
@@ -914,6 +978,26 @@ Result<void> SceneReflection::AddComponent(
             entity.Value(),
             LuaScriptComponent{AssetHandle{}, false});
     }
+    else if (component == Canvas)
+    {
+        added = scene.AddComponent<CanvasComponent>(entity.Value(), CanvasComponent{});
+    }
+    else if (component == UIRect)
+    {
+        added = scene.AddComponent<UIRectComponent>(entity.Value(), UIRectComponent{});
+    }
+    else if (component == Panel)
+    {
+        added = scene.AddComponent<PanelComponent>(entity.Value(), PanelComponent{});
+    }
+    else if (component == Image)
+    {
+        added = scene.AddComponent<ImageComponent>(entity.Value(), ImageComponent{});
+    }
+    else if (component == Text)
+    {
+        added = scene.AddComponent<TextComponent>(entity.Value(), TextComponent{});
+    }
     else
     {
         return Result<void>::Failure(
@@ -972,6 +1056,26 @@ Result<void> SceneReflection::RemoveComponent(
     {
         removed = scene.RemoveComponent<LuaScriptComponent>(
             entity.Value());
+    }
+    else if (component == Canvas)
+    {
+        removed = scene.RemoveComponent<CanvasComponent>(entity.Value());
+    }
+    else if (component == UIRect)
+    {
+        removed = scene.RemoveComponent<UIRectComponent>(entity.Value());
+    }
+    else if (component == Panel)
+    {
+        removed = scene.RemoveComponent<PanelComponent>(entity.Value());
+    }
+    else if (component == Image)
+    {
+        removed = scene.RemoveComponent<ImageComponent>(entity.Value());
+    }
+    else if (component == Text)
+    {
+        removed = scene.RemoveComponent<TextComponent>(entity.Value());
     }
     else
     {

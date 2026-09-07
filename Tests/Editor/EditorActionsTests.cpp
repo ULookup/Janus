@@ -8,6 +8,7 @@
 #include "Scene/Components.h"
 #include "Scene/Scene.h"
 #include "Scene/SceneReflection.h"
+#include "UI/UIComponents.h"
 
 #include "../Renderer/FakeRenderDevice.h"
 
@@ -108,6 +109,32 @@ std::unique_ptr<Janus::Editor::ProjectSession> OpenTempProject(
 }
 
 } // namespace
+
+TEST_CASE("Editor reparent shares command history and Runtime guard", "[ui][editor]")
+{
+    Janus::Test::FakeRenderDevice device;
+    auto renderer = Janus::Detail::Renderer2DTestAccess::Create(device);
+    auto project = OpenProject(*renderer);
+    Janus::Editor::EditorContext context;
+    context.project = project.get();
+    Janus::Editor::EditorActions actions(context);
+    const auto child = actions.CreateEntity("Child");
+    const auto parent = actions.CreateEntity("Parent");
+    REQUIRE(child);
+    REQUIRE(parent);
+    REQUIRE(actions.ReparentEntity(child.Value(), parent.Value()));
+    auto& scene = project->GetEditorScene();
+    CHECK(scene.GetComponent<Janus::HierarchyComponent>(scene.FindEntity(child.Value()))->parent ==
+          scene.FindEntity(parent.Value()));
+    REQUIRE(actions.Undo());
+    CHECK_FALSE(scene.GetComponent<Janus::HierarchyComponent>(scene.FindEntity(child.Value()))
+                    ->parent.IsValid());
+    REQUIRE(actions.Redo());
+    Janus::InputState input;
+    REQUIRE(project->StartRuntime(input));
+    CHECK_FALSE(actions.ReparentEntity(child.Value(), {}));
+    REQUIRE(project->StopRuntime());
+}
 
 TEST_CASE(
     "EditorActions create rename transform and delete authoring entities",
@@ -340,11 +367,11 @@ TEST_CASE(
 
     for (const auto& asset : assets)
     {
-        if (asset.type == Janus::AssetType::Texture)
+        if (asset.relativePath == "Assets/player.png")
         {
             texture = asset.handle;
         }
-        else if (asset.type == Janus::AssetType::LuaScript)
+        else if (asset.relativePath == "Scripts/PlayerController.lua")
         {
             script = asset.handle;
         }
@@ -639,4 +666,41 @@ TEST_CASE(
     REQUIRE(
         second->GetCommandBus().GetCursor()
         == 0);
+}
+
+TEST_CASE("Editor Text font assignment validates asset type supports undo and Runtime guard",
+          "[ui][text][editor]")
+{
+    using namespace Janus;
+    Test::FakeRenderDevice device;
+    auto renderer = Detail::Renderer2DTestAccess::Create(device);
+    auto project = OpenProject(*renderer);
+    Editor::EditorContext context;
+    context.project = project.get();
+    Editor::EditorActions actions(context);
+    auto id = actions.CreateEntity("TextTarget");
+    REQUIRE(id);
+    REQUIRE(actions.AddComponent(id.Value(), MakeComponentTypeId("Text")));
+    const auto* font = project->GetAssetRegistry().FindByPath("Fonts/JanusPixel.font.json");
+    REQUIRE(font);
+    REQUIRE(actions.SetProperty(id.Value(), MakeComponentTypeId("Text"),
+                                MakePropertyId("Text.font"), AssetReferenceValue{font->handle.id}));
+    auto* text = project->GetEditorScene().GetComponent<TextComponent>(
+        project->GetEditorScene().FindEntity(id.Value()));
+    CHECK(text->font.id == font->handle.id);
+    REQUIRE(actions.Undo());
+    CHECK_FALSE(text->font.id.IsValid());
+    REQUIRE(actions.Redo());
+    const auto* wrong = project->GetAssetRegistry().FindByPath("Assets/player.png");
+    REQUIRE(wrong);
+    CHECK_FALSE(actions.SetProperty(id.Value(), MakeComponentTypeId("Text"),
+                                    MakePropertyId("Text.font"),
+                                    AssetReferenceValue{wrong->handle.id}));
+    CHECK(text->font.id == font->handle.id);
+    InputState input;
+    REQUIRE(project->StartRuntime(input));
+    CHECK_FALSE(actions.SetProperty(id.Value(), MakeComponentTypeId("Text"),
+                                    MakePropertyId("Text.content"), std::string("Blocked")));
+    REQUIRE(project->StopRuntime());
+    CHECK(text->content.empty());
 }

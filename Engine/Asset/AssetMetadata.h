@@ -13,7 +13,8 @@ enum class AssetType
 {
     Texture,
     ShaderSource,
-    LuaScript
+    LuaScript,
+    Font
 };
 
 [[nodiscard]] std::string_view AssetTypeName(AssetType type) noexcept;

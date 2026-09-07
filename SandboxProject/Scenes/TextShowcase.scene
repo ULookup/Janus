@@ -1,0 +1,649 @@
+{
+  "schema": "janus.scene",
+  "version": 1,
+  "scene": {
+    "id": "fa200000-0000-4000-8000-000000000100",
+    "name": "Text Showcase"
+  },
+  "entities": [
+    {
+      "id": "fa200000-0000-4000-8000-000000000001",
+      "name": "Canvas",
+      "parent": null,
+      "siblingOrder": 0,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "Canvas": {
+          "enabled": true
+        },
+        "Panel": {
+          "color": [
+            0.035,
+            0.055,
+            0.085,
+            1
+          ],
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "fa200000-0000-4000-8000-000000000002",
+      "name": "Accent",
+      "parent": "fa200000-0000-4000-8000-000000000001",
+      "siblingOrder": 0,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            0
+          ],
+          "anchorMax": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            40,
+            36
+          ],
+          "size": [
+            1200,
+            6
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Panel": {
+          "color": [
+            0.15,
+            0.78,
+            0.68,
+            1
+          ],
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "fa200000-0000-4000-8000-000000000003",
+      "name": "Title",
+      "parent": "fa200000-0000-4000-8000-000000000001",
+      "siblingOrder": 1,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            0
+          ],
+          "anchorMax": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            48,
+            70
+          ],
+          "size": [
+            1184,
+            70
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Text": {
+          "font": "fa100000-0000-4000-8000-000000000002",
+          "content": "JANUS / TEXT + FONT ASSETS",
+          "fontSize": 40,
+          "color": [
+            0.9,
+            0.94,
+            0.98,
+            1
+          ],
+          "alignment": "left",
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "fa200000-0000-4000-8000-000000000004",
+      "name": "Subtitle",
+      "parent": "fa200000-0000-4000-8000-000000000001",
+      "siblingOrder": 2,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            0
+          ],
+          "anchorMax": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            48,
+            144
+          ],
+          "size": [
+            1184,
+            50
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Text": {
+          "font": "fa100000-0000-4000-8000-000000000002",
+          "content": "OFFLINE ATLAS   /   SHARED UI   /   UTF-8",
+          "fontSize": 20,
+          "color": [
+            0.9,
+            0.94,
+            0.98,
+            1
+          ],
+          "alignment": "left",
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "fa200000-0000-4000-8000-000000000005",
+      "name": "StatusCard",
+      "parent": "fa200000-0000-4000-8000-000000000001",
+      "siblingOrder": 3,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            0
+          ],
+          "anchorMax": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            48,
+            240
+          ],
+          "size": [
+            520,
+            160
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Panel": {
+          "color": [
+            0.09,
+            0.16,
+            0.22,
+            1
+          ],
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "fa200000-0000-4000-8000-000000000006",
+      "name": "HealthLabel",
+      "parent": "fa200000-0000-4000-8000-000000000001",
+      "siblingOrder": 4,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            0
+          ],
+          "anchorMax": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            72,
+            264
+          ],
+          "size": [
+            470,
+            112
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Text": {
+          "font": "fa100000-0000-4000-8000-000000000002",
+          "content": "HP 12 / 12\nAUTHORING VALUE",
+          "fontSize": 32,
+          "color": [
+            0.9,
+            0.94,
+            0.98,
+            1
+          ],
+          "alignment": "left",
+          "enabled": true
+        },
+        "LuaScript": {
+          "script": "fa100000-0000-4000-8000-000000000003",
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "fa200000-0000-4000-8000-000000000007",
+      "name": "MenuCard",
+      "parent": "fa200000-0000-4000-8000-000000000001",
+      "siblingOrder": 5,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            0
+          ],
+          "anchorMax": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            608,
+            240
+          ],
+          "size": [
+            624,
+            160
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Panel": {
+          "color": [
+            0.07,
+            0.2,
+            0.2,
+            1
+          ],
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "fa200000-0000-4000-8000-000000000008",
+      "name": "MenuLabel",
+      "parent": "fa200000-0000-4000-8000-000000000001",
+      "siblingOrder": 6,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            0
+          ],
+          "anchorMax": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            628,
+            268
+          ],
+          "size": [
+            584,
+            104
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Text": {
+          "font": "fa100000-0000-4000-8000-000000000002",
+          "content": "TEXT READY\nBUTTON EVENTS: NEXT STAGE",
+          "fontSize": 28,
+          "color": [
+            0.9,
+            0.94,
+            0.98,
+            1
+          ],
+          "alignment": "center",
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "fa200000-0000-4000-8000-000000000009",
+      "name": "ClippingLabel",
+      "parent": "fa200000-0000-4000-8000-000000000001",
+      "siblingOrder": 7,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            0
+          ],
+          "anchorMax": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            48,
+            456
+          ],
+          "size": [
+            370,
+            28
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Text": {
+          "font": "fa100000-0000-4000-8000-000000000002",
+          "content": "THIS LINE IS CLIPPED AT ITS RECTANGLE",
+          "fontSize": 28,
+          "color": [
+            0.9,
+            0.94,
+            0.98,
+            1
+          ],
+          "alignment": "left",
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "fa200000-0000-4000-8000-00000000000a",
+      "name": "MultilineLabel",
+      "parent": "fa200000-0000-4000-8000-000000000001",
+      "siblingOrder": 8,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            0
+          ],
+          "anchorMax": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            48,
+            510
+          ],
+          "size": [
+            720,
+            120
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Text": {
+          "font": "fa100000-0000-4000-8000-000000000002",
+          "content": "LINE ONE\nLINE TWO / 0123456789\nMISSING GLYPH: 中",
+          "fontSize": 24,
+          "color": [
+            0.9,
+            0.94,
+            0.98,
+            1
+          ],
+          "alignment": "left",
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "fa200000-0000-4000-8000-00000000000b",
+      "name": "RightAligned",
+      "parent": "fa200000-0000-4000-8000-000000000001",
+      "siblingOrder": 9,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            0
+          ],
+          "anchorMax": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            848,
+            500
+          ],
+          "size": [
+            384,
+            100
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Text": {
+          "font": "fa100000-0000-4000-8000-000000000002",
+          "content": "RIGHT ALIGNED\nSCORE 120",
+          "fontSize": 24,
+          "color": [
+            0.9,
+            0.94,
+            0.98,
+            1
+          ],
+          "alignment": "right",
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "fa200000-0000-4000-8000-00000000000c",
+      "name": "Footer",
+      "parent": "fa200000-0000-4000-8000-000000000001",
+      "siblingOrder": 10,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            0
+          ],
+          "anchorMax": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            48,
+            660
+          ],
+          "size": [
+            1184,
+            40
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Text": {
+          "font": "fa100000-0000-4000-8000-000000000002",
+          "content": "EDITOR + SANDBOX  /  PLAY TO UPDATE HP  /  STOP RESTORES AUTHORING",
+          "fontSize": 18,
+          "color": [
+            0.9,
+            0.94,
+            0.98,
+            1
+          ],
+          "alignment": "left",
+          "enabled": true
+        }
+      }
+    }
+  ]
+}

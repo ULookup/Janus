@@ -1,4 +1,5 @@
 #include "Scripting/ScriptEngine.h"
+#include "UI/TextLayout.h"
 
 #include "Asset/AssetService.h"
 #include "Core/Input/InputState.h"
@@ -139,6 +140,39 @@ int EntityName(lua_State* state)
     return 1;
 }
 
+int EntityGetText(lua_State* state)
+{
+    auto* context = GetBindingContext(state);
+    auto entity = ResolveEntity(state, *context, *CheckEntityRef(state));
+    const auto* text = context->scene->GetComponent<TextComponent>(entity);
+    if (!text)
+        return luaL_error(state, "Janus Entity is missing TextComponent.");
+    lua_pushlstring(state, text->content.data(), text->content.size());
+    return 1;
+}
+
+int EntitySetText(lua_State* state)
+{
+    auto* context = GetBindingContext(state);
+    auto entity = ResolveEntity(state, *context, *CheckEntityRef(state));
+    auto* text = context->scene->GetComponent<TextComponent>(entity);
+    if (!text)
+        return luaL_error(state, "Janus Entity is missing TextComponent.");
+    luaL_checktype(state, 2, LUA_TSTRING);
+    size_t size = 0;
+    const char* content = lua_tolstring(state, 2, &size);
+    bool valid = false;
+    {
+        // Destroy Result/string temporaries before Lua's longjmp-based error path.
+        valid = static_cast<bool>(ValidateTextContent(std::string_view(content, size)));
+    }
+    if (!valid)
+        return luaL_error(state,
+                          "Text requires valid UTF-8, no controls except CR/LF, and <=4096 bytes.");
+    text->content.assign(content, size);
+    return 0;
+}
+
 int EntityGetPosition(lua_State* state)
 {
     BindingContext* context = GetBindingContext(state);
@@ -273,12 +307,13 @@ void RegisterEntityBinding(lua_State* state)
 {
     if (luaL_newmetatable(state, EntityMetatableName) != 0)
     {
-        static const luaL_Reg Methods[] = {
-            {"id", EntityId},
-            {"name", EntityName},
-            {"get_position", EntityGetPosition},
-            {"set_position", EntitySetPosition},
-            {nullptr, nullptr}};
+        static const luaL_Reg Methods[] = {{"id", EntityId},
+                                           {"name", EntityName},
+                                           {"get_position", EntityGetPosition},
+                                           {"get_text", EntityGetText},
+                                           {"set_text", EntitySetText},
+                                           {"set_position", EntitySetPosition},
+                                           {nullptr, nullptr}};
 
         lua_pushvalue(state, -1);
         lua_setfield(state, -2, "__index");

@@ -8,6 +8,12 @@ TEST_CASE(
 {
     using namespace Janus::MCP;
 
+    REQUIRE(ClassifyMcpOperation("tools/call", Json{{"name", "assets.search"}}) ==
+            McpOperation::ProjectRead);
+
+    REQUIRE(ClassifyMcpOperation("tools/call", Json{{"name", "scene.reparent_entity"}}) ==
+            McpOperation::SceneWrite);
+
     REQUIRE(
         ClassifyMcpOperation(
             "resources/list",

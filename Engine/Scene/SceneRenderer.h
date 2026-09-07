@@ -22,22 +22,19 @@ struct SceneRenderRequest
     OrthographicCamera camera;
     Viewport viewport;
     RenderTargetHandle target;
+    Viewport logicalViewport;
+    bool includeUI = true;
 };
 
 class SceneRenderer
 {
 public:
-    [[nodiscard]] Result<void> Render(
-        Scene& scene,
-        AssetService& assets,
-        Renderer2D& renderer,
-        Viewport viewport);
+  [[nodiscard]] Result<void> Render(Scene& scene, AssetService& assets, Renderer2D& renderer,
+                                    Viewport viewport, Viewport logicalViewport = {});
 
-    [[nodiscard]] Result<void> Render(
-        const SceneRenderRequest& request);
+  [[nodiscard]] Result<void> Render(const SceneRenderRequest& request);
 
-    [[nodiscard]] Result<OrthographicCamera> ResolvePrimaryCamera(
-        Scene& scene);
+  [[nodiscard]] Result<OrthographicCamera> ResolvePrimaryCamera(Scene& scene);
 
 private:
     [[nodiscard]] Result<void> RenderPrepared(

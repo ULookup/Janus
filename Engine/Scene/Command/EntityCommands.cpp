@@ -3,6 +3,7 @@
 #include "Core/Reflection/ReflectionRegistry.h"
 #include "Scene/Components.h"
 #include "Scene/Scene.h"
+#include "UI/UIComponents.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -432,6 +433,110 @@ Result<void> ReorderChildren(
 }
 
 } // namespace
+
+ReparentEntityCommand::ReparentEntityCommand(Scene& scene, UUID entity, UUID parent, usize index)
+    : m_Scene(scene), m_Entity(entity), m_Parent(parent), m_Index(index)
+{
+}
+
+Result<void> ReparentEntityCommand::Apply(UUID parentId, usize index)
+{
+    auto child = ResolveEntity(m_Scene, m_Entity);
+    if (!child)
+        return Result<void>::Failure(child.GetError());
+    ECS::Entity parent;
+    if (parentId.IsValid())
+    {
+        auto resolved = ResolveEntity(m_Scene, parentId);
+        if (!resolved)
+            return Result<void>::Failure(resolved.GetError());
+        parent = resolved.Value();
+    }
+    if (m_Scene.HasComponent<CanvasComponent>(child.Value()) && parent.IsValid())
+        return Result<void>::Failure(ErrorCode::InvalidArgument,
+                                     "Canvas must remain a root entity.");
+    auto canvasOf = [&](ECS::Entity entity)
+    {
+        while (entity.IsValid())
+        {
+            if (m_Scene.HasComponent<CanvasComponent>(entity))
+                return entity;
+            entity = m_Scene.GetComponent<HierarchyComponent>(entity)->parent;
+        }
+        return ECS::Entity{};
+    };
+    const auto oldCanvas = canvasOf(child.Value());
+    const auto newCanvas = canvasOf(parent);
+    if (oldCanvas.IsValid() && newCanvas.IsValid() && oldCanvas != newCanvas)
+        return Result<void>::Failure(ErrorCode::InvalidArgument,
+                                     "Cross-Canvas reparent is unsupported.");
+    std::vector<ECS::Entity> desired;
+    if (parent.IsValid())
+    {
+        auto children = CurrentChildren(m_Scene, parent);
+        if (!children)
+            return Result<void>::Failure(children.GetError());
+        desired = std::move(children).Value();
+        std::erase(desired, child.Value());
+        if (index > desired.size())
+            return Result<void>::Failure(ErrorCode::InvalidArgument,
+                                         "Sibling index is outside the target child list.");
+        desired.insert(desired.begin() + static_cast<std::ptrdiff_t>(index), child.Value());
+    }
+    else if (index != 0)
+        return Result<void>::Failure(
+            ErrorCode::InvalidArgument,
+            "Root order is persistent UUID order; root sibling index must be zero.");
+    auto attached = m_Scene.SetParent(child.Value(), parent);
+    if (!attached)
+        return attached;
+    // SetParent validates cycles before touching links. All members of desired
+    // are now valid direct children, so restoring order cannot introduce a cycle.
+    if (parent.IsValid())
+        return ReorderChildren(m_Scene, parent, desired);
+    return Result<void>::Success();
+}
+Result<void> ReparentEntityCommand::Execute()
+{
+    if (m_Captured)
+        return Result<void>::Failure(ErrorCode::InvalidState, "Reparent has already executed.");
+    auto child = ResolveEntity(m_Scene, m_Entity);
+    if (!child)
+        return Result<void>::Failure(child.GetError());
+    const auto& hierarchy = *m_Scene.GetComponent<HierarchyComponent>(child.Value());
+    m_OldParent = hierarchy.parent.IsValid()
+                      ? m_Scene.GetComponent<EntityIdentityComponent>(hierarchy.parent)->id
+                      : UUID{};
+    m_OldIndex = SiblingOrder(m_Scene, child.Value(), hierarchy);
+    auto result = Apply(m_Parent, m_Index);
+    if (result)
+        m_Captured = true;
+    return result;
+}
+Result<void> ReparentEntityCommand::Undo()
+{
+    if (!m_Captured)
+        return Result<void>::Failure(ErrorCode::InvalidState, "Reparent has no snapshot.");
+    return Apply(m_OldParent, m_OldIndex);
+}
+Result<void> ReparentEntityCommand::Redo()
+{
+    if (!m_Captured)
+        return Result<void>::Failure(ErrorCode::InvalidState, "Reparent has no snapshot.");
+    return Apply(m_Parent, m_Index);
+}
+std::string_view ReparentEntityCommand::Describe() const noexcept
+{
+    return "Reparent Entity";
+}
+Result<usize> ReparentEntityCommand::EstimateUndoBytes() const
+{
+    return Result<usize>::Success(sizeof(*this));
+}
+std::vector<CommandEffect> ReparentEntityCommand::GetEffects() const
+{
+    return {{m_Entity, "ReparentEntity"}};
+}
 
 CreateEntityCommand::CreateEntityCommand(
     Scene& scene,

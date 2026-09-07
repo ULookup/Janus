@@ -27,6 +27,7 @@ public:
     explicit EditorActions(EditorContext& context) noexcept;
 
     [[nodiscard]] Result<UUID> CreateEntity(std::string name);
+    [[nodiscard]] Result<void> ReparentEntity(UUID entity, UUID parent, usize siblingIndex = 0);
     [[nodiscard]] Result<void> DeleteEntity(UUID id);
     [[nodiscard]] Result<void> RenameEntity(
         UUID id,

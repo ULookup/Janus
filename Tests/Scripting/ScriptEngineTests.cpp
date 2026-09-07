@@ -6,6 +6,7 @@
 #include "Scene/Components.h"
 #include "Scene/Scene.h"
 #include "Scripting/ScriptEngine.h"
+#include "UI/UIComponents.h"
 
 #include "../Asset/AssetTestUtils.h"
 #include "../Renderer/FakeRenderDevice.h"
@@ -674,4 +675,37 @@ return Script
     REQUIRE(engine->InstanceCount() == 1);
     REQUIRE(transform->position.x == Catch::Approx(111.0f));
     REQUIRE(engine->Stop());
+}
+
+TEST_CASE("Lua Text updates validate input and preserve value on failure", "[ui][text][scripting]")
+{
+    Janus::Test::AssetTempDirectory temp;
+    Janus::AssetRegistry registry;
+    auto script = RegisterScript(temp, registry, "Text.lua", R"lua(
+return { OnCreate = function(self)
+    assert(self.entity:get_text() == "HP 12")
+    self.entity:set_text("HP 8")
+    assert(not pcall(function() self.entity:set_text(string.char(192, 175)) end))
+    assert(not pcall(function() self.entity:set_text(string.rep("x", 4097)) end))
+    assert(self.entity:get_text() == "HP 8")
+end, OnUpdate = function(self, dt) self.entity:set_text("HP 4") end }
+)lua");
+    Janus::Test::FakeRenderDevice device;
+    auto renderer = Janus::Detail::Renderer2DTestAccess::Create(device);
+    Janus::AssetService assets(temp.Path(), registry, *renderer);
+    Janus::Scene scene;
+    auto entity = scene.CreateEntity("Label");
+    Janus::TextComponent text;
+    text.content = "HP 12";
+    scene.AddComponent<Janus::TextComponent>(entity, text);
+    scene.AddComponent<Janus::LuaScriptComponent>(entity, {script, true});
+    Janus::InputState input;
+    auto engine = CreateEngine(scene, assets, input);
+    REQUIRE(engine->Start());
+    CHECK(scene.GetComponent<Janus::TextComponent>(entity)->content == "HP 8");
+    REQUIRE(engine->Update(Janus::TimeStep::FromSeconds(1.0 / 60)));
+    CHECK(scene.GetComponent<Janus::TextComponent>(entity)->content == "HP 4");
+    REQUIRE(engine->Stop());
+    scene.RemoveComponent<Janus::TextComponent>(entity);
+    CHECK_FALSE(engine->Start());
 }

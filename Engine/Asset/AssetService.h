@@ -2,6 +2,7 @@
 
 #include "Asset/AssetCache.h"
 #include "Asset/AssetHandle.h"
+#include "Asset/FontAsset.h"
 #include "Core/Error/Result.h"
 #include "Renderer/RendererTypes.h"
 
@@ -28,6 +29,8 @@ public:
     AssetService(AssetService&&) = delete;
     AssetService& operator=(AssetService&&) = delete;
 
+    // Pointer remains valid until this font, its atlas, or the service cache is unloaded.
+    [[nodiscard]] Result<const FontAsset*> LoadFont(AssetHandle handle);
     [[nodiscard]] Result<TextureHandle> LoadTexture(AssetHandle handle);
     [[nodiscard]] Result<std::string_view> LoadShaderSource(AssetHandle handle);
     [[nodiscard]] Result<std::string_view> LoadLuaScriptSource(AssetHandle handle);

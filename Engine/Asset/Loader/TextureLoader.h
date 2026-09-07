@@ -13,6 +13,7 @@ class Renderer2D;
 class TextureLoader
 {
 public:
+    [[nodiscard]] static Result<Viewport> ReadDimensions(const std::filesystem::path& path);
     [[nodiscard]] static Result<TextureHandle> Load(
         const std::filesystem::path& path,
         Renderer2D& renderer);

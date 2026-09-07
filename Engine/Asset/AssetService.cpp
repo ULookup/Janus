@@ -2,6 +2,7 @@
 
 #include "Asset/AssetMetadata.h"
 #include "Asset/AssetRegistry.h"
+#include "Asset/Loader/FontLoader.h"
 #include "Asset/Loader/LuaScriptSourceLoader.h"
 #include "Asset/Loader/ShaderSourceLoader.h"
 #include "Asset/Loader/TextureLoader.h"
@@ -26,6 +27,35 @@ AssetService::AssetService(
 AssetService::~AssetService()
 {
     Clear();
+}
+
+Result<const FontAsset*> AssetService::LoadFont(AssetHandle handle)
+{
+    using Output = Result<const FontAsset*>;
+    if (const auto* cached = m_Cache.FindFont(handle))
+        return Output::Success(cached);
+    const auto* metadata = m_Registry.Find(handle);
+    if (!metadata)
+        return Output::Failure(ErrorCode::AssetNotFound, "Font asset is not registered.");
+    if (metadata->type != AssetType::Font)
+        return Output::Failure(ErrorCode::AssetTypeMismatch, "Asset is not a Font.");
+    auto font = FontLoader::Load(ResolvePath(metadata->relativePath));
+    if (!font)
+        return Output::Failure(font.GetError());
+    const auto* atlas = m_Registry.Find(font.Value().atlas);
+    if (!atlas)
+        return Output::Failure(ErrorCode::AssetNotFound, "Font atlas is not registered.");
+    if (atlas->type != AssetType::Texture)
+        return Output::Failure(ErrorCode::AssetTypeMismatch, "Font atlas must be a Texture.");
+    auto size = TextureLoader::ReadDimensions(ResolvePath(atlas->relativePath));
+    if (!size)
+        return Output::Failure(size.GetError());
+    if (size.Value().width != font.Value().width || size.Value().height != font.Value().height)
+        return Output::Failure(ErrorCode::AssetDecodeFailed,
+                               "Font atlas dimensions do not match metadata.");
+    if (!m_Cache.StoreFont(handle, std::move(font).Value()))
+        return Output::Failure(ErrorCode::InvalidState, "Failed to cache Font asset.");
+    return Output::Success(m_Cache.FindFont(handle));
 }
 
 Result<TextureHandle> AssetService::LoadTexture(AssetHandle handle)
@@ -211,6 +241,9 @@ bool AssetService::IsLoaded(AssetHandle handle) const noexcept
 
 bool AssetService::Unload(AssetHandle handle) noexcept
 {
+    const bool removedFont = m_Cache.RemoveFont(handle);
+    // Invalidating an atlas also invalidates dependent metrics/dimension validation.
+    const bool invalidated = m_Cache.RemoveFontsForAtlas(handle) != 0;
     if (auto texture = m_Cache.RemoveTexture(handle))
     {
         m_Renderer.DestroyTexture(*texture);
@@ -222,7 +255,7 @@ bool AssetService::Unload(AssetHandle handle) noexcept
         return true;
     }
 
-    return m_Cache.RemoveLuaScriptSource(handle);
+    return m_Cache.RemoveLuaScriptSource(handle) || removedFont || invalidated;
 }
 
 void AssetService::Clear() noexcept

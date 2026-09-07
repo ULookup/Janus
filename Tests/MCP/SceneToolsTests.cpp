@@ -113,13 +113,49 @@ Janus::UUID StructuredEntity(
 
 } // namespace
 
+TEST_CASE("MCP reparent shares undo history rejects invalid input and honors read-only",
+          "[ui][mcp]")
+{
+    ToolFixture fixture;
+    const auto child =
+        StructuredEntity(CallTool(fixture, "scene.create_entity", {{"name", "Child"}}));
+    const auto parent =
+        StructuredEntity(CallTool(fixture, "scene.create_entity", {{"name", "Parent"}}));
+    fixture.dirty = false;
+    auto result = CallTool(
+        fixture, "scene.reparent_entity",
+        {{"entity", child.ToString()}, {"parent", parent.ToString()}, {"siblingIndex", 0}});
+    REQUIRE(result.at("structuredContent").at("ok") == true);
+    CHECK(fixture.dirty);
+    auto entity = fixture.scene.FindEntity(child);
+    CHECK(fixture.scene.GetComponent<Janus::HierarchyComponent>(entity)->parent ==
+          fixture.scene.FindEntity(parent));
+    REQUIRE(fixture.commands.Undo());
+    CHECK_FALSE(fixture.scene.GetComponent<Janus::HierarchyComponent>(entity)->parent.IsValid());
+    REQUIRE(fixture.commands.Redo());
+    fixture.readOnly = true;
+    auto denied = CallTool(fixture, "scene.reparent_entity",
+                           {{"entity", child.ToString()}, {"parent", nullptr}});
+    CHECK(denied.at("isError") == true);
+    fixture.readOnly = false;
+    const auto invalid = fixture.tools.HandleCall(
+        {{"name", "scene.reparent_entity"},
+         {"arguments", {{"entity", child.ToString()}, {"parent", nullptr}, {"siblingIndex", -1}}}},
+        Janus::MCP::McpProtocolEra::Modern2026);
+    RequireDispatchError(invalid);
+    REQUIRE(CallTool(fixture, "scene.reparent_entity",
+                     {{"entity", child.ToString()}, {"parent", nullptr}})
+                .at("structuredContent")
+                .at("ok") == true);
+}
+
 TEST_CASE(
     "Scene MCP tool registration exposes the v0.8 command set",
     "[mcp][tool][scene][v0.8]")
 {
     ToolFixture fixture;
 
-    REQUIRE(fixture.tools.GetToolCount() == 7);
+    REQUIRE(fixture.tools.GetToolCount() == 9);
     REQUIRE(
         fixture.tools.FindTool(
             "scene.create_entity")
@@ -552,4 +588,29 @@ TEST_CASE(
             .at("ok")
         == true);
     REQUIRE(fixture.saved);
+}
+
+TEST_CASE("MCP asset search is read-only typed bounded and rejects invalid parameters",
+          "[ui][text][mcp]")
+{
+    ToolFixture fixture;
+    REQUIRE(fixture.assets.Register(Janus::AssetType::Font, "Fonts/Menu.json"));
+    REQUIRE(fixture.assets.Register(Janus::AssetType::Texture, "Fonts/Menu.png"));
+    fixture.readOnly = true;
+    const auto result =
+        CallTool(fixture, "assets.search", {{"name", "Menu"}, {"type", "font"}, {"limit", 1}});
+    const auto& data = result.at("structuredContent");
+    CHECK(data.at("total") == 1);
+    REQUIRE(data.at("assets").size() == 1);
+    CHECK(data.at("assets")[0].at("path") == "Fonts/Menu.json");
+    CHECK_FALSE(fixture.dirty);
+    for (auto arguments : {Janus::MCP::Json{{"limit", -1}}, Janus::MCP::Json{{"limit", 101}},
+                           Janus::MCP::Json{{"offset", 1.5}}, Janus::MCP::Json{{"type", "typo"}},
+                           Janus::MCP::Json{{"name", 12}}, Janus::MCP::Json{{"transaction", "x"}}})
+    {
+        auto invalid =
+            fixture.tools.HandleCall({{"name", "assets.search"}, {"arguments", arguments}},
+                                     Janus::MCP::McpProtocolEra::Modern2026);
+        RequireDispatchError(invalid);
+    }
 }

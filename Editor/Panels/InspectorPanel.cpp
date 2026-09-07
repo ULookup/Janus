@@ -30,9 +30,8 @@ Error TypeMismatch(
             + "'."};
 }
 
-void CopyStringToBuffer(
-    std::string_view value,
-    std::array<char, 256>& buffer)
+template <std::size_t Size>
+void CopyStringToBuffer(std::string_view value, std::array<char, Size>& buffer)
 {
     buffer.fill('\0');
 
@@ -301,11 +300,12 @@ std::optional<Error> InspectorPanel::DrawProperty(
                 buffer);
         }
 
-        changed =
-            ImGui::InputText(
-                descriptor->name.c_str(),
-                buffer.data(),
-                buffer.size());
+        if (descriptor->id == MakePropertyId("Text.content"))
+            changed =
+                ImGui::InputTextMultiline(descriptor->name.c_str(), buffer.data(), buffer.size(),
+                                          ImVec2(0, ImGui::GetTextLineHeight() * 5));
+        else
+            changed = ImGui::InputText(descriptor->name.c_str(), buffer.data(), buffer.size());
 
         if (ImGui::IsItemActivated())
         {

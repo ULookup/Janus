@@ -26,6 +26,41 @@ constexpr i32 RegistryVersion = 1;
 
 } // namespace
 
+Result<AssetSearchResult> AssetRegistry::Search(std::string_view name,
+                                                std::optional<AssetType> type, usize offset,
+                                                usize limit) const
+{
+    if (name.size() > 256 || limit == 0 || limit > 100 ||
+        (type && AssetTypeName(*type) == "unknown"))
+        return Result<AssetSearchResult>::Failure(
+            ErrorCode::InvalidArgument,
+            "Asset search requires name <=256 bytes and limit in [1, 100].");
+    std::vector<AssetMetadata> matches;
+    for (const auto& [handle, asset] : m_Metadata)
+        if ((!type || asset.type == *type) &&
+            asset.relativePath.generic_string().find(name) != std::string::npos)
+            matches.push_back(asset);
+    std::sort(matches.begin(), matches.end(), [](const auto& a, const auto& b)
+              { return a.relativePath.generic_string() < b.relativePath.generic_string(); });
+    AssetSearchResult result;
+    result.total = matches.size();
+    const auto begin = std::min(offset, matches.size());
+    const auto end = begin + std::min(limit, matches.size() - begin);
+    usize bytes = 256;
+    for (auto i = begin; i < end; ++i)
+    {
+        const auto pathBytes = matches[i].relativePath.generic_string().size();
+        // Bound worst-case JSON escaping as well as row count for MCP consumers.
+        if (bytes > 65536 - 256 || pathBytes > (65536 - bytes - 256) / 6)
+            return Result<AssetSearchResult>::Failure(
+                ErrorCode::InvalidArgument,
+                "Asset search page exceeds 64 KiB; reduce limit or shorten asset paths.");
+        bytes += pathBytes * 6 + 256;
+        result.assets.push_back(std::move(matches[i]));
+    }
+    return Result<AssetSearchResult>::Success(std::move(result));
+}
+
 Result<AssetHandle> AssetRegistry::Register(
     AssetType type,
     const std::filesystem::path& relativePath)
