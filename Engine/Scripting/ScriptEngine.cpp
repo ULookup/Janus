@@ -1,6 +1,7 @@
 #include "Scripting/ScriptEngine.h"
 #include "Animation/AnimationSystem.h"
 #include "Audio/AudioSystem.h"
+#include "Physics/PhysicsSystem.h"
 #include "UI/TextLayout.h"
 
 #include "Asset/AssetService.h"
@@ -53,6 +54,7 @@ struct BindingContext
 {
     AnimationSystem* animations = nullptr;
     AudioSystem* audio = nullptr;
+    PhysicsSystem* physics = nullptr;
     Scene* scene = nullptr;
     const InputState* input = nullptr;
     const InputBindings* bindings = nullptr;
@@ -380,8 +382,23 @@ int EntitySetPosition(lua_State* state)
         return luaL_error(state, "Janus Entity is missing TransformComponent.");
     }
 
-    transform->position.x = static_cast<f32>(luaL_checknumber(state, 2));
-    transform->position.y = static_cast<f32>(luaL_checknumber(state, 3));
+    const Vector2 position{static_cast<f32>(luaL_checknumber(state, 2)),
+                           static_cast<f32>(luaL_checknumber(state, 3))};
+    if (context->physics && context->scene->HasComponent<RigidBody2DComponent>(entity))
+    {
+        bool valid = false;
+        {
+            auto result = context->physics->SetPosition(UUID(reference->bytes), position);
+            valid = static_cast<bool>(result);
+            if (!valid)
+                lua_pushlstring(state, result.GetError().message.data(),
+                                result.GetError().message.size());
+        }
+        return valid ? 0 : lua_error(state);
+    }
+    if (!std::isfinite(position.x) || !std::isfinite(position.y))
+        return luaL_error(state, "Position must be finite.");
+    transform->position = position;
     transform->dirty = true;
     return 0;
 }
@@ -579,6 +596,129 @@ void PushEntityReference(lua_State* state, UUID entityId)
     lua_setmetatable(state, -2);
 }
 
+enum class PhysicsOperation
+{
+    Velocity,
+    Impulse,
+    Destroy
+};
+template <PhysicsOperation operation> int EntityPhysicsControl(lua_State* state)
+{
+    auto* context = GetBindingContext(state);
+    const auto* reference = CheckEntityRef(state);
+    static_cast<void>(ResolveEntity(state, *context, *reference));
+    if (!context->physics)
+        return luaL_error(state, "Physics requires managed RuntimeExecution.");
+    Vector2 value;
+    if constexpr (operation != PhysicsOperation::Destroy)
+        value = {static_cast<f32>(luaL_checknumber(state, 2)),
+                 static_cast<f32>(luaL_checknumber(state, 3))};
+    bool valid = false;
+    {
+        const UUID id(reference->bytes);
+        auto result = Result<void>::Success();
+        if constexpr (operation == PhysicsOperation::Velocity)
+            result = context->physics->SetVelocity(id, value);
+        if constexpr (operation == PhysicsOperation::Impulse)
+            result = context->physics->ApplyImpulse(id, value);
+        if constexpr (operation == PhysicsOperation::Destroy)
+            result = context->physics->QueueDestroy(id);
+        valid = static_cast<bool>(result);
+        if (!valid)
+            lua_pushlstring(state, result.GetError().message.data(),
+                            result.GetError().message.size());
+    }
+    return valid ? 0 : lua_error(state);
+}
+int EntityGetVelocity(lua_State* state)
+{
+    auto* context = GetBindingContext(state);
+    const auto* reference = CheckEntityRef(state);
+    static_cast<void>(ResolveEntity(state, *context, *reference));
+    if (!context->physics)
+        return luaL_error(state, "Physics requires managed RuntimeExecution.");
+    bool valid = false;
+    {
+        auto result = context->physics->GetVelocity(UUID(reference->bytes));
+        valid = static_cast<bool>(result);
+        if (valid)
+        {
+            lua_pushnumber(state, result.Value().x);
+            lua_pushnumber(state, result.Value().y);
+        }
+        else
+            lua_pushlstring(state, result.GetError().message.data(),
+                            result.GetError().message.size());
+    }
+    return valid ? 2 : lua_error(state);
+}
+int PhysicsStats(lua_State* state)
+{
+    const auto* physics = GetBindingContext(state)->physics;
+    if (!physics)
+        return luaL_error(state, "Physics requires managed RuntimeExecution.");
+    lua_pushinteger(state, static_cast<lua_Integer>(physics->GetTickCount()));
+    lua_pushnumber(state, physics->GetDroppedSeconds());
+    lua_pushinteger(state, static_cast<lua_Integer>(physics->GetBodyCount()));
+    return 3;
+}
+int PhysicsRaycast(lua_State* state)
+{
+    const auto* physics = GetBindingContext(state)->physics;
+    if (!physics)
+        return luaL_error(state, "Physics requires managed RuntimeExecution.");
+    const Vector2 start{static_cast<f32>(luaL_checknumber(state, 1)),
+                        static_cast<f32>(luaL_checknumber(state, 2))};
+    const Vector2 end{static_cast<f32>(luaL_checknumber(state, 3)),
+                      static_cast<f32>(luaL_checknumber(state, 4))};
+    if (!lua_isnoneornil(state, 5))
+        luaL_checktype(state, 5, LUA_TBOOLEAN);
+    bool valid = false;
+    {
+        auto result = physics->Raycast(start, end, lua_toboolean(state, 5) != 0);
+        valid = static_cast<bool>(result);
+        if (!valid)
+            lua_pushlstring(state, result.GetError().message.data(),
+                            result.GetError().message.size());
+        else if (!result.Value())
+            lua_pushnil(state);
+        else
+        {
+            const auto& hit = *result.Value();
+            lua_newtable(state);
+            PushEntityReference(state, hit.entity);
+            lua_setfield(state, -2, "entity");
+            lua_pushnumber(state, hit.point.x);
+            lua_setfield(state, -2, "x");
+            lua_pushnumber(state, hit.point.y);
+            lua_setfield(state, -2, "y");
+            lua_pushnumber(state, hit.normal.x);
+            lua_setfield(state, -2, "normalX");
+            lua_pushnumber(state, hit.normal.y);
+            lua_setfield(state, -2, "normalY");
+            lua_pushnumber(state, hit.fraction);
+            lua_setfield(state, -2, "fraction");
+        }
+    }
+    return valid ? 1 : lua_error(state);
+}
+void RegisterPhysicsBinding(lua_State* state)
+{
+    static const luaL_Reg methods[] = {
+        {"stats", PhysicsStats}, {"raycast", PhysicsRaycast}, {nullptr, nullptr}};
+    lua_newtable(state);
+    lua_newtable(state);
+    lua_newtable(state);
+    luaL_setfuncs(state, methods, 0);
+    lua_setfield(state, -2, "__index");
+    lua_pushcfunction(state, ReadOnlyNewIndex);
+    lua_setfield(state, -2, "__newindex");
+    lua_pushliteral(state, "locked");
+    lua_setfield(state, -2, "__metatable");
+    lua_setmetatable(state, -2);
+    lua_setglobal(state, "Physics");
+}
+
 void RegisterEntityBinding(lua_State* state)
 {
     if (luaL_newmetatable(state, EntityMetatableName) != 0)
@@ -601,6 +741,10 @@ void RegisterEntityBinding(lua_State* state)
             {"get_text", EntityGetText},
             {"set_text", EntitySetText},
             {"set_position", EntitySetPosition},
+            {"set_velocity", EntityPhysicsControl<PhysicsOperation::Velocity>},
+            {"apply_impulse", EntityPhysicsControl<PhysicsOperation::Impulse>},
+            {"destroy", EntityPhysicsControl<PhysicsOperation::Destroy>},
+            {"get_velocity", EntityGetVelocity},
             {nullptr, nullptr}};
 
         lua_pushvalue(state, -1);
@@ -688,7 +832,7 @@ struct ScriptEngine::Impl
          const InputBindings& actionBindings, std::unique_ptr<LuaVirtualMachine> machine)
         : scene(sceneRef), assets(assetService), input(inputState), bindings(actionBindings),
           virtualMachine(std::move(machine)),
-          bindingContext{nullptr, nullptr, &scene, &input, &bindings}
+          bindingContext{nullptr, nullptr, nullptr, &scene, &input, &bindings}
     {
     }
 
@@ -709,6 +853,7 @@ struct ScriptEngine::Impl
         RegisterEntityBinding(state);
         RegisterInputBinding(state);
         RegisterDiagnosticsBinding(state);
+        RegisterPhysicsBinding(state);
 
         lua_settop(state, initialTop);
     }
@@ -754,10 +899,10 @@ struct ScriptEngine::Impl
         return Result<std::vector<DesiredInstance>>::Success(std::move(desired));
     }
 
-    [[nodiscard]] Result<void> CallCallback(
-        const ScriptInstance& instance,
-        std::string_view callback,
-        std::optional<f64> deltaSeconds = std::nullopt)
+    [[nodiscard]] Result<void> CallCallback(const ScriptInstance& instance,
+                                            std::string_view callback,
+                                            std::optional<f64> deltaSeconds = std::nullopt,
+                                            std::optional<UUID> other = std::nullopt)
     {
         lua_State* state = State();
         Detail::LuaStackGuard stackGuard(state);
@@ -804,6 +949,11 @@ struct ScriptEngine::Impl
             ++argumentCount;
         }
 
+        if (other)
+        {
+            PushEntityReference(state, *other);
+            ++argumentCount;
+        }
         const int callStatus = lua_pcall(
             state,
             argumentCount,
@@ -1178,6 +1328,8 @@ struct ScriptEngine::Impl
             {
                 continue;
             }
+            if (bindingContext.physics && bindingContext.physics->IsPendingDestroy(entityId))
+                continue;
             auto updated = CallCallback(
                 iterator->second,
                 "OnUpdate",
@@ -1400,6 +1552,56 @@ void ScriptEngine::SetSnapshotContext(UUID runtimeId, u64 frameIndex)
 {
     m_Impl->bindingContext.runtimeId = runtimeId;
     m_Impl->bindingContext.frameIndex = frameIndex;
+}
+Result<void> ScriptEngine::DestroyPhysicsEntity(UUID entity)
+{
+    auto found = m_Impl->instances.find(entity);
+    if (found == m_Impl->instances.end())
+        return Result<void>::Success();
+    auto result = m_Impl->DestroyInstance(found->second);
+    m_Impl->instances.erase(found);
+    return result;
+}
+void ScriptEngine::SetPhysics(PhysicsSystem* physics)
+{
+    m_Impl->bindingContext.physics = physics;
+}
+Result<void> ScriptEngine::DispatchPhysicsEvent(const PhysicsEvent& event)
+{
+    if (!m_Impl->running)
+        return Result<void>::Failure(ErrorCode::InvalidState,
+                                     "Physics events require running scripts.");
+    const char* callback = "OnCollisionEnter";
+    switch (event.kind)
+    {
+    case PhysicsEventKind::CollisionEnter:
+        break;
+    case PhysicsEventKind::CollisionExit:
+        callback = "OnCollisionExit";
+        break;
+    case PhysicsEventKind::TriggerEnter:
+        callback = "OnTriggerEnter";
+        break;
+    case PhysicsEventKind::TriggerExit:
+        callback = "OnTriggerExit";
+        break;
+    }
+    for (auto id : {event.first, event.second})
+    {
+        const auto other = id == event.first ? event.second : event.first;
+        auto* physics = m_Impl->bindingContext.physics;
+        if (physics && (physics->IsPendingDestroy(id) || physics->IsPendingDestroy(other)))
+            continue;
+        const auto entity = m_Impl->scene.FindEntity(id);
+        const auto* script = m_Impl->scene.GetComponent<LuaScriptComponent>(entity);
+        auto instance = m_Impl->instances.find(id);
+        if (!script || !script->enabled || instance == m_Impl->instances.end())
+            continue;
+        auto result = m_Impl->CallCallback(instance->second, callback, std::nullopt, other);
+        if (!result)
+            return result;
+    }
+    return Result<void>::Success();
 }
 void ScriptEngine::SetAudio(AudioSystem* audio)
 {

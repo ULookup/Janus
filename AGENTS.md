@@ -2,7 +2,7 @@
 
 ## Mission
 
-Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.10 Game Systems**. Local main is synchronized to origin/main `fbb1dc5` (#85, fetched 2026-09-07), containing Stage A, Shared Runtime and UI layout/text. Button #86 is in Text; Combat `92b8d13` and Animation `25a3052` are committed, and #88 merged Animation into the combat branch at `669c436`; these systems are still not in main. **10-07 Audio** is implemented on `codex/v0.10-audio`, based on that dependency chain plus main. See docs/superpowers/plans/2026-09-07-audio-next-stage-roadmap.md and the audio design/verification records for current evidence; earlier uncommitted/next-animation descriptions are historical. The next work package is **10-08 Physics**, followed by Prefab and integrated acceptance. v0.10 is not complete or released. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
+Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.10 Game Systems**. Local main is synchronized to origin/main `fbb1dc5` (#85, fetched 2026-09-07), containing Stage A, Shared Runtime and UI layout/text. Button #86 is in Text; Combat `92b8d13` and Animation `25a3052` are committed, and #88 merged Animation into the combat branch at `669c436`; these systems are still not in main. **10-07 Audio** is implemented on `codex/v0.10-audio`, based on that dependency chain plus main. See docs/superpowers/plans/2026-09-07-audio-next-stage-roadmap.md and the audio design/verification records for current evidence; earlier uncommitted/next-animation descriptions are historical. **10-08 Physics** is implemented on `codex/v0.10-physics`, based on Audio `b4eaab7`. See the physics design/verification records. The next work package is **10-09 Prefab**, followed by integrated acceptance. v0.10 is not complete or released. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
 
 This file applies to the entire repository. A more deeply nested `AGENTS.md` may add stricter rules for its subtree.
 
@@ -179,8 +179,19 @@ A change is complete only when:
 
 - AudioClip is bounded PCM16 WAV CPU data (mono/stereo, 8–96 kHz, <=120 seconds / 32 MiB), shared immutably by AssetCache and playback. Unload cannot invalidate active voices; new Runtime Start refreshes configured clips.
 - AudioSource persists only clip/enabled/playOnStart/volume/loop through active Reflection, Scene v1 and shared commands. Runtime UUID-keyed voices and device state are transient.
-- RuntimeExecution owns AudioSystem and its lazy device, runs Lua then Animation then Audio, and destroys Lua before audio resources. SDL 3.4.14 stays private behind AudioDevice; device threads never read Scene or Lua.
+- RuntimeExecution owns AudioSystem and its lazy device, runs Lua then Physics then Animation then Audio, and destroys Lua before audio resources. SDL 3.4.14 stays private behind AudioDevice; device threads never read Scene or Lua.
 - At most 64 enabled sources; Play validates before replacement, Pause retains cursor, Resume respects per-source pause, Stop resets. Volume/loop Lua controls affect runtime state only.
 - Runtime Pause/Faulted clears queued output. Neutral Step advances logical cursors silently; startPaused never opens output. Stop/startup failure releases voices and device. Device failure is a bounded observable silent fallback; content errors retain normal Runtime failure semantics.
 - Mixer output is 48 kHz stereo, at most 100 ms per Advance, queued at most 200 ms. Cursors follow simulation time, not a measured hardware clock. No streaming/spatial/DSP or music synchronization guarantee.
 - See docs/superpowers/specs/2026-09-07-v0.10-audio-design.md and docs/verification/2026-09-07-v0.10-audio.md. Game owns sample sounds and publishes playback fields through the existing snapshot path.
+
+
+## v0.10 Physics constraints
+
+- Box2D 3.1.1 is pinned by commit/hash and PRIVATE to Engine. PhysicsSystem owns one single-threaded world; public APIs expose UUIDs and Janus values only.
+- RigidBody2D/Collider2D use active Reflection, Scene v1 and shared authoring commands. Enabled bodies require a box collider and root unit-scale Transform. Units are metres, +Y up, radians; gravity (0,-9.81). Body/shape configuration is immutable while active; restart to apply edits.
+- RuntimeExecution starts physics before Lua OnCreate, then runs UI/Lua Update once per Advance, Physics fixed ticks, Animation and Audio. Tick = 1/60, four solver substeps, maximum eight catch-up ticks; discard excess whole time, preserve fractional time. Neutral paused Step still advances one tick, with no input/reload.
+- Native poses update RuntimeScene Transform only. Explicit Lua set_position teleports physical entities; velocities/impulses, accumulator, contacts and world ids never serialize or dirty authoring state.
+- Copy Box2D events after each solver step into sorted UUID pairs. Lua OnCollisionEnter/Exit and OnTriggerEnter/Exit run on the owner thread. Entity:destroy queues deletion; skip pending Update/physics callbacks, invoke OnDestroy while entities still exist, then remove Scene subtrees and native bodies even if a callback fails. OnDestroy may queue another batch for the next safe boundary.
+- Limits: 1024 bodies/pending requests, 4096 raw events per tick, finite bounded geometry/controls. Destroyed contacts cancel without synthetic exits. Raycasts use start/end, exclude triggers by default, and ignore initial overlaps per Box2D.
+- See docs/superpowers/specs/2026-09-07-v0.10-physics-design.md and docs/verification/2026-09-07-v0.10-physics.md. PhysicsShowcase is independent of combat. Prefab and integrated v0.10 acceptance remain outstanding.

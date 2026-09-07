@@ -101,6 +101,19 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(spdlog)
 
+# Box2D 3.1.1: private CPU solver, no upstream tools or task dependencies.
+set(BOX2D_SAMPLES OFF CACHE BOOL "" FORCE)
+set(BOX2D_UNIT_TESTS OFF CACHE BOOL "" FORCE)
+set(BOX2D_BENCHMARKS OFF CACHE BOOL "" FORCE)
+set(BOX2D_DOCS OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(box2d
+    URL https://github.com/erincatto/box2d/archive/8c661469c9507d3ad6fbd2fea3f1aa71669c2fe3.tar.gz
+    URL_HASH SHA256=dee7bcf0f50b3dcccf67678ce14ffe3ce02583b51b8b03e447ab30a84c3436ef
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+FetchContent_MakeAvailable(box2d)
+
+
 # ------------------------------------------------------------
 # SDL3
 # ------------------------------------------------------------

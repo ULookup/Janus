@@ -165,6 +165,10 @@ std::optional<ScriptSnapshot> RuntimeSession::GetSnapshot() const
 {
     return m_Execution ? m_Execution->GetSnapshot() : std::nullopt;
 }
+const PhysicsSystem& RuntimeSession::GetPhysics() const noexcept
+{
+    return m_Execution->GetPhysics();
+}
 const AudioSystem& RuntimeSession::GetAudio() const noexcept
 {
     return m_Execution->GetAudio();

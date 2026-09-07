@@ -48,6 +48,7 @@ add_executable(
     Game/CombatTests.cpp
     Animation/AnimationTests.cpp
     Audio/AudioTests.cpp
+    Physics/PhysicsTests.cpp
     UI/UILayoutTests.cpp
     UI/UIRenderTests.cpp
     UI/TextTests.cpp
@@ -182,6 +183,11 @@ set_tests_properties(
 
 # The same external host exercises the game observation chain in both protocol eras.
 foreach(era IN ITEMS modern legacy)
+    add_test(NAME MCP.Physics.${era}
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/MCP/physics_external_e2e.py
+            --host $<TARGET_FILE:JanusMcpExternalHost>
+            --project ${CMAKE_SOURCE_DIR}/Game --era ${era})
+    set_tests_properties(MCP.Physics.${era} PROPERTIES TIMEOUT 60 RUN_SERIAL TRUE)
     add_test(NAME MCP.Combat.${era}
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/MCP/combat_external_e2e.py
             --host $<TARGET_FILE:JanusMcpExternalHost>

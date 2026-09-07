@@ -51,6 +51,11 @@
       "handle": "ae100000-0000-4000-8000-000000000002",
       "type": "audio-clip",
       "path": "Audio/Background.wav"
+    },
+    {
+      "handle": "af100000-0000-4000-8000-000000000001",
+      "type": "lua-script",
+      "path": "Scripts/PhysicsShowcase.lua"
     }
   ]
 }
