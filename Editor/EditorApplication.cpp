@@ -3,8 +3,9 @@
 
 #include "EditorActions.h"
 #include "EditorCamera.h"
-#include "EditorContext.h"
 #include "EditorConsole.h"
+#include "EditorContext.h"
+#include "EditorIcons.h"
 #include "EditorViewSource.h"
 #include "EditorWorkspaceLayout.h"
 #include "McpEditorHost.h"
@@ -17,12 +18,14 @@
 
 #include "Application/Application.h"
 #include "Core/Input/InputState.h"
-#include "Host/McpPermissionPolicy.h"
 #include "Core/Log/Log.h"
+#include "Host/McpPermissionPolicy.h"
 #include "Platform/Window/Window.h"
 #include "Renderer/Renderer2D.h"
+#include "Scene/Components.h"
 #include "Scene/Scene.h"
 #include "Scene/SceneRenderer.h"
+#include "UI/UIComponents.h"
 
 #include <SDL3/SDL_events.h>
 #include <SDL3/SDL_video.h>
@@ -168,7 +171,7 @@ void DrawSceneGrid(
         pixelSpacing = worldSpacing / zoom;
     }
 
-    while (pixelSpacing > 160.0f && worldSpacing > 1.0f)
+    while (pixelSpacing > 160.0f && worldSpacing > 0.001f)
     {
         worldSpacing *= 0.5f;
         pixelSpacing = worldSpacing / zoom;
@@ -265,19 +268,36 @@ Result<void> EditorApplication::OnInitialize(Application& application)
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
+    ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     m_ImGuiContextCreated = true;
     ImGui::StyleColorsDark();
     ConfigureEditorFont();
 
     ImGuiStyle& style = ImGui::GetStyle();
-    style.WindowRounding = 0.0f;
-    style.ChildRounding = 0.0f;
-    style.FrameRounding = 3.0f;
-    style.TabRounding = 3.0f;
-    style.WindowBorderSize = 1.0f;
-    style.WindowPadding = ImVec2{8.0f, 8.0f};
-    style.FramePadding = ImVec2{8.0f, 5.0f};
-    style.ItemSpacing = ImVec2{8.0f, 6.0f};
+    style.WindowRounding = 0;
+    style.ChildRounding = 3;
+    style.FrameRounding = 3;
+    style.TabRounding = 3;
+    style.WindowBorderSize = 1;
+    style.WindowPadding = ImVec2{12, 10};
+    style.FramePadding = ImVec2{10, 6};
+    style.ItemSpacing = ImVec2{8, 7};
+    style.Colors[ImGuiCol_WindowBg] = ImVec4{.105f, .13f, .16f, 1};
+    style.Colors[ImGuiCol_ChildBg] = ImVec4{.09f, .11f, .14f, 1};
+    style.Colors[ImGuiCol_TitleBg] = ImVec4{.12f, .15f, .18f, 1};
+    style.Colors[ImGuiCol_TitleBgActive] = ImVec4{.14f, .18f, .22f, 1};
+    style.Colors[ImGuiCol_Header] = ImVec4{.14f, .27f, .40f, 1};
+    style.Colors[ImGuiCol_HeaderHovered] = ImVec4{.18f, .34f, .50f, 1};
+    style.Colors[ImGuiCol_HeaderActive] = ImVec4{.20f, .39f, .60f, 1};
+    style.Colors[ImGuiCol_Button] = ImVec4{.16f, .20f, .25f, 1};
+    style.Colors[ImGuiCol_ButtonHovered] = ImVec4{.22f, .35f, .49f, 1};
+    style.Colors[ImGuiCol_FrameBg] = ImVec4{.08f, .10f, .13f, 1};
+    style.Colors[ImGuiCol_Border] = ImVec4{.24f, .29f, .34f, 1};
+    style.Colors[ImGuiCol_Text] = ImVec4{.89f, .93f, .97f, 1};
+    style.Colors[ImGuiCol_TextDisabled] = ImVec4{.59f, .66f, .73f, 1};
+    m_UiScale = std::max(1.0f, SDL_GetWindowDisplayScale(nativeWindow));
+    style.ScaleAllSizes(m_UiScale);
+    style.FontScaleDpi = m_UiScale;
 
     if (!ImGui_ImplSDL3_InitForOpenGL(nativeWindow, nullptr))
     {
@@ -321,6 +341,7 @@ Result<void> EditorApplication::OnInitialize(Application& application)
 
     m_EditorContext = std::make_unique<EditorContext>();
     m_EditorContext->project = m_ProjectSession.get();
+    m_EditorContext->renderer = &application.GetRenderer2D();
     m_EditorActions =
         std::make_unique<EditorActions>(*m_EditorContext);
     m_EditorConsole = std::make_unique<EditorConsole>(m_ProjectSession->GetLogStore());
@@ -482,14 +503,69 @@ void EditorApplication::OnUpdate(
 
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL3_NewFrame();
+    if (m_GameInputActive)
+        ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NavEnableKeyboard;
+    else
+        ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    const float desiredScale =
+        std::max(1.0f,
+                 SDL_GetWindowDisplayScale(static_cast<SDL_Window*>(window.GetNativeHandle()))) *
+        m_UserScale;
+    if (std::abs(desiredScale - m_UiScale) > 0.01f)
+    {
+        ImGui::GetStyle().ScaleAllSizes(desiredScale / m_UiScale);
+        m_UiScale = desiredScale;
+        ImGui::GetStyle().FontScaleDpi = desiredScale;
+    }
     ImGui::NewFrame();
 
-    const ImGuiViewport* mainViewport =
-        ImGui::GetMainViewport();
-    const EditorWorkspaceLayout workspace =
-        BuildEditorWorkspaceLayout(
-            mainViewport->WorkSize.x,
-            mainViewport->WorkSize.y);
+    const ImGuiViewport* mainViewport = ImGui::GetMainViewport();
+    EditorWorkspaceLayout workspace =
+        BuildEditorWorkspaceLayout(mainViewport->WorkSize.x / m_UiScale,
+                                   mainViewport->WorkSize.y / m_UiScale, m_WorkspacePreferences);
+    for (auto* rect :
+         {&workspace.toolbar, &workspace.hierarchy, &workspace.viewport, &workspace.inspector,
+          &workspace.utility, &workspace.assets, &workspace.diagnostics, &workspace.status})
+    {
+        rect->x *= m_UiScale;
+        rect->y *= m_UiScale;
+        rect->width *= m_UiScale;
+        rect->height *= m_UiScale;
+    }
+    // Splitters change only Editor layout state, never Scene authoring/history.
+    auto splitter = [&](const char* id, EditorPanelRect rect, bool horizontal, float& value)
+    {
+        ApplyWorkspaceRect(rect, *mainViewport);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0, 0});
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2{1, 1});
+        ImGui::Begin(id, nullptr, WorkspaceContainerFlags | ImGuiWindowFlags_NoScrollbar);
+        ImGui::InvisibleButton("##drag",
+                               ImVec2{std::max(1.0f, rect.width), std::max(1.0f, rect.height)});
+        if (ImGui::IsItemHovered() || ImGui::IsItemActive())
+            ImGui::SetMouseCursor(horizontal ? ImGuiMouseCursor_ResizeNS
+                                             : ImGuiMouseCursor_ResizeEW);
+        if (ImGui::IsItemActive())
+            value += (horizontal ? -ImGui::GetIO().MouseDelta.y : ImGui::GetIO().MouseDelta.x) /
+                     m_UiScale;
+        ImGui::End();
+        ImGui::PopStyleVar(2);
+    };
+    splitter("##LeftSplit",
+             {workspace.hierarchy.width, workspace.hierarchy.y, 6 * m_UiScale,
+              workspace.hierarchy.height},
+             false, m_WorkspacePreferences.leftWidth);
+    float right = -m_WorkspacePreferences.rightWidth;
+    splitter("##RightSplit",
+             {workspace.inspector.x - 6 * m_UiScale, workspace.inspector.y, 6 * m_UiScale,
+              workspace.inspector.height},
+             false, right);
+    m_WorkspacePreferences.rightWidth = std::clamp(-right, 250.0f, 520.0f);
+    splitter("##BottomSplit",
+             {0, workspace.utility.y - 6 * m_UiScale, workspace.utility.width, 6 * m_UiScale}, true,
+             m_WorkspacePreferences.utilityHeight);
+    m_WorkspacePreferences.leftWidth = std::clamp(m_WorkspacePreferences.leftWidth, 170.0f, 420.0f);
+    m_WorkspacePreferences.utilityHeight =
+        std::clamp(m_WorkspacePreferences.utilityHeight, 120.0f, 600.0f);
 
     if (m_ProjectSession == nullptr
         || m_EditorCamera == nullptr
@@ -503,218 +579,208 @@ void EditorApplication::OnUpdate(
 
     if (m_ProjectSession != nullptr)
     {
-        ApplyWorkspaceRect(
-            workspace.toolbar,
-            *mainViewport);
-
-        ImGui::Begin(
-            "##JanusToolbar",
-            nullptr,
-            ToolbarFlags);
-
-        if (!m_ProjectSession->IsPlaying())
+        auto save = [&]()
         {
-            if (ImGui::Button("Play"))
-            {
-                const auto started = m_ProjectSession->StartRuntime(m_GameInput);
-                m_ProjectSession->GetCommandBus().RecordOperation(CommandActor::Human,
-                                                                  "runtime.play", started);
-                if (!started)
-                {
-                    m_LastError = started.GetError().message;
-                }
-                else
-                {
-                    m_LastError.clear();
-                    if (m_EditorConsole != nullptr)
-                    {
-                        m_EditorConsole->PushInfo(
-                            "Play Mode started.");
-                    }
-
-                    m_SelectGameViewTab = true;
-                    m_SelectSceneViewTab = false;
-                }
-            }
-        }
-        else if (ImGui::Button("Stop"))
-        {
-            const auto stopped =
-                m_ProjectSession->StopRuntime();
-            m_ProjectSession->GetCommandBus().RecordOperation(CommandActor::Human, "runtime.stop",
-                                                              stopped);
-            if (!stopped)
-            {
-                m_LastError = stopped.GetError().message;
-            }
-            else
-            {
-                if (m_EditorConsole != nullptr)
-                {
-                    m_EditorConsole->PushInfo(
-                        "Play Mode stopped.");
-                }
-
-                m_SelectSceneViewTab = true;
-                m_SelectGameViewTab = false;
-            }
-        }
-
-        ImGui::SameLine();
-
-        if (m_ProjectSession->GetRuntimeState() == RuntimeState::Playing)
-        {
-            if (ImGui::Button("Pause"))
-            {
-                const auto result = m_ProjectSession->PauseRuntime();
-                m_ProjectSession->GetCommandBus().RecordOperation(CommandActor::Human,
-                                                                  "runtime.pause", result);
-                if (!result)
-                    m_LastError = result.GetError().message;
-            }
-            ImGui::SameLine();
-        }
-        if (m_ProjectSession->GetRuntimeState() == RuntimeState::Paused)
-        {
-            if (ImGui::Button("Resume"))
-            {
-                const auto result = m_ProjectSession->ResumeRuntime();
-                m_ProjectSession->GetCommandBus().RecordOperation(CommandActor::Human,
-                                                                  "runtime.play", result);
-                if (!result)
-                    m_LastError = result.GetError().message;
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Step"))
-            {
-                const auto result = m_ProjectSession->StepRuntime();
-                m_ProjectSession->GetCommandBus().RecordOperation(CommandActor::Human,
-                                                                  "runtime.step", result);
-                if (!result)
-                    m_LastError = result.GetError().message;
-            }
-            ImGui::SameLine();
-        }
-        const bool canSave =
-            !m_ProjectSession->IsAuthoringReadOnly() && m_ProjectSession->IsDirty();
-
-        ImGui::BeginDisabled(!canSave);
-        if (ImGui::Button("Save"))
-        {
-            const auto saved =
-                m_ProjectSession->SaveCurrentScene();
+            const auto result = m_ProjectSession->SaveCurrentScene();
             m_ProjectSession->GetCommandBus().RecordOperation(CommandActor::Human, "scene.save",
-                                                              saved);
-            if (!saved)
-            {
-                RecordError(saved.GetError());
-            }
+                                                              result);
+            if (!result)
+                RecordError(result.GetError());
             else
             {
                 m_LastError.clear();
-                if (m_EditorConsole != nullptr)
-                {
-                    m_EditorConsole->PushInfo(
-                        "Scene saved.");
-                }
+                m_EditorConsole->PushInfo("Scene saved.");
             }
-        }
-        ImGui::EndDisabled();
-
-        ImGui::SameLine();
-
-        const bool canUndo =
-            m_EditorActions != nullptr
-            && m_EditorActions->CanUndo();
-
-        ImGui::BeginDisabled(!canUndo);
-        if (ImGui::Button("Undo"))
+        };
+        auto action = [&](const Result<void>& result)
         {
-            const auto undone =
-                m_EditorActions->Undo();
-            if (!undone)
-            {
-                RecordError(undone.GetError());
-            }
+            if (!result)
+                RecordError(result.GetError());
             else
-            {
                 m_LastError.clear();
-                if (m_EditorConsole != nullptr)
-                {
-                    m_EditorConsole->PushInfo(
-                        "Authoring command undone.");
-                }
-            }
-        }
-        ImGui::EndDisabled();
-
-        ImGui::SameLine();
-
-        const bool canRedo =
-            m_EditorActions != nullptr
-            && m_EditorActions->CanRedo();
-
-        ImGui::BeginDisabled(!canRedo);
-        if (ImGui::Button("Redo"))
+        };
+        const bool readOnly = m_ProjectSession->IsAuthoringReadOnly();
+        const bool canSave = !readOnly && m_ProjectSession->IsDirty();
+        ApplyWorkspaceRect(workspace.toolbar, *mainViewport);
+        ImGui::Begin("##JanusToolbar", nullptr, ToolbarFlags | ImGuiWindowFlags_MenuBar);
+        if (ImGui::BeginMenuBar())
         {
-            const auto redone =
-                m_EditorActions->Redo();
-            if (!redone)
+            if (ImGui::BeginMenu("File"))
             {
-                RecordError(redone.GetError());
+                if (ImGui::MenuItem("Save Scene", "Ctrl+S", false, canSave))
+                    save();
+                if (ImGui::MenuItem("Project Settings..."))
+                    m_ShowProjectSettings = true;
+                ImGui::EndMenu();
             }
-            else
+            if (ImGui::BeginMenu("Edit"))
             {
-                m_LastError.clear();
-                if (m_EditorConsole != nullptr)
+                if (ImGui::MenuItem("Undo", "Ctrl+Z", false, m_EditorActions->CanUndo()))
+                    action(m_EditorActions->Undo());
+                if (ImGui::MenuItem("Redo", "Ctrl+Y", false, m_EditorActions->CanRedo()))
+                    action(m_EditorActions->Redo());
+                ImGui::EndMenu();
+            }
+            if (ImGui::BeginMenu("Entity"))
+            {
+                if (ImGui::MenuItem("Create Entity", nullptr, false, !readOnly))
                 {
-                    m_EditorConsole->PushInfo(
-                        "Authoring command redone.");
+                    const auto created = m_EditorActions->CreateEntity("Entity");
+                    if (!created)
+                        RecordError(created.GetError());
                 }
+                ImGui::EndMenu();
+            }
+            if (ImGui::BeginMenu("View"))
+            {
+                if (ImGui::MenuItem("Frame Camera"))
+                    FrameScene(false);
+                if (ImGui::MenuItem("Focus Selected", "F"))
+                    FrameScene(true);
+                ImGui::MenuItem("Grid", nullptr, &m_ShowGrid);
+                if (ImGui::MenuItem("Reset Layout"))
+                    m_WorkspacePreferences = {};
+                if (ImGui::BeginMenu("UI Scale"))
+                {
+                    for (const float scale : {1.0f, 1.25f, 1.5f})
+                    {
+                        const auto label = std::to_string(static_cast<int>(scale * 100)) + "%";
+                        if (ImGui::MenuItem(label.c_str(), nullptr, m_UserScale == scale))
+                            m_UserScale = scale;
+                    }
+                    ImGui::EndMenu();
+                }
+                ImGui::EndMenu();
+            }
+            if (ImGui::BeginMenu("Help"))
+            {
+                if (ImGui::MenuItem("Editor Controls"))
+                    m_ShowAbout = true;
+                ImGui::EndMenu();
+            }
+            ImGui::EndMenuBar();
+        }
+        const float buttonWidth = 88 * m_UiScale;
+        auto tool = [&](Icon icon, const char* label, bool enabled)
+        {
+            ImGui::BeginDisabled(!enabled);
+            const bool clicked = IconButton(icon, label, ImVec2{buttonWidth, 32 * m_UiScale});
+            ImGui::EndDisabled();
+            return clicked;
+        };
+        if (tool(Icon::Save, "Save", canSave))
+            save();
+        ImGui::SameLine();
+        if (tool(Icon::Undo, "Undo", m_EditorActions->CanUndo()))
+            action(m_EditorActions->Undo());
+        ImGui::SameLine();
+        if (tool(Icon::Redo, "Redo", m_EditorActions->CanRedo()))
+            action(m_EditorActions->Redo());
+        ImGui::SameLine(0, 20 * m_UiScale);
+        const auto runtime = m_ProjectSession->GetRuntimeState();
+        if (tool(Icon::Play, "Play", !readOnly))
+        {
+            const auto result = m_ProjectSession->StartRuntime(m_GameInput);
+            m_ProjectSession->GetCommandBus().RecordOperation(CommandActor::Human, "runtime.play",
+                                                              result);
+            action(result);
+            if (result)
+            {
+                m_ReturnToGameView = m_WasGameView;
+                m_SelectGameViewTab = true;
+                m_SelectSceneViewTab = false;
             }
         }
-        ImGui::EndDisabled();
-
         ImGui::SameLine();
+        if (tool(runtime == RuntimeState::Paused ? Icon::Play : Icon::Pause,
+                 runtime == RuntimeState::Paused ? "Resume" : "Pause",
+                 runtime == RuntimeState::Playing || runtime == RuntimeState::Paused))
+        {
+            const auto result = runtime == RuntimeState::Paused ? m_ProjectSession->ResumeRuntime()
+                                                                : m_ProjectSession->PauseRuntime();
+            m_ProjectSession->GetCommandBus().RecordOperation(
+                CommandActor::Human,
+                runtime == RuntimeState::Paused ? "runtime.play" : "runtime.pause", result);
+            action(result);
+        }
+        ImGui::SameLine();
+        if (tool(Icon::Step, "Step", runtime == RuntimeState::Paused))
+        {
+            const auto result = m_ProjectSession->StepRuntime();
+            m_ProjectSession->GetCommandBus().RecordOperation(CommandActor::Human, "runtime.step",
+                                                              result);
+            action(result);
+        }
+        ImGui::SameLine();
+        if (tool(Icon::Stop, "Stop", m_ProjectSession->IsPlaying()))
+        {
+            const auto result = m_ProjectSession->StopRuntime();
+            m_ProjectSession->GetCommandBus().RecordOperation(CommandActor::Human, "runtime.stop",
+                                                              result);
+            action(result);
+            if (result)
+            {
+                m_SelectSceneViewTab = !m_ReturnToGameView;
+                m_SelectGameViewTab = m_ReturnToGameView;
+            }
+        }
+        ImGui::SameLine(0, 20 * m_UiScale);
         ImGui::TextUnformatted(RuntimeStateName(m_ProjectSession->GetRuntimeState()).data());
-
-        if (m_ProjectSession->IsDirty())
-        {
-            ImGui::SameLine();
-            ImGui::TextDisabled("* Unsaved");
-        }
-
-        const auto& scene =
-            m_ProjectSession->GetEditorScene();
-
-        ImGui::SameLine(
-            0.0f,
-            24.0f);
-        ImGui::TextDisabled("|");
-        ImGui::SameLine();
-
-        ImGui::Text(
-            "Scene: %s   Entities: %llu   Assets: %llu",
-            scene.GetMetadata().name.c_str(),
-            static_cast<unsigned long long>(
-                scene.GetEntities().size()),
-            static_cast<unsigned long long>(
-                m_ProjectSession->GetAssetRegistry().Size()));
-
-        if (ImGui::IsItemHovered())
-        {
-            const std::string projectRoot =
-                m_ProjectSession->GetProjectRoot().string();
-            const std::string scenePath =
-                m_ProjectSession->GetCurrentScenePath().generic_string();
-
-            ImGui::SetTooltip(
-                "Project: %s\nScene file: %s",
-                projectRoot.c_str(),
-                scenePath.c_str());
-        }
-
         ImGui::End();
+
+        // Text fields own editing shortcuts; Game focus keeps gameplay keys isolated.
+        if (!ImGui::GetIO().WantTextInput && !m_GameInputActive)
+        {
+            if (canSave && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S, ImGuiInputFlags_RouteGlobal))
+                save();
+            if (m_EditorActions->CanUndo() &&
+                ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_Z, ImGuiInputFlags_RouteGlobal))
+                action(m_EditorActions->Undo());
+            if (m_EditorActions->CanRedo() &&
+                ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_Y, ImGuiInputFlags_RouteGlobal))
+                action(m_EditorActions->Redo());
+        }
+        ApplyWorkspaceRect(workspace.status, *mainViewport);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{12 * m_UiScale, 3 * m_UiScale});
+        ImGui::Begin("##Status", nullptr, ToolbarFlags);
+        ImGui::Text("%s%s", m_ProjectSession->GetEditorScene().GetMetadata().name.c_str(),
+                    m_ProjectSession->IsDirty() ? " *  |  Unsaved changes" : "  |  Saved");
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("%s", m_ProjectSession->GetCurrentScenePath().string().c_str());
+        if (workspace.status.width > 950 * m_UiScale)
+        {
+            ImGui::SameLine(workspace.status.width - 390 * m_UiScale);
+            ImGui::Text("Entities: %zu  |  Assets: %zu  |  MCP: %s",
+                        m_ProjectSession->GetEditorScene().GetEntities().size(),
+                        m_ProjectSession->GetAssetRegistry().Size(),
+                        m_McpHost ? "stdio enabled" : "off");
+        }
+        ImGui::End();
+        ImGui::PopStyleVar();
+        if (m_ShowProjectSettings)
+        {
+            ImGui::SetNextWindowSize(ImVec2{620 * m_UiScale, 570 * m_UiScale},
+                                     ImGuiCond_FirstUseEver);
+            if (ImGui::Begin("Project Settings", &m_ShowProjectSettings))
+                m_ProjectSettingsPanel->Draw(*m_ProjectSession);
+            ImGui::End();
+        }
+        if (m_ShowAbout)
+        {
+            ImGui::SetNextWindowSize(ImVec2{440 * m_UiScale, 250 * m_UiScale},
+                                     ImGuiCond_FirstUseEver);
+            if (ImGui::Begin("Editor Controls", &m_ShowAbout))
+            {
+                ImGui::TextWrapped(
+                    "Scene: click to select, middle-drag to pan, wheel to zoom. F focuses the "
+                    "selected entity. Frame Camera restores the game camera region.");
+                ImGui::Separator();
+                ImGui::TextWrapped(
+                    "Drag panel separators to resize. View > Reset Layout restores defaults. "
+                    "Resource fields accept registered assets of the matching type.");
+            }
+            ImGui::End();
+        }
     }
 
     if (m_EditorContext != nullptr
@@ -751,41 +817,36 @@ void EditorApplication::OnUpdate(
     if (m_AssetBrowserPanel != nullptr
         && m_ConsolePanel != nullptr)
     {
-        ApplyWorkspaceRect(
-            workspace.utility,
-            *mainViewport);
-
-        ImGui::Begin(
-            "##UtilityWorkspace",
-            nullptr,
-            WorkspaceContainerFlags);
-
+        const bool split = workspace.diagnostics.width > 0;
+        ApplyWorkspaceRect(workspace.assets, *mainViewport);
+        ImGui::Begin("##ProjectWorkspace", nullptr, WorkspaceContainerFlags);
+        if (split)
+        {
+            IconText(Icon::Folder, "Project");
+            ImGui::Separator();
+            const auto error = m_AssetBrowserPanel->DrawContents();
+            if (error)
+                RecordError(*error);
+            ImGui::End();
+            ApplyWorkspaceRect(workspace.diagnostics, *mainViewport);
+            ImGui::Begin("##DiagnosticsWorkspace", nullptr, WorkspaceContainerFlags);
+        }
         if (ImGui::BeginTabBar("UtilityTabs"))
         {
-            if (ImGui::BeginTabItem("Project Settings"))
+            if (!split && IconTab(Icon::Folder, "Project"))
             {
-                m_ProjectSettingsPanel->Draw(*m_ProjectSession);
+                const auto error = m_AssetBrowserPanel->DrawContents();
+                if (error)
+                    RecordError(*error);
                 ImGui::EndTabItem();
             }
-            if (ImGui::BeginTabItem("Asset Browser"))
-            {
-                const auto assetError =
-                    m_AssetBrowserPanel->DrawContents();
-                if (assetError.has_value())
-                {
-                    RecordError(*assetError);
-                }
-
-                ImGui::EndTabItem();
-            }
-
-            if (ImGui::BeginTabItem("Console"))
+            if (IconTab(Icon::Console, "Console"))
             {
                 m_ConsolePanel->DrawContents();
                 ImGui::EndTabItem();
             }
 
-            if (ImGui::BeginTabItem("Agent Activity"))
+            if (IconTab(Icon::Agent, "Agent Activity"))
             {
                 auto& commands = m_ProjectSession->GetCommandBus();
                 if (commands.HasTransaction())
@@ -843,7 +904,7 @@ void EditorApplication::OnUpdate(
                 ImGui::EndChild();
                 ImGui::EndTabItem();
             }
-            if (ImGui::BeginTabItem("Profiler"))
+            if (IconTab(Icon::Profiler, "Profiler"))
             {
                 bool enabled = m_ProjectSession->GetProfiler().IsEnabled();
                 if (ImGui::Checkbox("Record CPU frames", &enabled))
@@ -906,16 +967,23 @@ void EditorApplication::OnUpdate(
                     ? ImGuiTabItemFlags_SetSelected
                     : ImGuiTabItemFlags_None;
 
-            const bool sceneTabVisible =
-                ImGui::BeginTabItem(
-                    "Scene",
-                    nullptr,
-                    sceneTabFlags);
+            const bool sceneTabVisible = IconTab(Icon::Entity, "Scene", sceneTabFlags);
 
             m_SelectSceneViewTab = false;
 
             if (sceneTabVisible)
             {
+                m_WasGameView = false;
+                if (IconButton(Icon::Frame, "Frame Camera"))
+                    FrameScene(false);
+                ImGui::SameLine();
+                if (IconButton(Icon::Focus, "Focus Selected"))
+                    FrameScene(true);
+                ImGui::SameLine();
+                ImGui::Checkbox("Grid", &m_ShowGrid);
+                ImGui::SameLine();
+                ImGui::TextDisabled("2D  |  %.3f units/px", m_EditorCamera->GetZoom());
+
                 const ImVec2 available =
                     ImGui::GetContentRegionAvail();
 
@@ -942,6 +1010,11 @@ void EditorApplication::OnUpdate(
                         }
                     }
 
+                    if (m_InitialFrame)
+                    {
+                        FrameScene(false);
+                        m_InitialFrame = false;
+                    }
                     const auto presentation =
                         renderer.GetRenderTargetPresentationHandle(
                             m_SceneViewTarget);
@@ -954,16 +1027,57 @@ void EditorApplication::OnUpdate(
                             ImVec2{0.0f, 1.0f},
                             ImVec2{1.0f, 0.0f});
 
-                        DrawSceneGrid(
-                            *m_EditorCamera,
-                            m_SceneViewViewport,
-                            ImGui::GetItemRectMin(),
-                            ImGui::GetItemRectMax());
+                        if (m_ShowGrid)
+                            DrawSceneGrid(*m_EditorCamera, m_SceneViewViewport,
+                                          ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
 
+                        if (m_EditorContext && m_EditorContext->selection.HasSelection())
+                        {
+                            const auto entity = m_EditorContext->selection.Resolve(
+                                m_ProjectSession->GetEditorScene());
+                            const auto* transform =
+                                m_ProjectSession->GetEditorScene().GetComponent<TransformComponent>(
+                                    entity);
+                            const auto* sprite = m_ProjectSession->GetEditorScene()
+                                                     .GetComponent<SpriteRendererComponent>(entity);
+                            if (transform && sprite)
+                            {
+                                const auto origin = ImGui::GetItemRectMin();
+                                const auto center = m_EditorCamera->GetPosition();
+                                const auto zoom = m_EditorCamera->GetZoom();
+                                const float c = std::cos(transform->worldRotationRadians),
+                                            sn = std::sin(transform->worldRotationRadians);
+                                ImVec2 points[4];
+                                const Vector2 corners[] = {{-1, -1}, {1, -1}, {1, 1}, {-1, 1}};
+                                for (int i = 0; i < 4; ++i)
+                                {
+                                    const float x = corners[i].x * sprite->size.x *
+                                                    transform->worldScale.x * .5f;
+                                    const float y = corners[i].y * sprite->size.y *
+                                                    transform->worldScale.y * .5f;
+                                    points[i] = {origin.x + available.x * .5f +
+                                                     (transform->worldPosition.x + x * c - y * sn -
+                                                      center.x) /
+                                                         zoom,
+                                                 origin.y + available.y * .5f -
+                                                     (transform->worldPosition.y + x * sn + y * c -
+                                                      center.y) /
+                                                         zoom};
+                                }
+                                auto* draw = ImGui::GetWindowDrawList();
+                                draw->PushClipRect(origin, ImGui::GetItemRectMax(), true);
+                                draw->AddPolyline(points, 4, IM_COL32(90, 180, 255, 255),
+                                                  ImDrawFlags_Closed, 2 * m_UiScale);
+                                draw->PopClipRect();
+                            }
+                        }
                         const bool hovered =
                             ImGui::IsItemHovered();
                         if (hovered)
                         {
+                            if (!ImGui::GetIO().WantTextInput && ImGui::IsKeyPressed(ImGuiKey_F))
+                                FrameScene(true);
+
                             const ImGuiIO& io = ImGui::GetIO();
 
                             if (io.MouseWheel != 0.0f)
@@ -1025,16 +1139,13 @@ void EditorApplication::OnUpdate(
                     ? ImGuiTabItemFlags_SetSelected
                     : ImGuiTabItemFlags_None;
 
-            const bool gameTabVisible =
-                ImGui::BeginTabItem(
-                    "Game",
-                    nullptr,
-                    gameTabFlags);
+            const bool gameTabVisible = IconTab(Icon::Play, "Game", gameTabFlags);
 
             m_SelectGameViewTab = false;
 
             if (gameTabVisible)
             {
+                m_WasGameView = true;
                 const ImVec2 available =
                     ImGui::GetContentRegionAvail();
                 const EditorPanelRect fitted = FitAspectRatio(
@@ -1154,7 +1265,10 @@ void EditorApplication::OnUpdate(
                                                        m_SceneViewViewport,
                                                        m_SceneViewTarget,
                                                        {},
-                                                       false});
+                                                       false,
+                                                       nullptr,
+                                                       nullptr,
+                                                       Color{0.08f, 0.11f, 0.15f, 1.0f}});
 
         if (rendered)
             m_ProjectSession->CaptureRenderPass(false, renderer.GetStatistics(),
@@ -1258,9 +1372,36 @@ void EditorApplication::OnUpdate(
     if (profileFrame)
         m_ProjectSession->EndDiagnosticsFrame();
 
-    if (application.GetInput().WasKeyPressed(KeyCode::Escape))
+    // Escape belongs to the active ImGui control or game input, never application exit.
+}
+
+void EditorApplication::FrameScene(bool selectedOnly)
+{
+    if (!m_ProjectSession || !m_EditorCamera || !m_SceneRenderer)
+        return;
+    auto& scene = m_ProjectSession->GetEditorScene();
+    const auto camera = m_SceneRenderer->ResolvePrimaryCamera(scene);
+    if (selectedOnly && m_EditorContext)
     {
-        application.RequestExit();
+        const auto entity = m_EditorContext->selection.Resolve(scene);
+        const auto* transform = scene.GetComponent<TransformComponent>(entity);
+        const auto* sprite = scene.GetComponent<SpriteRendererComponent>(entity);
+        if (transform && !scene.HasComponent<UIRectComponent>(entity))
+        {
+            Vector2 size{4, 4};
+            if (sprite)
+                size = {std::max(2.0f, std::abs(sprite->size.x * transform->worldScale.x) * 3),
+                        std::max(2.0f, std::abs(sprite->size.y * transform->worldScale.y) * 3)};
+            m_EditorCamera->Frame(transform->worldPosition, size, m_SceneViewViewport);
+        }
+    }
+    else if (camera)
+    {
+        const auto& settings = m_ProjectSession->GetProjectSettings();
+        m_EditorCamera->Frame(
+            camera.Value().position,
+            {settings.width * camera.Value().zoom, settings.height * camera.Value().zoom},
+            m_SceneViewViewport);
     }
 }
 

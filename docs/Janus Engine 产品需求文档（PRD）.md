@@ -5,7 +5,9 @@
 **产品类型：** Agent-Native C++ Game Engine  
 **首期产品形态：** Windows 桌面端 2D 游戏引擎 + Editor + MCP Agent Interface  
 **核心技术方向：** C++20 / OpenGL / Lua / MCP  
-**文档状态：** 产品立项版
+**文档状态：** 产品目标基线；实现对账更新于 2026-09-07
+
+当前实现与验收见[项目进度与 PRD 对账](project-status.md)：v0.10 计划切片和综合示例已合入 main `7ecdfb8`，尚未发布。本文的“必须/首期/目标”定义产品需求，不表示这些条目均已交付；版本范围仍以版本路线图为准。项目创建、资产制作、正式 Agent 测试、生产 Headless、权限分级等尚有待实现或待范围决策项。本次更新不删除需求、不将其自动延期，也不宣称完整 Human MVP/v1.0 已成立。
 
 ---
 
@@ -1251,6 +1253,8 @@ Would Delete
 
 # 39. Agent Permission
 
+实现差异（2026-09-07）：当前生产 Editor 使用操作分类白名单与可替换授权接口，默认 policy 允许已分类操作、拒绝未分类操作；尚未实现下表四级用户策略及 Dry Run 产品入口。下表仍是需求目标，不能当作当前默认权限说明。
+
 Agent 权限分级：
 
 | Level | 能力 |
@@ -1265,6 +1269,8 @@ Agent 权限分级：
 ---
 
 # 40. Headless
+
+实现差异（2026-09-07）：生产入口仍是 `JanusEditor --project <path> --mcp-stdio`，没有 `--headless` 产品入口。Tests 中的 FakeRenderDevice 外部 host 仅用于自动回归，不算交付生产 Headless；是否纳入 v1.0 最小范围仍待明确决策。
 
 Janus 必须支持无 Editor UI 模式。
 
@@ -1360,6 +1366,8 @@ Keyboard W
 ---
 
 # 43. Error Handling
+
+实现差异（2026-09-07）：当前 RuntimeSession 在 Lua/执行失败时进入 Faulted，保留现场与诊断直到 Stop，并禁止作者态写入；独立 Application 不保留 Editor 式故障世界。Audio 设备不可用可静音继续，内容错误明确失败。下方“停止对应 Script、Game Runtime 尽量继续”是产品目标，不是现有单脚本隔离保证；改变已验收的故障策略需要独立设计和测试。
 
 核心原则：
 

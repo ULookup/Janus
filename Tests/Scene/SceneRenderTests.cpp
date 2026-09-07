@@ -12,6 +12,21 @@
 
 #include <filesystem>
 
+TEST_CASE("Scene render requests preserve the host background color", "[scene][render][editor]")
+{
+    Janus::Test::FakeRenderDevice device;
+    auto renderer = Janus::Detail::Renderer2DTestAccess::Create(device);
+    Janus::AssetRegistry registry;
+    Janus::AssetService assets(".", registry, *renderer);
+    Janus::Scene scene;
+    Janus::SceneRenderer sceneRenderer;
+    Janus::SceneRenderRequest request{scene, assets, *renderer, {}, {640, 360}, {}};
+    request.clearColor = {0.1f, 0.2f, 0.3f, 1};
+    REQUIRE(sceneRenderer.Render(request));
+    REQUIRE(device.lastClearColor.r == Catch::Approx(0.1f));
+    REQUIRE(device.lastClearColor.g == Catch::Approx(0.2f));
+}
+
 TEST_CASE(
     "SceneRenderer resolves persistent sprite assets through AssetService",
     "[scene][render][asset]")

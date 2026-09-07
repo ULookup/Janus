@@ -55,6 +55,8 @@ public:
         const TextureDesc& desc);
 
     void DestroyTexture(TextureHandle handle);
+    [[nodiscard]] Result<TexturePresentationHandle>
+    GetTexturePresentationHandle(TextureHandle handle) const;
 
     [[nodiscard]] Result<RenderTargetHandle> CreateRenderTarget(
         const RenderTargetDesc& desc);

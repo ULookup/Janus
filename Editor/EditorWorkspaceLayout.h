@@ -20,11 +20,21 @@ struct EditorWorkspaceLayout
     EditorPanelRect viewport;
     EditorPanelRect inspector;
     EditorPanelRect utility;
+    EditorPanelRect assets;
+    EditorPanelRect diagnostics;
+    EditorPanelRect status;
 };
 
-[[nodiscard]] EditorWorkspaceLayout BuildEditorWorkspaceLayout(
-    f32 width,
-    f32 height) noexcept;
+struct EditorWorkspacePreferences
+{
+    f32 leftWidth = 250.0f;
+    f32 rightWidth = 340.0f;
+    f32 utilityHeight = 270.0f;
+};
+
+[[nodiscard]] EditorWorkspaceLayout
+BuildEditorWorkspaceLayout(f32 width, f32 height,
+                           const EditorWorkspacePreferences& preferences = {}) noexcept;
 
 [[nodiscard]] EditorPanelRect FitAspectRatio(
     f32 availableWidth,

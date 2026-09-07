@@ -12,6 +12,7 @@ class EditorCamera final
 public:
     void PanPixels(Vector2 deltaPixels) noexcept;
     void Zoom(f32 wheelDelta) noexcept;
+    void Frame(Vector2 center, Vector2 size, Viewport viewport) noexcept;
 
     [[nodiscard]] Vector2 ScreenToWorld(
         Vector2 viewportPoint,

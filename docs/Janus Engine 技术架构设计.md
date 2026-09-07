@@ -1,5 +1,7 @@
 # Janus Engine 技术架构设计
 
+实现对齐（2026-09-07）：当前基线为 main `7ecdfb8`，v0.10 计划切片和综合示例已集成、未发布。本文的总体图包含目标架构与扩展方向，不等于全部模块已经实现；当前能力、依赖固定版本与 PRD 差异见[项目进度总表](project-status.md)。Runtime 执行顺序与系统限制以本文实施补充及对应专项设计为准。
+
 ## 1. 文档目标
 
 本文档定义 Janus Engine 的整体技术架构、模块边界、依赖关系、核心运行时模型以及 Agent/MCP 接入方式。
@@ -1015,7 +1017,7 @@ Game
  ↓
 Janus Physics API
  ↓
-PhysicsService
+PhysicsSystem
  ↓
 Box2D
 ```
@@ -1036,7 +1038,7 @@ Collision Event
 
 # 26. Audio
 
-首期通过 miniaudio 等成熟库实现。
+v0.10 已采用 SDL 3.4.14：RuntimeExecution 拥有 AudioSystem，经 AudioDevice 接口调用 Platform/SDL 私有实现。早期 miniaudio 只是候选，当前 CMake 未引入该库；不维护第二套音频后端。
 
 Janus API：
 
@@ -1604,7 +1606,7 @@ Renderer → Editor
 
 # 47. 第三方依赖边界
 
-允许采用成熟库：
+下列为早期候选示例，不代表全部已引入。当前固定依赖见[项目进度总表](project-status.md)：音频复用 SDL、测试使用 Catch2，未引入 miniaudio/GoogleTest。允许采用成熟库：
 
 ```text
 SDL3
@@ -1779,7 +1781,7 @@ Janus 的架构价值在于：
 
 ## v0.10 / 10-04a UI 布局实现补充
 
-Engine/UI 持有可反射的 Canvas/UIRect/Panel/Image 作者态定义，UILayout 从 Scene 层级生成共享绘制与几何命中顺序。SceneRenderer 将 UI 作为世界 Sprite 后的屏幕空间阶段，使用项目逻辑分辨率、CPU 矩形/UV 裁剪和只合并相邻图元的批处理。ReparentEntityCommand 供 EditorActions 与 MCP 共用，保留局部字段及可撤销兄弟顺序。详见[专项设计](superpowers/specs/2026-09-07-v0.10-ui-layout-design.md)和[本地验收](verification/2026-09-07-v0.10-ui-layout.md)；#84 已合入 shared-runtime 父分支，尚未进入 `c71ad50` main。Text 属于下述 10-04b，Button 与后续游戏系统不在布局包。
+Engine/UI 持有可反射的 Canvas/UIRect/Panel/Image 作者态定义，UILayout 从 Scene 层级生成共享绘制与几何命中顺序。SceneRenderer 将 UI 作为世界 Sprite 后的屏幕空间阶段，使用项目逻辑分辨率、CPU 矩形/UV 裁剪和只合并相邻图元的批处理。ReparentEntityCommand 供 EditorActions 与 MCP 共用，保留局部字段及可撤销兄弟顺序。详见[专项设计](superpowers/specs/2026-09-07-v0.10-ui-layout-design.md)和[本地验收](verification/2026-09-07-v0.10-ui-layout.md)；现已随 UI/Text 依赖链进入当前 main。Text 属于下述 10-04b，Button 与后续游戏系统不在布局包。
 
 ## v0.10 / 10-04b Text 实现补充
 
@@ -1787,23 +1789,37 @@ Asset 增加 Font v1 离线图集/Unicode 字形度量，CPU 缓存复用 AssetC
 
 ## v0.10 / 10-05a Button 实现补充
 
-RuntimeExecution 拥有 UIInteraction 的临时焦点/捕获状态，布局收集 UUID 事件后先消费输入，再通过 ScriptEngine 调用同实体固定 OnClick，随后执行 OnUpdate。Button 作者态仍通过 active Reflection、Scene v1、Clone、共享 Command、Inspector/MCP；Renderer 只读交互状态生成按钮颜色，Core 仅提供有界事件记录及通用输入过滤。Start/Resume 不重放旧输入，Paused Step 不派发 UI。详见[设计](superpowers/specs/2026-09-07-v0.10-ui-button-design.md)和[验收](verification/2026-09-07-v0.10-ui-button.md)。10-05b 玩法与结构化快照尚未实现。
+RuntimeExecution 拥有 UIInteraction 的临时焦点/捕获状态，布局收集 UUID 事件后先消费输入，再通过 ScriptEngine 调用同实体固定 OnClick，随后执行 OnUpdate。Button 作者态仍通过 active Reflection、Scene v1、Clone、共享 Command、Inspector/MCP；Renderer 只读交互状态生成按钮颜色，Core 仅提供有界事件记录及通用输入过滤。Start/Resume 不重放旧输入，Paused Step 不派发 UI。详见[设计](superpowers/specs/2026-09-07-v0.10-ui-button-design.md)和[验收](verification/2026-09-07-v0.10-ui-button.md)。玩法与结构化快照已由下述 10-05b 集成。
 
 
 ## v0.10 / 10-05b Combat 与诊断快照实现补充
 
-Game/ 是复用共享 Runtime 和既有 UI 的独立磁盘游戏项目，固定卡牌规则完全位于 Lua。ScriptEngine 缓存脚本显式发布的有界平坦标量映射，RuntimeExecution 赋运行 UUID/发布帧，RuntimeSession 使用同一身份；Application/RuntimeSession 暴露相同只读快照。MCP 的 engine://runtime/snapshot 经 RuntimeRead 和主线程权限链读取缓存，不调用 Lua。Stop 清理，Faulted 保留最后原子发布及失败帧状态；不改 Scene 作者态或 neutral Step。见[设计](superpowers/specs/2026-09-07-v0.10-playable-combat-design.md)和[验收](verification/2026-09-07-v0.10-playable-combat.md)。上方 10-05b 尚未实现的表述为历史状态；Animation/Audio/Physics/Prefab 仍未由本包实现。
+Game/ 是复用共享 Runtime 和既有 UI 的独立磁盘游戏项目，固定卡牌规则完全位于 Lua。ScriptEngine 缓存脚本显式发布的有界平坦标量映射，RuntimeExecution 赋运行 UUID/发布帧，RuntimeSession 使用同一身份；Application/RuntimeSession 暴露相同只读快照。MCP 的 engine://runtime/snapshot 经 RuntimeRead 和主线程权限链读取缓存，不调用 Lua。Stop 清理，Faulted 保留最后原子发布及失败帧状态；不改 Scene 作者态或 neutral Step。见[设计](superpowers/specs/2026-09-07-v0.10-playable-combat-design.md)和[验收](verification/2026-09-07-v0.10-playable-combat.md)。Animation/Audio/Physics/Prefab 由后续专项实现，目前均已集成。
 
 
 ## v0.10 / 10-06 Animation 实现补充
 
-RuntimeExecution 在 Lua 初始化前启动 AnimationSystem，在每帧 Lua Update 后推进动画。AnimationClip 是 AssetCache/AssetService 管理的 CPU 帧表，使用注册 Texture atlas；AnimationSystem 以实体 UUID 持有独立 Clip 副本、游标和 pose。Animator 的 clip/enabled/playOnStart/speed 通过 active Reflection、Scene v1 与共享命令保存；Renderer/UILayout 只读运行时 pose 覆盖纹理/UV，不改作者态。循环使用总时长取余；明确 Play/Switch 才重启，Stop 恢复基础显示，非循环结束保留最后帧。两个宿主共享此执行顺序，Pause 不推进，neutral Step 固定 1/60 且不自动重载。布局可接收同一可选 AnimationSystem，使只有动画纹理的 Image 也参与绘制/命中顺序。见[设计](superpowers/specs/2026-09-07-v0.10-animation-design.md)与[验收](verification/2026-09-07-v0.10-animation.md)。上方 Animation 未实现属于历史状态；Fixed Update/Physics、Audio 和 Prefab 仍待后续包。
+RuntimeExecution 在 Lua 初始化前启动 AnimationSystem，在每帧 Lua Update 后推进动画。AnimationClip 是 AssetCache/AssetService 管理的 CPU 帧表，使用注册 Texture atlas；AnimationSystem 以实体 UUID 持有独立 Clip 副本、游标和 pose。Animator 的 clip/enabled/playOnStart/speed 通过 active Reflection、Scene v1 与共享命令保存；Renderer/UILayout 只读运行时 pose 覆盖纹理/UV，不改作者态。循环使用总时长取余；明确 Play/Switch 才重启，Stop 恢复基础显示，非循环结束保留最后帧。两个宿主共享此执行顺序，Pause 不推进，neutral Step 固定 1/60 且不自动重载。布局可接收同一可选 AnimationSystem，使只有动画纹理的 Image 也参与绘制/命中顺序。见[设计](superpowers/specs/2026-09-07-v0.10-animation-design.md)与[验收](verification/2026-09-07-v0.10-animation.md)。Physics、Audio 与 Prefab 目前均已集成；完整 Advance 顺序见下述 Physics 补充。本分支的 Inspector 已加入类型约束的注册资源选择，Asset Browser 增加 AnimationClip 筛选与 Animator 赋值；集成状态与剩余发布缺口见项目进度总表。
 
 
 ## v0.10 / 10-07 Audio 实现补充
 
-RuntimeExecution 拥有 AudioSystem 与惰性 AudioDevice，在 Lua、Animation 后混合推进；暂停/故障清空输出，单步静音推进逻辑，停止在 Lua 清理后释放设备。audio-clip 采用有界 PCM16 WAV，由 AssetCache 与 UUID voice 共享不可变 PCM；AudioSource 的 clip/enabled/playOnStart/volume/loop 通过 active Reflection、Scene v1、Clone 和共享命令贯通 Human/Agent。SDL 3.4.14 作为既有成熟后端保留在 PRIVATE Platform 实现内，未增加依赖。设备不可用可诊断且静音继续；内容错误明确失败。播放状态可经 Lua 显式发布到既有 snapshot，读取不执行脚本。详见[设计](superpowers/specs/2026-09-07-v0.10-audio-design.md)和[验收](verification/2026-09-07-v0.10-audio.md)。本补充覆盖前文 Audio 未实现的历史描述；下一包为 Physics，Prefab 和综合验收仍待完成。
+RuntimeExecution 拥有 AudioSystem 与惰性 AudioDevice，在 Lua、Physics、Animation 后混合推进；暂停/故障清空输出，单步静音推进逻辑，停止在 Lua 清理后释放设备。audio-clip 采用有界 PCM16 WAV，由 AssetCache 与 UUID voice 共享不可变 PCM；AudioSource 的 clip/enabled/playOnStart/volume/loop 通过 active Reflection、Scene v1、Clone 和共享命令贯通 Human/Agent。SDL 3.4.14 作为既有成熟后端保留在 PRIVATE Platform 实现内，未增加依赖。设备不可用可诊断且静音继续；内容错误明确失败。播放状态可经 Lua 显式发布到既有 snapshot，读取不执行脚本。详见[设计](superpowers/specs/2026-09-07-v0.10-audio-design.md)和[验收](verification/2026-09-07-v0.10-audio.md)。Physics、Prefab 和综合验收目前均已集成；Audio 设备 API 验收不等于人工音质评价。
 
+
+## v0.10 / 10-08 Physics 实现补充
+
+RuntimeExecution 拥有一个单线程 PhysicsSystem / Box2D 3.1.1 world，原生类型与依赖保持
+Engine PRIVATE。启用的 RigidBody2D 必须位于单位缩放根 Transform 并配套矩形 Collider2D；
+组件经 active Reflection、Scene v1、Clone 和共享作者态命令保存。
+
+Physics 在 Lua OnCreate 前启动。正常 Advance 顺序为 UI 输入路由 → 可选 Reload →
+Lua OnClick/Update → Physics 固定 ticks → Animation → Audio；tick 为 1/60 秒，4 个 solver
+substeps，最多追赶 8 ticks，丢弃多余整 tick 并保留余数。中性 Paused Step 只推进 1 tick，
+不重载、不点击，音频静音推进。碰撞/触发事件复制为排序 UUID 对，Lua 回调在 owner thread
+执行；destroy 延迟到安全边界，OnDestroy 时实体仍有效。运行位置更新不污染作者态。
+参见[设计](superpowers/specs/2026-09-07-v0.10-physics-design.md)与
+[验收](verification/2026-09-07-v0.10-physics.md)。
 
 ## v0.10 / 10-09 Prefab Foundation 实现补充
 
@@ -1815,8 +1831,8 @@ Redo 不读磁盘。注册资产加载检查外部资产存在性和类型；导
 管理磁盘与 registry 发布，不改变 Scene dirty/history。scene.export_prefab 为 SceneSave，
 scene.instantiate_prefab 为 SceneWrite，沿既有主线程权限链执行。未添加依赖或全局缓存。
 见[设计](superpowers/specs/2026-09-07-v0.10-prefab-design.md)和
-[验收](verification/2026-09-07-v0.10-prefab.md)。main 基线已是 b9b990b；历史“未集成”
-状态不再代表当前 Git。后续为综合验收，Prefab Override 仍在未来范围内。
+[验收](verification/2026-09-07-v0.10-prefab.md)。Prefab 与综合验收均已通过 #92 合入
+main `7ecdfb8`；Prefab Override 仍在未来范围内。
 
 
 ## v0.10 / 10-10 综合验收实现补充
@@ -1835,4 +1851,5 @@ RenderFrameDesc 的可选 projectionViewport 使 Game 世界投影与 UI 都使�
 实际 viewport 仍用于 GPU 目标；Scene View 没有逻辑尺寸，保持编辑相机语义。
 
 本地验证与性能记录见[10-10 验收](verification/2026-09-07-v0.10-integrated-acceptance.md)。
-本补充覆盖前文综合验收未实现的历史状态，但不代表这些本地改动已经合并或发布。
+实现已通过 #92 合入 main，合并后 Windows CI 412/412 通过；未发布 v0.10。
+本地 Debug CPU 与原生观察的限制保持不变，Release/目标设备验证仍待完成。

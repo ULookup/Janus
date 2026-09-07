@@ -60,6 +60,9 @@ TEST_CASE(
     REQUIRE(texture);
     REQUIRE(texture.Value().value != 0);
 
+    REQUIRE(renderer->GetTexturePresentationHandle(texture.Value()));
+    REQUIRE_FALSE(renderer->GetTexturePresentationHandle(Janus::TextureHandle{}));
+
     renderer->DestroyTexture(texture.Value());
 }
 

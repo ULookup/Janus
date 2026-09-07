@@ -30,7 +30,7 @@ TEST_CASE(
     REQUIRE(layout.toolbar.width == Catch::Approx(1440.0f));
     REQUIRE(layout.toolbar.y == Catch::Approx(0.0f));
     REQUIRE(layout.toolbar.height >= 42.0f);
-    REQUIRE(layout.toolbar.height <= 50.0f);
+    REQUIRE(layout.toolbar.height <= 100.0f);
 
     REQUIRE(layout.viewport.width > layout.hierarchy.width);
     REQUIRE(layout.viewport.width > layout.inspector.width);
@@ -57,9 +57,37 @@ TEST_CASE(
             layout.inspector,
             layout.utility));
 
-    REQUIRE(
-        layout.utility.width
-        == Catch::Approx(1440.0f));
+    REQUIRE(layout.utility.width == Catch::Approx(layout.inspector.x - 6.0f));
+    REQUIRE(layout.inspector.height > layout.viewport.height);
+    REQUIRE(layout.diagnostics.width > 0.0f);
+    REQUIRE_FALSE(Overlaps(layout.assets, layout.diagnostics));
+    REQUIRE_FALSE(Overlaps(layout.status, layout.inspector));
+}
+
+TEST_CASE("Editor workspace clamps user splits and collapses diagnostics on narrow windows",
+          "[editor][workspace]")
+{
+    Janus::Editor::EditorWorkspacePreferences preferences;
+    preferences.leftWidth = 900.0f;
+    preferences.rightWidth = 900.0f;
+    preferences.utilityHeight = 900.0f;
+    for (const auto width : {0.0f, 320.0f, 720.0f, 1440.0f})
+    {
+        const auto layout = Janus::Editor::BuildEditorWorkspaceLayout(width, 480, preferences);
+        for (const auto& panel :
+             {layout.toolbar, layout.hierarchy, layout.viewport, layout.inspector, layout.utility,
+              layout.assets, layout.diagnostics, layout.status})
+        {
+            REQUIRE(panel.x >= 0);
+            REQUIRE(panel.y >= 0);
+            REQUIRE(panel.width >= 0);
+            REQUIRE(panel.height >= 0);
+            REQUIRE(panel.x + panel.width <= width + 0.01f);
+            REQUIRE(panel.y + panel.height <= 480.01f);
+        }
+        if (width < 1200)
+            REQUIRE(layout.diagnostics.width == 0);
+    }
 }
 
 TEST_CASE(

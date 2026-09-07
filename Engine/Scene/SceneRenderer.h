@@ -29,6 +29,7 @@ struct SceneRenderRequest
     bool includeUI = true;
     const UIInteractionState* uiState = nullptr;
     const AnimationSystem* animations = nullptr;
+    Color clearColor = Color::White();
 };
 
 class SceneRenderer

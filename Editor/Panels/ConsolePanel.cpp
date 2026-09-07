@@ -1,6 +1,7 @@
 #include "Panels/ConsolePanel.h"
 
 #include "EditorConsole.h"
+#include "EditorIcons.h"
 
 #include <imgui.h>
 
@@ -15,7 +16,7 @@ ConsolePanel::ConsolePanel(
 
 void ConsolePanel::DrawContents()
 {
-    if (ImGui::Button("Clear"))
+    if (IconButton(Icon::Delete, "Clear"))
     {
         m_Console.Clear();
     }
@@ -49,10 +50,24 @@ void ConsolePanel::DrawContents()
                              : entry.level == EditorConsoleLevel::Warning ? "[Warning]"
                                                                           : "[Info]";
 
+        const ImVec4 color = entry.level == EditorConsoleLevel::Error ? ImVec4{1, .40f, .40f, 1}
+                             : entry.level == EditorConsoleLevel::Warning
+                                 ? ImVec4{1, .78f, .30f, 1}
+                                 : ImGui::GetStyleColorVec4(ImGuiCol_Text);
+        const float iconSize = ImGui::GetFontSize();
+        const ImVec2 origin = ImGui::GetCursorScreenPos();
+        ImGui::Dummy({iconSize, iconSize});
+        DrawIcon(entry.level == EditorConsoleLevel::Error     ? Icon::Error
+                 : entry.level == EditorConsoleLevel::Warning ? Icon::Warning
+                                                              : Icon::Info,
+                 origin, iconSize);
+        ImGui::SameLine();
+        ImGui::PushStyleColor(ImGuiCol_Text, color);
         ImGui::TextWrapped(
             "%s %s",
             prefix,
             entry.message.c_str());
+        ImGui::PopStyleColor();
     }
 
     if (m_AutoScroll

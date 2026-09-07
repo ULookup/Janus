@@ -1,10 +1,10 @@
 # Janus Engine
 
-当前进度（2026-09-07）：本地 main 已同步至 `fbb1dc5`（#85，含 UI/Text）。Button、Combat 和 Animation 位于依赖分支，#88 已将动画合入战斗分支 `669c436`，尚未进入 main。`codex/v0.10-audio` 已实现 10-07 音频资产/Source、共享运行与 Lua 控制、出牌音效和背景循环；见[本轮路线调研](docs/superpowers/plans/2026-09-07-audio-next-stage-roadmap.md)和[音频验收](docs/verification/2026-09-07-v0.10-audio.md)。下一包为 **10-08 Physics**，之后 Prefab、综合验收。下方早期切片段落保留历史背景，当前状态以本段及最新验收为准；v0.10 尚未完成或发布。
+当前进度（2026-09-07）：**v0.10 Game Systems 的计划切片与综合示例已合入 main，正在进行发布准备，尚未发布。** main / origin/main 为 `7ecdfb8`，[PR #92](https://github.com/ULookup/Janus/pull/92) 已合并，合并后的 [Windows CI](https://github.com/ULookup/Janus/actions/runs/34091574394) 为 412/412 通过。当前实现、Human 制作入口缺口、PRD 对账及后续安排统一见[项目进度总表](docs/project-status.md)。历史分支及阶段测试数量只描述当时状态。
 
 Janus 是一个面向 Human Developer 与 AI Agent 的 C++20 2D 游戏引擎。项目希望让 Editor、Game 和 Agent 通过同一套 Engine Capability 理解、修改、运行并验证游戏世界。
 
-项目已完成 **v0.1 Engine Foundation**、**v0.2 Renderer2D**、**v0.3 ECS + Scene**、**v0.4 Asset + Serialization**、**v0.5 Lua Gameplay Runtime**、**v0.6 Editor Foundation**、**v0.7 Reflection + Command** 和 **v0.8 MCP Agent Foundation**。当前 Janus 已具备磁盘项目加载、稳定 UUID / AssetHandle、Lua Gameplay、离屏 Scene/Game View、metadata-driven Inspector、Reflection-backed Scene persistence、CommandBus、Undo/Redo，以及原生 C++ MCP stdio Agent authoring 能力。**v0.9 Agent Development Loop** 已通过 PR #81 合入 main，包含 Runtime 调试、共享诊断、作者态事务及 Activity；本地验收与集成状态见[实施记录](docs/verification/2026-09-06-v0.9-agent-development-loop.md)。当前正在开发 **v0.10 Game Systems**，首个 Project Settings + Action Input 切片已通过 PR #82 合入 main（`c8a7c06`）。整体顺序见[开发路线](docs/superpowers/plans/2026-09-06-next-development-roadmap.md)，下一阶段建议先共享 Runtime 执行阶段，再完成可玩 UI，详见[最新 main 调研与路线提案](docs/superpowers/plans/2026-09-07-next-stage-runtime-ui-roadmap.md)。
+项目已完成 v0.1–v0.8 基础里程碑，v0.9 Runtime 调试、共享诊断、事务及 Agent Activity 已合入 main。v0.10 进一步集成项目设置、Action Input、共享 Runtime、UI/Text/Button、Sprite 动画、音频、Box2D Physics、Prefab 及组合游戏验收。产品定位与详细版本边界分别见 PRD 和版本路线图；v0.11 完整 Production Demo 尚未完成。
 
 ## 环境要求
 
@@ -38,13 +38,13 @@ ctest --preset windows-msvc-debug-tests
 
 ## v0.10 Stage A：Project Settings + Action Input
 
-10-03 共享 Runtime 已通过 PR #83 合入 main（`c71ad50`），[验收记录](docs/verification/2026-09-07-v0.10-shared-runtime.md)。10-04a UI 布局的 PR #84 已合入其 shared-runtime 父分支，尚未进入该 main 基线，[验收记录](docs/verification/2026-09-07-v0.10-ui-layout.md)。10-04b Text/离线字体图集、Lua 文本更新、Inspector 多行编辑、Font 赋值和 MCP `assets.search` 已在 `codex/v0.10-ui-text` 本地实现；试用与验证见[Text 验收记录](docs/verification/2026-09-07-v0.10-ui-text.md)。10-05a Button/事件/输入消费和计数菜单已本地实现，下一包为 10-05b 战斗/结构化快照。
+10-01～10-05 已进入当前 main：项目设置与输入、共享 Runtime、UI 布局/图片、Text/离线字体、Button 与固定卡牌战斗。各切片的原始验证见[项目与输入](docs/verification/2026-09-07-v0.10-project-input.md)、[共享 Runtime](docs/verification/2026-09-07-v0.10-shared-runtime.md)、[UI 布局](docs/verification/2026-09-07-v0.10-ui-layout.md)、[Text](docs/verification/2026-09-07-v0.10-ui-text.md)及[Button](docs/verification/2026-09-07-v0.10-ui-button.md)。
 
-当前开发切片增加 `project.json` 和 Editor 底部的 **Project Settings** 标签，可配置默认 Scene、资源路径、游戏分辨率、VSync、Target FPS 和多个按键到 Action 的映射。没有 manifest 的旧项目仍使用原路径；非法配置明确报错。SandboxProject 已提供示例配置。
+项目设置提供 `project.json` 和 Editor 底部的 **Project Settings** 标签，可配置默认 Scene、资源路径、游戏分辨率、VSync、Target FPS 和多个按键到 Action 的映射。没有 manifest 的旧项目仍使用原路径；非法配置明确报错。SandboxProject 已提供示例配置。
 
 Lua 可以使用 `Input.is_action_down("MoveLeft")`、`Input.was_action_pressed(...)`、`Input.was_action_released(...)` 和 `Input.has_action(...)`；旧 key API 保留。Game View 接收其显示区域内的输入，工具面板和黑边不向 Gameplay 传递键鼠。`Input.pointer_position()` 返回左上原点的项目逻辑坐标或 nil，鼠标按钮支持 Left/Right/Middle。
 
-设置保存独立于 Scene 保存及 Undo/事务，运行中、事务中和故障恢复期间会被拒绝。Input 下次 Play 生效，Scene/registry 路径下次打开项目生效，VSync/FPS 下次启动生效。完整配置、验证和后续边界见 [Stage A 实施记录](docs/verification/2026-09-07-v0.10-project-input.md)。当前尚未完成或发布整个 v0.10。
+设置保存独立于 Scene 保存及 Undo/事务，运行中、事务中和故障恢复期间会被拒绝。Input 下次 Play 生效，Scene/registry 路径下次打开项目生效，VSync/FPS 下次启动生效。完整配置、验证和后续边界见 [Stage A 实施记录](docs/verification/2026-09-07-v0.10-project-input.md)。v0.10 已集成，发布配置与目标设备验收仍待收口。
 
 ## v0.9 Agent Development Loop
 
@@ -125,7 +125,7 @@ scene.save
 
 `scene.set_component_property` 的 schema 与 typed JSON 转换来自 Reflection metadata；MCP 不维护第二份组件属性表。所有作者态 mutation 在 Editor 主线程进入同一个 `ProjectSession::CommandBus`，因此 Agent 修改会标记 Scene dirty，并可被 Human 的 Undo/Redo 历史撤销或重做。Play Mode 期间写工具遵循与 Human 相同的作者态只读规则；读取资源仍描述 EditorScene，而不是 RuntimeScene。
 
-权限层当前把操作显式分类为 ProjectRead、SceneRead、SceneWrite、SceneSave。默认本地 `JanusEditor --mcp-stdio` 使用 allow-all policy，但授权 seam 已独立于 Tool/Resource handler，后续可以替换策略而不改业务能力。
+v0.8 权限层最初将操作分类为 ProjectRead、SceneRead、SceneWrite、SceneSave；当前已扩展 RuntimeRead、RuntimeControl、DiagnosticsRead、TransactionControl、ActivityRead。默认本地 `JanusEditor --mcp-stdio` 使用允许已分类操作的 policy，未分类操作被拒绝；授权接口独立于 Tool/Resource handler，但 PRD 的四级用户权限尚未实现。
 
 以下为 v0.8 发布时的边界；Runtime/诊断/Transaction/Activity 已由上述 v0.9 扩展：
 
@@ -271,7 +271,9 @@ Janus/
 ├── Engine/          引擎静态库与公共 API
 ├── Editor/          JanusEditor、EditorCore 与 authoring panels
 ├── Sandbox/         最小运行时客户端和验证程序
-├── SandboxProject/  v0.8 Editor / MCP / Reflection / Lua / Asset workflow fixture
+├── SandboxProject/  Editor / MCP / UI 基础工作流示例
+├── Game/            v0.10 Robot Card Arena 与独立系统示例
+├── MCP/             原生协议、资源、工具与权限适配
 ├── Tests/           自动测试
 ├── docs/            PRD、技术架构和版本路线图
 └── AGENTS.md        代码 Agent 的仓库级工作规则
@@ -282,6 +284,7 @@ Janus/
 - [产品需求文档](docs/Janus%20Engine%20产品需求文档（PRD）.md)
 - [技术架构设计](docs/Janus%20Engine%20技术架构设计.md)
 - [版本路线图](docs/Janus%20Engine%20版本路线图.md)
+- [当前项目进度与 PRD 对账](docs/project-status.md)
 
 ## 当前原则
 
@@ -295,19 +298,41 @@ Janus/
 
 项目尚未选择开源 License。在明确 License 前，请不要假设代码可被重新分发或用于其他项目。
 
-## 10-05a Button 计数菜单（本地实现）
+## 10-05a Button 计数菜单
 
 `SandboxProject/Scenes/ButtonShowcase.scene` 演示两个计数按钮、禁用状态与 Lua `OnClick(self)`。在项目副本的 `project.json` 中将 `defaultScene` 设为 `Scenes/ButtonShowcase.scene`，用 `JanusSandbox.exe <项目副本路径>` 或 `JanusEditor.exe --project <项目副本路径>` 打开。Editor 在 Game View 中 Play 后点击；Up/Down 选按钮，Enter/Space 确认，拖出取消，Stop 恢复作者态计数。Button 的启用状态和四种颜色可在 Inspector 编辑并撤销；相同字段也支持 MCP 场景工具。
 
-这完成 10-05a 点击计数切片；10-05b 的后续实现见下节。见[设计](docs/superpowers/specs/2026-09-07-v0.10-ui-button-design.md)与[验收](docs/verification/2026-09-07-v0.10-ui-button.md)。
+这是独立的 10-05a 点击计数示例；下节描述已集成的 10-05b 战斗。见[设计](docs/superpowers/specs/2026-09-07-v0.10-ui-button-design.md)与[验收](docs/verification/2026-09-07-v0.10-ui-button.md)。
 
 
-## 10-05b 固定卡牌战斗（本地实现）
+## 10-05b 固定卡牌战斗
 
 [Game/](Game/README.md) 已提供菜单、选牌/出牌、血量、胜负与重开。构建后运行 `JanusSandbox.exe ./Game` 或 `JanusEditor.exe --project ./Game`；Editor 在 Game View 中 Play。三次 Strike 胜利，三次 Wait 失败；鼠标和 Up/Down + Enter/Space 共用 Button 规则。
 
 Agent 可读 `engine://runtime/snapshot` 获取阶段、血量、伤害、回合与运行身份。验证场景和 modern/legacy 回归样例见 [Game 说明](Game/README.md)，本次证据见[验收记录](docs/verification/2026-09-07-v0.10-playable-combat.md)。
 
-## 10-06 Sprite 动画（本地实现）
+## 10-06 Sprite 动画
 
-AnimationClip/Animator 已接入共享 Runtime，支持帧时长、循环、Play/Stop/Switch、暂停单步和 Sprite/Image 帧覆盖。战斗成功出牌会播放一次边框动画；`Game/Scenes/AnimationShowcase.scene` 演示循环机器人、Space 停止、Enter 重播和 D 切换一次播放。运行与 Agent 编辑方法见 [Game 说明](Game/README.md)，边界和证据见[设计](docs/superpowers/specs/2026-09-07-v0.10-animation-design.md)、[验收](docs/verification/2026-09-07-v0.10-animation.md)。10-05b 与 10-06 已拆为独立提交和依赖式 PR（战斗基于 Text，动画基于战斗）；下一包为 10-07 Audio，v0.10 尚未整体完成。
+AnimationClip/Animator 已接入共享 Runtime，支持帧时长、循环、Play/Stop/Switch、暂停单步和 Sprite/Image 帧覆盖。战斗成功出牌会播放一次边框动画；`Game/Scenes/AnimationShowcase.scene` 演示循环机器人、Space 停止、Enter 重播和 D 切换一次播放。运行与 Agent 编辑方法见 [Game 说明](Game/README.md)，边界和证据见[设计](docs/superpowers/specs/2026-09-07-v0.10-animation-design.md)、[验收](docs/verification/2026-09-07-v0.10-animation.md)。10-05b/10-06 已随 #91 的依赖链合入 main。本分支的 Inspector 支持按类型选择注册的 clip，Asset Browser 提供 AnimationClip 筛选与 Animator 赋值，也可通过共享 MCP 属性命令配置。编辑器布局和图标升级见 [UI 验收](docs/verification/2026-09-07-editor-ui-upgrade.md)与[图标验收](docs/verification/2026-09-07-editor-icons.md)，集成及发布边界见[制作入口对账](docs/project-status.md)。
+
+## 10-07～10-10 音频、物理、Prefab 与综合示例
+
+Game 默认进入 `Scenes/Integrated.scene`：18 个作者态实体、两个展开的 Fighter Prefab，
+结合菜单/卡牌规则、动画、背景与出牌音效、刚体落地和受击反馈。规则在 Combat.lua，
+Arena.lua 只组合系统及观察数据；Physics 不决定伤害。
+
+在仓库根目录完成 Debug 构建后运行：
+
+```powershell
+./out/build/windows-msvc-debug/Sandbox/JanusSandbox.exe ./Game
+./out/build/windows-msvc-debug/Editor/JanusEditor.exe --project ./Game
+```
+
+独立示例保留 AnimationShowcase、PhysicsShowcase 和 PrefabShowcase。当前 Editor 没有
+普通场景文件切换入口；试用其他场景时修改项目副本的 `project.json.defaultScene` 后重开。
+详细操作、中性 Step 验证与资源格式限制见[Game 说明](Game/README.md)。
+
+Prefab 仅编辑时展开，没有来源关联、覆盖或运行时生成；当前小游戏不含完整 Roguelike、
+存档、多场景流程及联网。现有 [CPU 基线](docs/verification/2026-09-07-v0.10-integrated-acceptance.md)
+不含 GPU/Present，不能作为 Release 整帧性能保证。发布前制作入口、版本与设备验证待办见
+[项目进度总表](docs/project-status.md)。
