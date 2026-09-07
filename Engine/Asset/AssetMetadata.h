@@ -16,7 +16,8 @@ enum class AssetType
     LuaScript,
     Font,
     AnimationClip,
-    AudioClip
+    AudioClip,
+    Prefab
 };
 
 [[nodiscard]] std::string_view AssetTypeName(AssetType type) noexcept;

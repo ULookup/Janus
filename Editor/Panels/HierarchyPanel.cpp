@@ -165,6 +165,21 @@ std::optional<Error> HierarchyPanel::Draw()
         ImGui::EndDisabled();
     }
 
+    if (auto selected = m_Context.selection.GetSelectedUUID(); selected.has_value())
+    {
+        ImGui::BeginDisabled(m_Context.project->IsAuthoringReadOnly());
+        if (ImGui::Button("Export Prefab"))
+        {
+            auto exported = m_Actions.ExportPrefab(*selected);
+            if (!exported)
+                reparentError = exported.GetError();
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip(
+                "Save this subtree as a new asset. Select the Prefab in Assets to instantiate it.");
+        ImGui::EndDisabled();
+    }
+
     ImGui::Separator();
 
     for (const ECS::Entity entity : scene.GetEntities())

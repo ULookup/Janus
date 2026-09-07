@@ -284,7 +284,7 @@ Result<void> Application::Run(ApplicationClient& client)
     {
         auto executionResult =
             RuntimeExecution::Create(*m_Scene, *m_AssetService, m_Input, settings.inputBindings,
-                                     {settings.width, settings.height});
+                                     {settings.width, settings.height}, {}, &m_Profiler);
         if (!executionResult)
         {
             Error error = std::move(executionResult.GetError());
@@ -330,6 +330,21 @@ Result<void> Application::Run(ApplicationClient& client)
 
         if (managedRuntime)
         {
+            // Measure simulation/render submission, excluding polling, Present and frame pacing.
+            struct ProfileFrame
+            {
+                CpuProfiler& profiler;
+                bool active;
+                explicit ProfileFrame(CpuProfiler& value)
+                    : profiler(value), active(value.BeginFrame())
+                {
+                }
+                ~ProfileFrame()
+                {
+                    if (active)
+                        profiler.EndFrame();
+                }
+            } frame(m_Profiler);
             // Independent windows and Editor Game View both feed logical screen coordinates.
             auto runtimeInput = m_Input;
             if (m_Input.GetPointerPosition())
@@ -357,10 +372,14 @@ Result<void> Application::Run(ApplicationClient& client)
                 m_Window->GetWidth(),
                 m_Window->GetHeight()};
 
-            const auto renderResult =
-                m_SceneRenderer->Render(*m_Scene, *m_AssetService, *m_Renderer2D, viewport,
-                                        Viewport{settings.width, settings.height},
-                                        &m_Execution->GetUIState(), &m_Execution->GetAnimations());
+            const auto renderResult = [&]
+            {
+                CpuScope renderScope(m_Profiler, "Runtime.Render");
+                return m_SceneRenderer->Render(*m_Scene, *m_AssetService, *m_Renderer2D, viewport,
+                                               Viewport{settings.width, settings.height},
+                                               &m_Execution->GetUIState(),
+                                               &m_Execution->GetAnimations());
+            }();
 
             if (!renderResult)
             {

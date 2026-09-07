@@ -33,8 +33,8 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
         return std::nullopt;
     }
 
-    static const char* FilterNames[] = {"All",          "Texture", "LuaScript",
-                                        "ShaderSource", "Font",    "AudioClip"};
+    static const char* FilterNames[] = {"All",  "Texture",   "LuaScript", "ShaderSource",
+                                        "Font", "AudioClip", "Prefab"};
 
     ImGui::SetNextItemWidth(140.0f);
     ImGui::Combo(
@@ -69,6 +69,9 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
             break;
         case 5:
             include = asset.type == AssetType::AudioClip;
+            break;
+        case 6:
+            include = asset.type == AssetType::Prefab;
             break;
         default:
             break;
@@ -144,6 +147,21 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
     ImGui::TextWrapped(
         "Handle: %s",
         selectedHandle.c_str());
+
+    if (selected->type == AssetType::Prefab)
+    {
+        std::optional<Error> error;
+        ImGui::BeginDisabled(m_Context.project->IsAuthoringReadOnly());
+        if (ImGui::Button("Instantiate Prefab"))
+        {
+            auto created = m_Actions.InstantiatePrefab(selected->handle);
+            if (!created)
+                error = created.GetError();
+        }
+        ImGui::EndDisabled();
+        ImGui::TextWrapped("Creates an independent subtree. Undo removes the whole instance.");
+        return error;
+    }
 
     Scene& scene =
         m_Context.project->GetEditorScene();

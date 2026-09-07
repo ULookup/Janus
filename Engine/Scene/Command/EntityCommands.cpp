@@ -734,12 +734,10 @@ DeleteEntityCommand::DeleteEntityCommand(
 {
 }
 
-Result<EntitySubtreeSnapshot>
-DeleteEntityCommand::CaptureSnapshot() const
+Result<EntitySubtreeSnapshot> CaptureEntitySubtree(Scene& scene, const SceneReflection& reflection,
+                                                   UUID id)
 {
-    auto entity = ResolveEntity(
-        m_Scene,
-        m_Entity);
+    auto entity = ResolveEntity(scene, id);
     if (!entity)
     {
         return Result<EntitySubtreeSnapshot>::Failure(
@@ -747,14 +745,9 @@ DeleteEntityCommand::CaptureSnapshot() const
     }
 
     EntitySubtreeSnapshot snapshot;
-    snapshot.root = m_Entity;
+    snapshot.root = id;
 
-    auto captured =
-        CaptureEntityRecursive(
-            m_Scene,
-            m_Reflection,
-            entity.Value(),
-            snapshot);
+    auto captured = CaptureEntityRecursive(scene, reflection, entity.Value(), snapshot);
     if (!captured)
     {
         return Result<EntitySubtreeSnapshot>::Failure(
@@ -763,6 +756,11 @@ DeleteEntityCommand::CaptureSnapshot() const
 
     return Result<EntitySubtreeSnapshot>::Success(
         std::move(snapshot));
+}
+
+Result<EntitySubtreeSnapshot> DeleteEntityCommand::CaptureSnapshot() const
+{
+    return CaptureEntitySubtree(m_Scene, m_Reflection, m_Entity);
 }
 
 Result<void> DeleteEntityCommand::Execute()
@@ -796,22 +794,13 @@ Result<void> DeleteEntityCommand::Execute()
     return Result<void>::Success();
 }
 
-Result<void> DeleteEntityCommand::RestoreSnapshot()
+Result<void> RestoreEntitySubtree(Scene& scene, const SceneReflection& reflection,
+                                  const EntitySubtreeSnapshot& snapshot)
 {
-    if (!m_Snapshot.has_value())
-    {
-        return Result<void>::Failure(
-            ErrorCode::InvalidState,
-            "DeleteEntityCommand has no captured subtree snapshot.");
-    }
-
-    const EntitySubtreeSnapshot& snapshot =
-        *m_Snapshot;
-
     for (const EntityAuthoringSnapshot& record :
          snapshot.entities)
     {
-        if (m_Scene.FindEntity(record.id).IsValid())
+        if (scene.FindEntity(record.id).IsValid())
         {
             return Result<void>::Failure(
                 ErrorCode::InvalidState,
@@ -824,15 +813,10 @@ Result<void> DeleteEntityCommand::RestoreSnapshot()
     for (const EntityAuthoringSnapshot& record :
          snapshot.entities)
     {
-        auto created =
-            m_Scene.CreateEntityWithUUID(
-                record.id,
-                record.name);
+        auto created = scene.CreateEntityWithUUID(record.id, record.name);
         if (!created)
         {
-            CleanupSnapshotEntities(
-                m_Scene,
-                snapshot);
+            CleanupSnapshotEntities(scene, snapshot);
             return Result<void>::Failure(
                 created.GetError());
         }
@@ -841,16 +825,10 @@ Result<void> DeleteEntityCommand::RestoreSnapshot()
     for (const EntityAuthoringSnapshot& record :
          snapshot.entities)
     {
-        auto restored =
-            RestoreComponents(
-                m_Scene,
-                m_Reflection,
-                record);
+        auto restored = RestoreComponents(scene, reflection, record);
         if (!restored)
         {
-            CleanupSnapshotEntities(
-                m_Scene,
-                snapshot);
+            CleanupSnapshotEntities(scene, snapshot);
             return restored;
         }
     }
@@ -900,33 +878,22 @@ Result<void> DeleteEntityCommand::RestoreSnapshot()
     for (const PendingParent& relation :
          pending)
     {
-        const ECS::Entity child =
-            m_Scene.FindEntity(
-                relation.child);
-        const ECS::Entity parent =
-            m_Scene.FindEntity(
-                relation.parent);
+        const ECS::Entity child = scene.FindEntity(relation.child);
+        const ECS::Entity parent = scene.FindEntity(relation.parent);
 
         if (!child.IsValid()
             || !parent.IsValid())
         {
-            CleanupSnapshotEntities(
-                m_Scene,
-                snapshot);
+            CleanupSnapshotEntities(scene, snapshot);
             return Result<void>::Failure(
                 ErrorCode::InvalidState,
                 "Failed to resolve restored internal hierarchy.");
         }
 
-        auto parented =
-            m_Scene.SetParent(
-                child,
-                parent);
+        auto parented = scene.SetParent(child, parent);
         if (!parented)
         {
-            CleanupSnapshotEntities(
-                m_Scene,
-                snapshot);
+            CleanupSnapshotEntities(scene, snapshot);
             return parented;
         }
     }
@@ -942,9 +909,7 @@ Result<void> DeleteEntityCommand::RestoreSnapshot()
 
     if (rootRecord == snapshot.entities.end())
     {
-        CleanupSnapshotEntities(
-            m_Scene,
-            snapshot);
+        CleanupSnapshotEntities(scene, snapshot);
         return Result<void>::Failure(
             ErrorCode::InvalidState,
             "Deleted subtree snapshot is missing its root record.");
@@ -955,33 +920,22 @@ Result<void> DeleteEntityCommand::RestoreSnapshot()
             snapshot,
             *rootRecord->parent))
     {
-        const ECS::Entity externalParent =
-            m_Scene.FindEntity(
-                *rootRecord->parent);
+        const ECS::Entity externalParent = scene.FindEntity(*rootRecord->parent);
 
         if (externalParent.IsValid())
         {
-            auto children =
-                CurrentChildren(
-                    m_Scene,
-                    externalParent);
+            auto children = CurrentChildren(scene, externalParent);
             if (!children)
             {
-                CleanupSnapshotEntities(
-                    m_Scene,
-                    snapshot);
+                CleanupSnapshotEntities(scene, snapshot);
                 return Result<void>::Failure(
                     children.GetError());
             }
 
-            const ECS::Entity restoredRoot =
-                m_Scene.FindEntity(
-                    snapshot.root);
+            const ECS::Entity restoredRoot = scene.FindEntity(snapshot.root);
             if (!restoredRoot.IsValid())
             {
-                CleanupSnapshotEntities(
-                    m_Scene,
-                    snapshot);
+                CleanupSnapshotEntities(scene, snapshot);
                 return Result<void>::Failure(
                     ErrorCode::InvalidState,
                     "Restored subtree root is missing.");
@@ -1000,22 +954,23 @@ Result<void> DeleteEntityCommand::RestoreSnapshot()
                     + static_cast<std::ptrdiff_t>(insertAt),
                 restoredRoot);
 
-            auto reordered =
-                ReorderChildren(
-                    m_Scene,
-                    externalParent,
-                    desired);
+            auto reordered = ReorderChildren(scene, externalParent, desired);
             if (!reordered)
             {
-                CleanupSnapshotEntities(
-                    m_Scene,
-                    snapshot);
+                CleanupSnapshotEntities(scene, snapshot);
                 return reordered;
             }
         }
     }
 
     return Result<void>::Success();
+}
+
+Result<void> DeleteEntityCommand::RestoreSnapshot()
+{
+    if (!m_Snapshot)
+        return Result<void>::Failure(ErrorCode::InvalidState, "Delete has no captured snapshot.");
+    return RestoreEntitySubtree(m_Scene, m_Reflection, *m_Snapshot);
 }
 
 void DeleteEntityCommand::CleanupRestoredEntities() noexcept

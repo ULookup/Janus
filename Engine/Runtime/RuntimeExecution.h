@@ -18,6 +18,7 @@ namespace Janus
 class AssetService;
 class Scene;
 class ScriptEngine;
+class CpuProfiler;
 
 enum class ScriptReloadPolicy
 {
@@ -33,7 +34,7 @@ class RuntimeExecution final
     [[nodiscard]] static Result<std::unique_ptr<RuntimeExecution>>
     Create(Scene& scene, AssetService& assets, const InputState& initialInput,
            const InputBindings& bindings = {}, Viewport logicalViewport = {1280, 720},
-           AudioDeviceFactory audioFactory = {});
+           AudioDeviceFactory audioFactory = {}, CpuProfiler* profiler = nullptr);
     ~RuntimeExecution();
 
     RuntimeExecution(const RuntimeExecution&) = delete;
@@ -88,6 +89,8 @@ class RuntimeExecution final
     explicit RuntimeExecution(Scene& scene, const InputState& initialInput,
                               Viewport logicalViewport);
     Scene& m_Scene;
+    // Optional owner-thread host recorder; like Scene, it must outlive this execution.
+    CpuProfiler* m_Profiler = nullptr;
     Viewport m_LogicalViewport;
     UIInteraction m_UI;
 

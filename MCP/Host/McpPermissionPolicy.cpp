@@ -21,11 +21,11 @@ McpOperation ClassifyMcpOperation(std::string_view method, const Json& params) n
         const std::string_view name = it->get_ref<const std::string&>();
         if (name == "assets.search")
             return McpOperation::ProjectRead;
-        if (name == "scene.save")
+        if (name == "scene.save" || name == "scene.export_prefab")
             return McpOperation::SceneSave;
         for (auto known : {"scene.create_entity", "scene.delete_entity", "scene.rename_entity",
                            "scene.reparent_entity", "scene.add_component", "scene.remove_component",
-                           "scene.set_component_property"})
+                           "scene.set_component_property", "scene.instantiate_prefab"})
             if (name == known)
                 return McpOperation::SceneWrite;
         for (auto known : {"runtime.play", "runtime.pause", "runtime.stop", "runtime.step"})

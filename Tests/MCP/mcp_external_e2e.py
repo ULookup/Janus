@@ -7,6 +7,7 @@ import json
 import queue
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -29,6 +30,7 @@ EXPECTED_TOOLS = {
     "scene.remove_component",
     "scene.set_component_property",
     "scene.save",
+    "scene.export_prefab", "scene.instantiate_prefab",
     "runtime.play", "runtime.pause", "runtime.stop", "runtime.step",
     "transaction.begin", "transaction.commit", "transaction.rollback",
 }
@@ -59,17 +61,27 @@ def require(condition: bool, message: str) -> None:
 
 
 class JanusStdioClient:
-    def __init__(self, host: Path, project: Path) -> None:
+    def __init__(self, host: Path, project: Path, *, native_editor: bool = False) -> None:
         self._stdout_queue: queue.Queue[str] = queue.Queue()
         self._stderr_lines: list[str] = []
         self._all_stdout_lines: list[str] = []
 
+        launch_options = {}
+        if native_editor:
+            # ImGui local settings belong to the temporary project, never the source checkout.
+            launch_options["cwd"] = str(project)
+            if sys.platform == "win32":
+                startup = subprocess.STARTUPINFO()
+                startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                startup.wShowWindow = 0
+                launch_options["startupinfo"] = startup
+                launch_options["creationflags"] = subprocess.CREATE_NO_WINDOW
         self._process = subprocess.Popen(
             [
                 str(host),
                 "--project",
                 str(project),
-            ],
+            ] + (["--mcp-stdio"] if native_editor else []),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -77,6 +89,7 @@ class JanusStdioClient:
             encoding="utf-8",
             errors="replace",
             bufsize=1,
+            **launch_options,
         )
 
         require(self._process.stdin is not None, "Janus MCP external host stdin pipe unavailable.")

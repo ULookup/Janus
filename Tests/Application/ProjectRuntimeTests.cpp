@@ -964,7 +964,9 @@ TEST_CASE(
     } client;
     const auto root = std::filesystem::path(JANUS_TEST_SOURCE_DIR).parent_path() / "Game";
     Janus::ApplicationConfig config;
-    config.project = Janus::ProjectRuntimeConfig{root};
+    Janus::ProjectRuntimeConfig projectConfig{root};
+    projectConfig.startupScenePath = "Scenes/Combat.scene";
+    config.project = projectConfig;
     auto app = Janus::Detail::ApplicationTestAccess::Create(config, MakeDependencies(state));
     std::vector<Janus::ScriptSnapshot> snapshots;
     state.onPresent = [&]
@@ -985,7 +987,7 @@ TEST_CASE(
 
     Janus::Test::FakeRenderDevice device;
     auto renderer = Janus::Detail::Renderer2DTestAccess::Create(device);
-    auto opened = Janus::Editor::ProjectSession::Open(Janus::ProjectRuntimeConfig{root}, *renderer);
+    auto opened = Janus::Editor::ProjectSession::Open(projectConfig, *renderer);
     REQUIRE(opened);
     auto project = std::move(opened).Value();
     Janus::InputState input;
@@ -1133,4 +1135,85 @@ TEST_CASE("Physics showcase matches Application and Editor snapshots frame for f
     }
     REQUIRE(project->StopRuntime());
     CHECK_FALSE(project->IsDirty());
+}
+
+TEST_CASE(
+    "Integrated Application and Editor match physical animated battle results per input frame",
+    "[acceptance][application]")
+{
+    RuntimeTestState state;
+    std::vector<Janus::Vector2> clicks(240, {-1, -1});
+    const std::vector<Janus::Vector2> actions = {{180, 430}, {180, 520}, {940, 620}, {180, 520},
+                                                 {940, 620}, {180, 520}, {940, 620}, {940, 430},
+                                                 {180, 430}, {940, 520}, {940, 620}, {940, 520},
+                                                 {940, 620}, {940, 520}, {940, 620}, {940, 430}};
+    for (Janus::usize i = 0; i < actions.size(); ++i)
+        clicks[i * 15] = actions[i];
+    // FakeWindow is 800x600; the Application maps it to 1280x720 logical coordinates.
+    for (const auto point : clicks)
+        state.frameEvents.push_back(
+            {Janus::PointerMovedEvent{{point.x * 800 / 1280, point.y * 600 / 720}},
+             Janus::PointerButtonPressedEvent{Janus::PointerButton::Left},
+             Janus::PointerButtonReleasedEvent{Janus::PointerButton::Left}});
+    class CombatClient final : public Janus::ApplicationClient
+    {
+      public:
+        Janus::Result<void> OnInitialize(Janus::Application&) override
+        {
+            return Janus::Result<void>::Success();
+        }
+        void OnUpdate(Janus::TimeStep step, Janus::Application&) override
+        {
+            steps.push_back(step);
+        }
+        std::vector<Janus::TimeStep> steps;
+    } client;
+    const auto root = std::filesystem::path(JANUS_TEST_SOURCE_DIR).parent_path() / "Game";
+    Janus::ApplicationConfig config;
+    Janus::ProjectRuntimeConfig projectConfig{root};
+    projectConfig.startupScenePath = "Scenes/Integrated.scene";
+    config.project = projectConfig;
+    auto app = Janus::Detail::ApplicationTestAccess::Create(config, MakeDependencies(state));
+    std::vector<Janus::ScriptSnapshot> snapshots;
+    state.onPresent = [&]
+    {
+        REQUIRE(app->GetSnapshot());
+        snapshots.push_back(*app->GetSnapshot());
+        if (snapshots.size() == clicks.size())
+            app->RequestExit();
+    };
+    const auto result = app->Run(client);
+    INFO((result ? "success" : result.GetError().message));
+    REQUIRE(result);
+    REQUIRE_FALSE(app->GetSnapshot());
+    REQUIRE(app->GetProfiler().Latest());
+    CHECK(app->GetProfiler().Latest()->scopes.size() == 7);
+    REQUIRE(snapshots.size() == clicks.size());
+    CHECK(std::get<double>(snapshots[90].fields.at("hits")) == 5);
+    CHECK(std::get<double>(snapshots[90].fields.at("landings")) >= 2);
+    REQUIRE(std::get<std::string>(snapshots[90].fields.at("phase")) == "victory");
+    REQUIRE(std::get<std::string>(snapshots[210].fields.at("phase")) == "defeat");
+    REQUIRE(std::get<std::string>(snapshots[225].fields.at("phase")) == "menu");
+
+    Janus::Test::FakeRenderDevice device;
+    auto renderer = Janus::Detail::Renderer2DTestAccess::Create(device);
+    auto opened = Janus::Editor::ProjectSession::Open(projectConfig, *renderer);
+    REQUIRE(opened);
+    auto project = std::move(opened).Value();
+    Janus::InputState input;
+    REQUIRE(project->StartRuntime(input));
+    for (Janus::usize i = 0; i < clicks.size(); ++i)
+    {
+        input.BeginFrame();
+        input.Apply(Janus::PointerMovedEvent{clicks[i]});
+        input.Apply(Janus::PointerButtonPressedEvent{Janus::PointerButton::Left});
+        input.Apply(Janus::PointerButtonReleasedEvent{Janus::PointerButton::Left});
+        REQUIRE(project->UpdateRuntime(client.steps[i]));
+        const auto snapshot = project->GetRuntimeSession()->GetSnapshot();
+        REQUIRE(snapshot);
+        REQUIRE(snapshot->fields == snapshots[i].fields);
+        REQUIRE(snapshot->frameIndex == snapshots[i].frameIndex);
+        REQUIRE(snapshot->runtimeId == project->GetRuntimeStatus().runtimeId);
+    }
+    REQUIRE_FALSE(project->IsDirty());
 }

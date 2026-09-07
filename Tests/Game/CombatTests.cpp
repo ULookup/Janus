@@ -23,6 +23,7 @@ struct CombatFixture
     {
         Janus::ProjectRuntimeConfig config;
         config.root = std::filesystem::path(JANUS_TEST_SOURCE_DIR).parent_path() / "Game";
+        config.startupScenePath = "Scenes/Combat.scene";
         if (verification)
             config.startupScenePath = "Scenes/CombatVerification.scene";
         auto opened = Janus::Editor::ProjectSession::Open(config, *renderer);

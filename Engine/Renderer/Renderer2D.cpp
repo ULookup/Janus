@@ -197,8 +197,10 @@ Result<void> Renderer2D::BeginFrame(
     m_Impl->statistics.Reset();
 
     m_Impl->devicePtr->SetViewport(desc.viewport);
-    m_Impl->devicePtr->SetViewProjection(
-        desc.camera.ViewProjection(desc.viewport));
+    m_Impl->devicePtr->SetViewProjection(desc.camera.ViewProjection(
+        desc.projectionViewport.width != 0 && desc.projectionViewport.height != 0
+            ? desc.projectionViewport
+            : desc.viewport));
     m_Impl->devicePtr->UseShader(ShaderHandle{1});
 
     return Result<void>::Success();

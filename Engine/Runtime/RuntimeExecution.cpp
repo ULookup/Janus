@@ -1,6 +1,7 @@
 #include "Runtime/RuntimeExecution.h"
 
 #include "Core/Log/Log.h"
+#include "Core/Profiling/CpuProfiler.h"
 #include "Scripting/ScriptEngine.h"
 
 #include <cmath>
@@ -18,10 +19,11 @@ RuntimeExecution::RuntimeExecution(Scene& scene, const InputState& initialInput,
 Result<std::unique_ptr<RuntimeExecution>>
 RuntimeExecution::Create(Scene& scene, AssetService& assets, const InputState& initialInput,
                          const InputBindings& bindings, Viewport logicalViewport,
-                         AudioDeviceFactory audioFactory)
+                         AudioDeviceFactory audioFactory, CpuProfiler* profiler)
 {
     auto execution = std::unique_ptr<RuntimeExecution>(
         new RuntimeExecution(scene, initialInput, logicalViewport));
+    execution->m_Profiler = profiler;
     execution->m_Animations = std::make_unique<AnimationSystem>(scene, assets);
     execution->m_Audio = std::make_unique<AudioSystem>(scene, assets, std::move(audioFactory));
     execution->m_Physics = std::make_unique<PhysicsSystem>(scene);
@@ -96,48 +98,73 @@ Result<void> RuntimeExecution::Advance(TimeStep timeStep, const InputState& inpu
                 audio.SetSuspended(true);
         }
     } audioGuard{*m_Audio};
+    const auto profile = [this](std::string_view name, auto&& action)
+    {
+        std::optional<CpuScope> scope;
+        if (m_Profiler)
+            scope.emplace(*m_Profiler, name);
+        return action();
+    };
     std::vector<UUID> clicks;
-    if (dispatchUI)
-    {
-        auto layout = UILayout::Build(m_Scene, m_LogicalViewport, m_Animations.get());
-        if (!layout)
-            return Result<void>::Failure(layout.GetError());
-        auto routed = m_UI.Process(m_Scene, layout.Value(), input);
-        m_Input = std::move(routed.gameplay);
-        clicks = std::move(routed.clicks);
-    }
-    else
-    {
-        m_UI.Cancel();
-        m_Input = input;
-    }
+    auto ui = profile("Runtime.UI",
+                      [&]() -> Result<void>
+                      {
+                          if (dispatchUI)
+                          {
+                              auto layout =
+                                  UILayout::Build(m_Scene, m_LogicalViewport, m_Animations.get());
+                              if (!layout)
+                                  return Result<void>::Failure(layout.GetError());
+                              auto routed = m_UI.Process(m_Scene, layout.Value(), input);
+                              m_Input = std::move(routed.gameplay);
+                              clicks = std::move(routed.clicks);
+                          }
+                          else
+                          {
+                              m_UI.Cancel();
+                              m_Input = input;
+                          }
+                          return Result<void>::Success();
+                      });
+    if (!ui)
+        return ui;
     // Publications during reload, clicks and Update share the attempted simulation frame.
     m_ScriptEngine->SetSnapshotContext(m_RuntimeId, ++m_FrameIndex);
     if (reload == ScriptReloadPolicy::CheckForChanges)
     {
-        auto reloaded = m_ScriptEngine->ReloadChangedScripts();
+        auto reloaded =
+            profile("Runtime.Reload", [&] { return m_ScriptEngine->ReloadChangedScripts(); });
         if (!reloaded)
             return reloaded;
     }
-    for (const auto id : clicks)
-    {
-        auto dispatched = m_ScriptEngine->DispatchButtonClick(id);
-        if (!dispatched)
-            return dispatched;
-    }
-    auto updated = m_ScriptEngine->Update(timeStep);
+    auto updated = profile("Runtime.Lua",
+                           [&]() -> Result<void>
+                           {
+                               for (const auto id : clicks)
+                               {
+                                   auto dispatched = m_ScriptEngine->DispatchButtonClick(id);
+                                   if (!dispatched)
+                                       return dispatched;
+                               }
+                               return m_ScriptEngine->Update(timeStep);
+                           });
     if (!updated)
         return updated;
-    auto physics = m_Physics->Advance(
-        timeStep,
-        [this](const PhysicsEvent& event) { return m_ScriptEngine->DispatchPhysicsEvent(event); },
-        [this](UUID entity) { return m_ScriptEngine->DestroyPhysicsEntity(entity); });
+    auto physics =
+        profile("Runtime.Physics",
+                [&]
+                {
+                    return m_Physics->Advance(
+                        timeStep, [this](const PhysicsEvent& event)
+                        { return m_ScriptEngine->DispatchPhysicsEvent(event); }, [this](UUID entity)
+                        { return m_ScriptEngine->DestroyPhysicsEntity(entity); });
+                });
     if (!physics)
         return physics;
-    auto animated = m_Animations->Advance(timeStep);
+    auto animated = profile("Runtime.Animation", [&] { return m_Animations->Advance(timeStep); });
     if (!animated)
         return animated;
-    auto audio = m_Audio->Advance(timeStep);
+    auto audio = profile("Runtime.Audio", [&] { return m_Audio->Advance(timeStep); });
     audioGuard.succeeded = static_cast<bool>(audio);
     return audio;
 }

@@ -1,4 +1,4 @@
-# Janus Card Combat / 10-05b + 10-06 + 10-07
+# Janus Robot Card Arena / v0.10 integrated sample
 
 This disk-backed game uses the existing shared Runtime, Canvas, Text and Button APIs.
 All combat rules are in [Combat.lua](Scripts/Combat.lua); Engine contains no card or HP rules.
@@ -18,6 +18,44 @@ Enter/Space confirm. Controls outside their valid phase do nothing; select a car
 Pause/Step does not click buttons. Stop restores the EditorScene's original text.
 Successful card plays now trigger a one-shot green border animation. Invalid plays do not
 restart it; Restart restores the base border. The animation does not change combat timing.
+
+## Integrated arena
+
+The default `Scenes/Integrated.scene` adds two expanded `Prefabs/Fighter.prefab` subtrees,
+independent Animator playback, native rigid bodies, a floor and landing/impact feedback.
+`Combat.lua` still owns every damage/turn rule. `Arena.lua` composes systems; a strike
+kicks the enemy upward, and retaliation kicks the hero. Physics does not change damage timing.
+Reloading `Combat.lua` resets the battle while preserving Arena bindings and actor references.
+`0` resets both bodies and animations as well as combat. `1` starts, `2` selects Strike,
+`3` selects Wait, `4` plays. In Editor, move the pointer into the displayed Game View
+and focus it; tool panels and letterboxing do not supply gameplay input.
+
+World and UI use the project's 1280×720 logical resolution even when Game View is smaller.
+`Scenes/Combat.scene` retains the original UI-only layout. Other showcases remain separate.
+Prefab instances are expanded authoring entities; editing the template does not update old instances.
+The two named actors are already configured copies; newly instantiated Fighters are independent props.
+
+The integrated snapshot adds `physicsTick`, `droppedSeconds`, `bodies`, `heroY`, `enemyY`,
+`hits`, `landings`, `enemyAnimating`, `enemyFrame`, `verifiedVictory`, `verifiedDefeat`.
+Physics/animation observation is from the preceding completed tick; action feedback counts are current.
+`audioAvailable` means the output device exists, including while paused; it does not mean sound is queued.
+
+For Agent acceptance, copy Game and set `defaultScene` to `Scenes/IntegratedVerification.scene`.
+Start paused and Step 480 times: frame 181 is victory, frame 421 is defeat; the last snapshot
+records both outcomes. This calls the same rule function as Human buttons and never injects input.
+Run the repeatable authoring/rollback/reopen/physics/diagnostics task:
+
+```powershell
+python Tests/MCP/integrated_external_e2e.py --host out/build/windows-msvc-debug-tests/Tests/JanusMcpExternalHost.exe --project Game --era modern
+python Tests/MCP/integrated_external_e2e.py --host out/build/windows-msvc-debug-tests/Tests/JanusMcpExternalHost.exe --project Game --era legacy
+$env:SDL_AUDIO_DRIVER = 'dummy'
+./out/build/windows-msvc-debug-tests/Tests/JanusGameSystemsBenchmark.exe ./Game
+```
+
+The benchmark warms 180 frames and measures 720 frames at 1/60 s. Its fake backend measures
+CPU simulation/render submission, not GPU/present latency. See the [integrated verification](../docs/verification/2026-09-07-v0.10-integrated-acceptance.md)
+for results and local merge/release status. Editor's Profiler and `engine://profiler/latest-frame`
+expose shared Runtime stages. Application's `GetProfiler()` returns completed CPU frame copies via `Latest()`.
 
 ## Audio
 
@@ -124,7 +162,7 @@ The FakeRenderDevice host is test-only. No production headless or MCP input inje
 Font files are copies of the existing project-authored [demo font](Fonts/README.md).
 After regenerating the Sandbox font, copy its JSON and PNG into Game/Fonts as well.
 No new dependencies, downloaded artwork, or licensing changes are involved.
-Prefab, integrated v0.10 acceptance and a full Roguelike remain later work packages.
+Integrated v0.10 acceptance and a full Roguelike remain later work packages.
 
 
 ## Physics showcase (10-08)
@@ -153,3 +191,35 @@ python Tests/MCP/physics_external_e2e.py --host out/build/windows-msvc-debug-tes
 Only root unit-scale rectangular bodies are supported in this slice. Physics
 configuration is authored before Play; changes to active body/shape settings fail
 explicitly. Lua runtime methods and full limits are specified in the physics design.
+
+
+## Prefab showcase (10-09)
+
+Open `Scenes/PrefabShowcase.scene` and Play to see two independent robot subtrees.
+Each root owns SpriteRenderer, LuaScript and Animator; its Badge child retains local placement.
+Select `Prefabs/Robot.prefab` in Assets and click **Instantiate Prefab** to add another robot.
+Move the new root with Inspector to separate overlapping instances. **Undo** removes the whole
+instance and **Redo** restores the same IDs/content. Select a robot root in Hierarchy and click
+**Export Prefab** to save a new `Prefabs/<asset UUID>.prefab` registered in the project.
+Export preserves scene dirty/history and is unavailable during Runtime or a transaction.
+
+Prefab v1 expands into ordinary Scene entities; template edits do not propagate to instances.
+There are no nested Prefabs, overrides, apply/revert or runtime spawn APIs in this stage.
+Asset UUIDs refer to this project's registry; copying a template alone into another project
+requires registering its referenced assets with matching identities and types.
+A template containing a Canvas or primary Camera must not conflict with the destination scene.
+
+The script moves each instance relative to its own starting position. The existing runtime
+snapshot publishes the last updating robot's UUID, elapsed time and animation status; it is
+not an aggregate Prefab state. Save/reopen retains expanded instances, including child order.
+
+```powershell
+python Tests/MCP/prefab_external_e2e.py --host out/build/windows-msvc-debug-tests/Tests/JanusMcpExternalHost.exe --project Game --era modern
+python Tests/MCP/prefab_external_e2e.py --host out/build/windows-msvc-debug-tests/Tests/JanusMcpExternalHost.exe --project Game --era legacy
+```
+
+Agent authoring uses `scene.export_prefab {entity}` and `scene.instantiate_prefab {asset}`;
+instantiation accepts the existing optional `transaction` UUID. Export returns a new asset
+UUID; instantiate returns the new root entity UUID. Use `assets.search` with type `prefab`
+and the existing scene/entity resources to inspect results. Runtime still uses shared
+RuntimeExecution, with neutral paused Step and isolated authoring state.

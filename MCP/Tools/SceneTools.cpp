@@ -3,13 +3,14 @@
 #include "Asset/AssetRegistry.h"
 #include "Core/Command/CommandBus.h"
 #include "Core/Reflection/ReflectionRegistry.h"
-#include "Schema/JsonSchema.h"
-#include "Schema/ReflectionJsonCodec.h"
-#include "Schema/ReflectionSchemaAdapter.h"
+#include "Prefab/Prefab.h"
 #include "Scene/Command/EntityCommands.h"
 #include "Scene/Command/SceneCommands.h"
 #include "Scene/Scene.h"
 #include "Scene/SceneReflection.h"
+#include "Schema/JsonSchema.h"
+#include "Schema/ReflectionJsonCodec.h"
+#include "Schema/ReflectionSchemaAdapter.h"
 
 #include <algorithm>
 #include <initializer_list>
@@ -527,6 +528,73 @@ McpToolDescriptor ReparentEntityTool(McpSceneToolContext context)
             if (!executed)
                 return ToolExecutionError(executed.GetError());
             return ToolResult(Json{{"ok", true}, {"entity", entity.Value().ToString()}});
+        }};
+}
+
+McpToolDescriptor InstantiatePrefabTool(McpSceneToolContext context)
+{
+    return McpToolDescriptor{
+        "scene.instantiate_prefab",
+        "Instantiate Prefab",
+        "Expand a registered Prefab as a root subtree with fresh entity UUIDs and one Undo entry.",
+        ObjectInputSchema(Json{{"asset", UuidSchema()}}, Json::array({"asset"})),
+        BasicOutputSchema(Json{{"entity", UuidSchema()}}, Json::array({"entity"})),
+        Json{{"destructiveHint", false}},
+        [context = std::move(context)](const Json& arguments, McpProtocolEra) -> McpDispatchResult
+        {
+            if (!AllowedKeys(arguments, {"asset"}) || !arguments.contains("asset") ||
+                !arguments["asset"].is_string())
+                return InvalidParams(
+                    "Instantiate Prefab requires an asset UUID and optional transaction.");
+            auto id = UUID::Parse(arguments["asset"].get<std::string>());
+            if (!id || !id.Value().IsValid())
+                return InvalidParams("Invalid Prefab asset UUID.");
+            auto writable = CheckWritable(context);
+            if (!writable)
+                return ToolExecutionError(writable.GetError());
+            auto text = Prefab::LoadRegistered(*context.assets, context.projectRoot,
+                                               AssetHandle{id.Value()}, *context.reflection);
+            if (!text)
+                return ToolExecutionError(text.GetError());
+            auto command =
+                InstantiatePrefabCommand::Create(*context.scene, *context.reflection, text.Value());
+            if (!command)
+                return ToolExecutionError(command.GetError());
+            const auto root = command.Value()->GetRoot();
+            auto result = ExecuteCommand(context, arguments, std::move(command).Value());
+            if (!result)
+                return ToolExecutionError(result.GetError());
+            return ToolResult(Json{{"ok", true}, {"entity", root.ToString()}});
+        }};
+}
+
+McpToolDescriptor ExportPrefabTool(McpSceneToolContext context)
+{
+    auto schema = ObjectInputSchema(Json{{"entity", UuidSchema()}}, Json::array({"entity"}));
+    schema["properties"].erase("transaction");
+    return McpToolDescriptor{
+        "scene.export_prefab",
+        "Export Prefab",
+        "Save an authoring subtree as a new registered Prefab. Outside scene Undo and "
+        "transactions.",
+        std::move(schema),
+        BasicOutputSchema(Json{{"asset", UuidSchema()}}, Json::array({"asset"})),
+        Json{{"destructiveHint", false}},
+        [context = std::move(context)](const Json& arguments, McpProtocolEra) -> McpDispatchResult
+        {
+            if (!AllowedKeys(arguments, {"entity"}) || arguments.contains("transaction"))
+                return InvalidParams(
+                    "Export Prefab accepts only entity; disk saves cannot join transactions.");
+            auto entity = ParseEntityUuid(arguments);
+            if (!entity)
+                return InvalidParams(entity.GetError().message);
+            auto writable = CheckWritable(context);
+            if (!writable)
+                return ToolExecutionError(writable.GetError());
+            auto result = context.exportPrefab(entity.Value());
+            if (!result)
+                return ToolExecutionError(result.GetError());
+            return ToolResult(Json{{"ok", true}, {"asset", result.Value().ToString()}});
         }};
 }
 
@@ -1065,6 +1133,19 @@ Result<void> RegisterSceneTools(
     result = registry.RegisterTool(SearchAssetsTool(context.assets));
     if (!result)
         return result;
+
+    if (!context.projectRoot.empty())
+    {
+        result = registry.RegisterTool(InstantiatePrefabTool(context));
+        if (!result)
+            return result;
+    }
+    if (context.exportPrefab)
+    {
+        result = registry.RegisterTool(ExportPrefabTool(context));
+        if (!result)
+            return result;
+    }
 
     return registry.RegisterTool(
         SaveSceneTool(

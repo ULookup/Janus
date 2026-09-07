@@ -4,6 +4,7 @@
 #include "ProjectSession.h"
 
 #include "Core/Command/ICommand.h"
+#include "Prefab/Prefab.h"
 #include "Scene/Command/EntityCommands.h"
 #include "Scene/Command/SceneCommands.h"
 #include "Scene/Scene.h"
@@ -106,6 +107,36 @@ Result<void> EditorActions::ReparentEntity(UUID id, UUID parent, usize siblingIn
     Scene& scene = *editable.Value();
     return ExecutePrepared(
         scene, std::make_unique<ReparentEntityCommand>(scene, id, parent, siblingIndex));
+}
+
+Result<AssetHandle> EditorActions::ExportPrefab(UUID root)
+{
+    if (!m_Context.project)
+        return Result<AssetHandle>::Failure(ErrorCode::InvalidState,
+                                            "Open a project before exporting a Prefab.");
+    return m_Context.project->ExportPrefab(root);
+}
+
+Result<UUID> EditorActions::InstantiatePrefab(AssetHandle asset)
+{
+    auto editable = GetEditableScene();
+    if (!editable)
+        return Result<UUID>::Failure(editable.GetError());
+    auto& project = *m_Context.project;
+    auto text = Prefab::LoadRegistered(project.GetAssetRegistry(), project.GetProjectRoot(), asset,
+                                       project.GetReflectionRegistry());
+    if (!text)
+        return Result<UUID>::Failure(text.GetError());
+    auto command = InstantiatePrefabCommand::Create(*editable.Value(),
+                                                    project.GetReflectionRegistry(), text.Value());
+    if (!command)
+        return Result<UUID>::Failure(command.GetError());
+    const auto root = command.Value()->GetRoot();
+    auto executed = ExecutePrepared(*editable.Value(), std::move(command).Value());
+    if (!executed)
+        return Result<UUID>::Failure(executed.GetError());
+    m_Context.selection.Select(root);
+    return Result<UUID>::Success(root);
 }
 
 Result<void> EditorActions::DeleteEntity(UUID id)

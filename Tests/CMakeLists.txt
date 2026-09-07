@@ -46,6 +46,7 @@ add_executable(
     Editor/RuntimeSessionTests.cpp
     Runtime/RuntimeExecutionTests.cpp
     Game/CombatTests.cpp
+    Game/IntegratedTests.cpp
     Animation/AnimationTests.cpp
     Audio/AudioTests.cpp
     Physics/PhysicsTests.cpp
@@ -70,6 +71,7 @@ add_executable(
     Scene/SceneReflectionTests.cpp
     Scene/SceneCommandTests.cpp
     Scene/EntityCommandTests.cpp
+    Scene/PrefabTests.cpp
     Scene/SceneRenderTests.cpp
     Scene/LuaScriptSerializationTests.cpp
     Scripting/LuaVirtualMachineTests.cpp
@@ -183,6 +185,16 @@ set_tests_properties(
 
 # The same external host exercises the game observation chain in both protocol eras.
 foreach(era IN ITEMS modern legacy)
+    add_test(NAME MCP.Integrated.${era}
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/MCP/integrated_external_e2e.py
+            --host $<TARGET_FILE:JanusMcpExternalHost>
+            --project ${CMAKE_SOURCE_DIR}/Game --era ${era})
+    set_tests_properties(MCP.Integrated.${era} PROPERTIES TIMEOUT 120 RUN_SERIAL TRUE)
+    add_test(NAME MCP.Prefab.${era}
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/MCP/prefab_external_e2e.py
+            --host $<TARGET_FILE:JanusMcpExternalHost>
+            --project ${CMAKE_SOURCE_DIR}/Game --era ${era})
+    set_tests_properties(MCP.Prefab.${era} PROPERTIES TIMEOUT 60 RUN_SERIAL TRUE)
     add_test(NAME MCP.Physics.${era}
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/MCP/physics_external_e2e.py
             --host $<TARGET_FILE:JanusMcpExternalHost>
@@ -199,6 +211,10 @@ endforeach()
 add_executable(JanusCpuProfilerBenchmark Benchmarks/CpuProfilerBenchmark.cpp)
 target_link_libraries(JanusCpuProfilerBenchmark PRIVATE JanusEngine)
 janus_set_warnings(JanusCpuProfilerBenchmark)
+
+add_executable(JanusGameSystemsBenchmark Benchmarks/GameSystemsBenchmark.cpp)
+target_link_libraries(JanusGameSystemsBenchmark PRIVATE JanusEngine JanusEditorCore)
+janus_set_warnings(JanusGameSystemsBenchmark)
 
 # Explicit local device smoke; deliberately excluded from device-independent CTest.
 add_executable(JanusAudioDeviceSmoke Audio/AudioDeviceSmoke.cpp)

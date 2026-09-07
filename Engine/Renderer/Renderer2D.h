@@ -25,6 +25,8 @@ struct RenderFrameDesc
     Viewport viewport;
     RenderTargetHandle target;
     Color clearColor = Color::White();
+    // Zero uses the target size. Game hosts supply logical size to preserve world/UI composition.
+    Viewport projectionViewport;
 };
 
 class Renderer2D

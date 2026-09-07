@@ -2,7 +2,7 @@
 
 ## Mission
 
-Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.10 Game Systems**. Local main is synchronized to origin/main `fbb1dc5` (#85, fetched 2026-09-07), containing Stage A, Shared Runtime and UI layout/text. Button #86 is in Text; Combat `92b8d13` and Animation `25a3052` are committed, and #88 merged Animation into the combat branch at `669c436`; these systems are still not in main. **10-07 Audio** is implemented on `codex/v0.10-audio`, based on that dependency chain plus main. See docs/superpowers/plans/2026-09-07-audio-next-stage-roadmap.md and the audio design/verification records for current evidence; earlier uncommitted/next-animation descriptions are historical. **10-08 Physics** is implemented on `codex/v0.10-physics`, based on Audio `b4eaab7`. See the physics design/verification records. The next work package is **10-09 Prefab**, followed by integrated acceptance. v0.10 is not complete or released. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
+Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.10 Game Systems**. The integration baseline is origin/main `b9b990b` (fetched 2026-09-07), including UI/Button, Combat/Animation (#91 dependency chain), Audio (#89), and Physics (#90). **10-09 Prefab Foundation** and **10-10 integrated acceptance** are implemented in the `codex/v0.10-acceptance` integration branch, based on that main. See docs/superpowers/plans/2026-09-07-v0.10-integrated-acceptance.md and docs/verification/2026-09-07-v0.10-integrated-acceptance.md for current evidence. Earlier main/dependency-branch and next-stage descriptions are historical. Next is focused review/integration and release preparation, not a new unfinished subsystem. The integration review is recorded in docs/verification/2026-09-07-v0.10-integration-review.md; use Git/PR state for merge status. v0.10 is not released. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
 
 This file applies to the entire repository. A more deeply nested `AGENTS.md` may add stricter rules for its subtree.
 
@@ -195,3 +195,23 @@ A change is complete only when:
 - Copy Box2D events after each solver step into sorted UUID pairs. Lua OnCollisionEnter/Exit and OnTriggerEnter/Exit run on the owner thread. Entity:destroy queues deletion; skip pending Update/physics callbacks, invoke OnDestroy while entities still exist, then remove Scene subtrees and native bodies even if a callback fails. OnDestroy may queue another batch for the next safe boundary.
 - Limits: 1024 bodies/pending requests, 4096 raw events per tick, finite bounded geometry/controls. Destroyed contacts cancel without synthetic exits. Raycasts use start/end, exclude triggers by default, and ignore initial overlaps per Box2D.
 - See docs/superpowers/specs/2026-09-07-v0.10-physics-design.md and docs/verification/2026-09-07-v0.10-physics.md. PhysicsShowcase is independent of combat. Prefab and integrated v0.10 acceptance remain outstanding.
+
+
+## v0.10 Prefab constraints
+
+- Prefab v1 is a bounded, closed single-root subtree containing Scene v1 data (1 MiB / 1024 entities / 64 hierarchy levels). Use active ReflectionRegistry and shared subtree snapshot capture/restore, never a second component codec.
+- Every instance remaps entity and parent UUIDs, preserves sibling order/local fields, AssetReference UUIDs and strings. There is currently no reflected EntityReference type; adding one requires explicit remapping and external-reference policy.
+- Instances expand into ordinary Scene entities. No source link, nested Prefab, override/apply/revert, propagation or runtime spawning in this slice. New registered instances validate referenced asset identities/types; nil references retain Scene semantics.
+- InstantiatePrefabCommand is one shared authoring command with bounded undo reservation. Redo restores the original immutable snapshot and UUIDs without disk reload. Reject multiple primary cameras and unsupported Canvas structures without changing existing entities.
+- ProjectSession exports a fresh UUID file then atomically saves registry metadata and publishes the in-memory registry. Failed registry save removes the fresh file; a process crash between writes may leave an unregistered orphan. Export is outside scene dirty/history and forbidden during Runtime/transactions/recovery.
+- Human EditorActions and MCP share ProjectSession guards. scene.export_prefab is SceneSave; scene.instantiate_prefab is SceneWrite through existing owner-thread dispatch. Game/Prefabs/Robot.prefab and PrefabShowcase demonstrate Sprite, Lua, Animator and child hierarchy.
+- See docs/superpowers/specs/2026-09-07-v0.10-prefab-design.md and docs/verification/2026-09-07-v0.10-prefab.md. Integrated v0.10 gameplay/device/performance acceptance remains 10-10.
+
+
+## v0.10 integrated acceptance constraints
+
+- Game/Scenes/Integrated.scene composes expanded Fighter prefab instances, UI/card rules, animation/audio and physics feedback. Combat.lua owns rule resolution; Arena.lua owns composition and observation. Physics feedback does not decide damage.
+- IntegratedVerification.scene calls the same Game action entry on a deterministic schedule. Production scenes never synthesize gameplay input; MCP Step remains neutral.
+- RuntimeExecution borrows an optional host-owned CpuProfiler. UI, Reload, Lua, Physics, Animation and Audio scopes are CPU timings, including callback work within its owning stage. The recorder must outlive execution. Application profiling excludes event polling, client update, Present and pacing.
+- Game rendering uses logical project resolution for both world projection and UI, independently of render-target pixel dimensions. Scene View keeps its target-sized editor camera. Renderer2D accepts optional projectionViewport; zero dimensions fall back to target size.
+- 10-10 evidence is local acceptance, not a merge/release declaration. See the integrated verification record for CPU baseline limits and actual native observations.

@@ -1,6 +1,7 @@
 #include "Asset/AssetRegistry.h"
 #include "Asset/AssetService.h"
 #include "Core/FileSystem/FileSystem.h"
+#include "Core/Profiling/CpuProfiler.h"
 #include "Renderer/Renderer2D.h"
 #include "Runtime/RuntimeExecution.h"
 #include "Scene/Components.h"
@@ -67,6 +68,42 @@ struct ExecutionFixture
     }
 };
 } // namespace
+
+TEST_CASE("Shared runtime profiling closes stage scopes on success and callback failure",
+          "[runtime-execution][acceptance][profiling]")
+{
+    ExecutionFixture fixture("return {OnUpdate=function(self) end}");
+    Janus::CpuProfiler profiler;
+    auto created = Janus::RuntimeExecution::Create(fixture.scene, fixture.assets, {}, {},
+                                                   {1280, 720}, {}, &profiler);
+    REQUIRE(created);
+    auto execution = std::move(created).Value();
+    REQUIRE(execution->Start(true));
+    for (const bool fail : {false, true})
+    {
+        if (fail)
+            fixture.Rewrite("return {OnUpdate=function(self) error('profiled fault') end}");
+        REQUIRE(profiler.BeginFrame());
+        {
+            Janus::CpuScope parent(profiler, "Host");
+            CHECK(static_cast<bool>(execution->Advance(Janus::TimeStep{}, {})) == !fail);
+        }
+        REQUIRE(profiler.EndFrame());
+        const auto frame = profiler.Latest();
+        REQUIRE(frame);
+        REQUIRE(frame->scopes.size() == (fail ? 4 : 7));
+        const std::vector<std::string> names = {
+            "Host",         "Runtime.UI",      "Runtime.Reload",
+            "Runtime.Lua",  "Runtime.Physics", "Runtime.Animation",
+            "Runtime.Audio"};
+        for (Janus::usize i = 0; i < frame->scopes.size(); ++i)
+        {
+            CHECK(frame->scopes[i].name == names[i]);
+            CHECK(frame->scopes[i].parent == (i == 0 ? -1 : 0));
+            CHECK(frame->scopes[i].durationMilliseconds >= 0);
+        }
+    }
+}
 
 TEST_CASE("Script snapshots are bounded atomic values with runtime identity and frame provenance",
           "[snapshot][v0.10]")
