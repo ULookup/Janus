@@ -77,6 +77,10 @@ ApplicationDependencies CreateDefaultApplicationDependencies()
 
 namespace Janus
 {
+std::optional<ScriptSnapshot> Application::GetSnapshot() const
+{
+    return m_Execution ? m_Execution->GetSnapshot() : std::nullopt;
+}
 Application::Application(ApplicationConfig config)
     : Application(
         std::move(config),

@@ -97,6 +97,7 @@ target_sources(
 
         Core/Log/Log.h
         Diagnostics/DiagnosticsFrame.h
+        Diagnostics/ScriptSnapshot.h
         Core/Profiling/CpuProfiler.h
         Core/Log/LogStore.h
         Core/Log/LogOutput.h

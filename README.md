@@ -297,4 +297,11 @@ Janus/
 
 `SandboxProject/Scenes/ButtonShowcase.scene` 演示两个计数按钮、禁用状态与 Lua `OnClick(self)`。在项目副本的 `project.json` 中将 `defaultScene` 设为 `Scenes/ButtonShowcase.scene`，用 `JanusSandbox.exe <项目副本路径>` 或 `JanusEditor.exe --project <项目副本路径>` 打开。Editor 在 Game View 中 Play 后点击；Up/Down 选按钮，Enter/Space 确认，拖出取消，Stop 恢复作者态计数。Button 的启用状态和四种颜色可在 Inspector 编辑并撤销；相同字段也支持 MCP 场景工具。
 
-这完成 10-05a 点击计数切片；10-05b 战斗、胜负/重开与结构化游戏快照仍为下一包。见[设计](docs/superpowers/specs/2026-09-07-v0.10-ui-button-design.md)与[验收](docs/verification/2026-09-07-v0.10-ui-button.md)。
+这完成 10-05a 点击计数切片；10-05b 的后续实现见下节。见[设计](docs/superpowers/specs/2026-09-07-v0.10-ui-button-design.md)与[验收](docs/verification/2026-09-07-v0.10-ui-button.md)。
+
+
+## 10-05b 固定卡牌战斗（本地实现）
+
+[Game/](Game/README.md) 已提供菜单、选牌/出牌、血量、胜负与重开。构建后运行 `JanusSandbox.exe ./Game` 或 `JanusEditor.exe --project ./Game`；Editor 在 Game View 中 Play。三次 Strike 胜利，三次 Wait 失败；鼠标和 Up/Down + Enter/Space 共用 Button 规则。
+
+Agent 可读 `engine://runtime/snapshot` 获取阶段、血量、伤害、回合与运行身份。验证场景和 modern/legacy 回归样例见 [Game 说明](Game/README.md)，本次证据见[验收记录](docs/verification/2026-09-07-v0.10-playable-combat.md)。下一包为 10-06 AnimationClip/Animator；v0.10 尚未整体完成。

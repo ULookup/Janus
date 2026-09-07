@@ -1,0 +1,709 @@
+{
+  "schema": "janus.scene",
+  "version": 1,
+  "scene": {
+    "id": "fc200000-0000-4000-8000-000000000100",
+    "name": "Card Combat"
+  },
+  "entities": [
+    {
+      "id": "fc200000-0000-4000-8000-000000000001",
+      "name": "Canvas",
+      "parent": null,
+      "siblingOrder": 0,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "Canvas": {
+          "enabled": true
+        },
+        "Panel": {
+          "color": [
+            0.035,
+            0.055,
+            0.085,
+            1
+          ],
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "fc200000-0000-4000-8000-000000000002",
+      "name": "Status",
+      "parent": "fc200000-0000-4000-8000-000000000001",
+      "siblingOrder": 0,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            0
+          ],
+          "anchorMax": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            70,
+            98
+          ],
+          "size": [
+            1140,
+            115
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Text": {
+          "font": "fa100000-0000-4000-8000-000000000002",
+          "content": "START A BATTLE - SELECT A CARD - PLAY YOUR CARD\nENEMY HP 12 / 12     YOUR HP 6 / 6     TURN 0\nSELECTED NONE     DAMAGE 0     RETURN DAMAGE 0",
+          "fontSize": 24,
+          "color": [
+            0.9,
+            0.95,
+            1,
+            1
+          ],
+          "alignment": "left",
+          "enabled": true
+        },
+        "LuaScript": {
+          "script": "fc100000-0000-4000-8000-000000000001",
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "fc200000-0000-4000-8000-000000000003",
+      "name": "Title",
+      "parent": "fc200000-0000-4000-8000-000000000001",
+      "siblingOrder": 1,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            0
+          ],
+          "anchorMax": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            70,
+            28
+          ],
+          "size": [
+            1140,
+            55
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Text": {
+          "font": "fa100000-0000-4000-8000-000000000002",
+          "content": "JANUS / CARD COMBAT",
+          "fontSize": 36,
+          "color": [
+            0.9,
+            0.95,
+            1,
+            1
+          ],
+          "alignment": "left",
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "fc200000-0000-4000-8000-000000000020",
+      "name": "Start",
+      "parent": "fc200000-0000-4000-8000-000000000001",
+      "siblingOrder": 2,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            0
+          ],
+          "anchorMax": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            70,
+            230
+          ],
+          "size": [
+            540,
+            60
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Text": {
+          "font": "fa100000-0000-4000-8000-000000000002",
+          "content": "START BATTLE",
+          "fontSize": 30,
+          "color": [
+            0.9,
+            0.95,
+            1,
+            1
+          ],
+          "alignment": "center",
+          "enabled": true
+        },
+        "Button": {
+          "enabled": true,
+          "interactable": true,
+          "color": [
+            0.12,
+            0.22,
+            0.34,
+            1
+          ],
+          "focusedColor": [
+            0.2,
+            0.44,
+            0.67,
+            1
+          ],
+          "pressedColor": [
+            0.08,
+            0.6,
+            0.47,
+            1
+          ],
+          "disabledColor": [
+            0.2,
+            0.22,
+            0.25,
+            1
+          ]
+        },
+        "LuaScript": {
+          "script": "fc100000-0000-4000-8000-000000000001",
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "fc200000-0000-4000-8000-000000000021",
+      "name": "Restart",
+      "parent": "fc200000-0000-4000-8000-000000000001",
+      "siblingOrder": 3,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            0
+          ],
+          "anchorMax": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            670,
+            230
+          ],
+          "size": [
+            540,
+            60
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Text": {
+          "font": "fa100000-0000-4000-8000-000000000002",
+          "content": "RESTART TO MENU",
+          "fontSize": 30,
+          "color": [
+            0.9,
+            0.95,
+            1,
+            1
+          ],
+          "alignment": "center",
+          "enabled": true
+        },
+        "Button": {
+          "enabled": true,
+          "interactable": true,
+          "color": [
+            0.12,
+            0.22,
+            0.34,
+            1
+          ],
+          "focusedColor": [
+            0.2,
+            0.44,
+            0.67,
+            1
+          ],
+          "pressedColor": [
+            0.08,
+            0.6,
+            0.47,
+            1
+          ],
+          "disabledColor": [
+            0.2,
+            0.22,
+            0.25,
+            1
+          ]
+        },
+        "LuaScript": {
+          "script": "fc100000-0000-4000-8000-000000000001",
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "fc200000-0000-4000-8000-000000000022",
+      "name": "Strike",
+      "parent": "fc200000-0000-4000-8000-000000000001",
+      "siblingOrder": 4,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            0
+          ],
+          "anchorMax": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            70,
+            340
+          ],
+          "size": [
+            540,
+            130
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Text": {
+          "font": "fa100000-0000-4000-8000-000000000002",
+          "content": "STRIKE\nDEAL 4 DAMAGE",
+          "fontSize": 30,
+          "color": [
+            0.9,
+            0.95,
+            1,
+            1
+          ],
+          "alignment": "center",
+          "enabled": true
+        },
+        "Button": {
+          "enabled": true,
+          "interactable": true,
+          "color": [
+            0.12,
+            0.22,
+            0.34,
+            1
+          ],
+          "focusedColor": [
+            0.2,
+            0.44,
+            0.67,
+            1
+          ],
+          "pressedColor": [
+            0.08,
+            0.6,
+            0.47,
+            1
+          ],
+          "disabledColor": [
+            0.2,
+            0.22,
+            0.25,
+            1
+          ]
+        },
+        "LuaScript": {
+          "script": "fc100000-0000-4000-8000-000000000001",
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "fc200000-0000-4000-8000-000000000023",
+      "name": "Wait",
+      "parent": "fc200000-0000-4000-8000-000000000001",
+      "siblingOrder": 5,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            0
+          ],
+          "anchorMax": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            670,
+            340
+          ],
+          "size": [
+            540,
+            130
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Text": {
+          "font": "fa100000-0000-4000-8000-000000000002",
+          "content": "WAIT\nDEAL 0 DAMAGE",
+          "fontSize": 30,
+          "color": [
+            0.9,
+            0.95,
+            1,
+            1
+          ],
+          "alignment": "center",
+          "enabled": true
+        },
+        "Button": {
+          "enabled": true,
+          "interactable": true,
+          "color": [
+            0.12,
+            0.22,
+            0.34,
+            1
+          ],
+          "focusedColor": [
+            0.2,
+            0.44,
+            0.67,
+            1
+          ],
+          "pressedColor": [
+            0.08,
+            0.6,
+            0.47,
+            1
+          ],
+          "disabledColor": [
+            0.2,
+            0.22,
+            0.25,
+            1
+          ]
+        },
+        "LuaScript": {
+          "script": "fc100000-0000-4000-8000-000000000001",
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "fc200000-0000-4000-8000-000000000024",
+      "name": "Play",
+      "parent": "fc200000-0000-4000-8000-000000000001",
+      "siblingOrder": 6,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            0
+          ],
+          "anchorMax": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            670,
+            510
+          ],
+          "size": [
+            540,
+            65
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Text": {
+          "font": "fa100000-0000-4000-8000-000000000002",
+          "content": "PLAY SELECTED CARD",
+          "fontSize": 28,
+          "color": [
+            0.9,
+            0.95,
+            1,
+            1
+          ],
+          "alignment": "center",
+          "enabled": true
+        },
+        "Button": {
+          "enabled": true,
+          "interactable": true,
+          "color": [
+            0.12,
+            0.22,
+            0.34,
+            1
+          ],
+          "focusedColor": [
+            0.2,
+            0.44,
+            0.67,
+            1
+          ],
+          "pressedColor": [
+            0.08,
+            0.6,
+            0.47,
+            1
+          ],
+          "disabledColor": [
+            0.2,
+            0.22,
+            0.25,
+            1
+          ]
+        },
+        "LuaScript": {
+          "script": "fc100000-0000-4000-8000-000000000001",
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "fc200000-0000-4000-8000-000000000025",
+      "name": "Rules",
+      "parent": "fc200000-0000-4000-8000-000000000001",
+      "siblingOrder": 7,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            0
+          ],
+          "anchorMax": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            70,
+            510
+          ],
+          "size": [
+            540,
+            90
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Text": {
+          "font": "fa100000-0000-4000-8000-000000000002",
+          "content": "ENEMY RETURNS 2 DAMAGE\nTHREE STRIKES TO WIN",
+          "fontSize": 24,
+          "color": [
+            0.9,
+            0.95,
+            1,
+            1
+          ],
+          "alignment": "left",
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "fc200000-0000-4000-8000-000000000026",
+      "name": "Help",
+      "parent": "fc200000-0000-4000-8000-000000000001",
+      "siblingOrder": 8,
+      "components": {
+        "Transform": {
+          "position": [
+            0,
+            0
+          ],
+          "rotation": 0,
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "UIRect": {
+          "anchorMin": [
+            0,
+            0
+          ],
+          "anchorMax": [
+            0,
+            0
+          ],
+          "pivot": [
+            0,
+            0
+          ],
+          "offset": [
+            70,
+            620
+          ],
+          "size": [
+            1140,
+            65
+          ],
+          "enabled": true,
+          "clipChildren": false
+        },
+        "Text": {
+          "font": "fa100000-0000-4000-8000-000000000002",
+          "content": "CLICK OR UP / DOWN + ENTER / SPACE\nRESTART RESETS THE MATCH - ESC CLOSES SANDBOX",
+          "fontSize": 22,
+          "color": [
+            0.9,
+            0.95,
+            1,
+            1
+          ],
+          "alignment": "left",
+          "enabled": true
+        }
+      }
+    }
+  ]
+}

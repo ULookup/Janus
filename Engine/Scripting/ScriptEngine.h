@@ -5,8 +5,10 @@
 #include "Core/Time/TimeStep.h"
 #include "Core/Types.h"
 #include "Core/UUID/UUID.h"
+#include "Diagnostics/ScriptSnapshot.h"
 
 #include <memory>
+#include <optional>
 
 namespace Janus
 {
@@ -37,13 +39,16 @@ public:
 
   [[nodiscard]] bool IsRunning() const noexcept;
   [[nodiscard]] usize InstanceCount() const noexcept;
+  [[nodiscard]] std::optional<ScriptSnapshot> GetSnapshot() const;
 
 private:
-    struct Impl;
+  friend class RuntimeExecution;
+  void SetSnapshotContext(UUID runtimeId, u64 frameIndex);
+  struct Impl;
 
-    explicit ScriptEngine(std::unique_ptr<Impl> impl) noexcept;
+  explicit ScriptEngine(std::unique_ptr<Impl> impl) noexcept;
 
-    std::unique_ptr<Impl> m_Impl;
+  std::unique_ptr<Impl> m_Impl;
 };
 
 } // namespace Janus

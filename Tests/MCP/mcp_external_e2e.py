@@ -34,6 +34,7 @@ EXPECTED_TOOLS = {
 }
 
 EXPECTED_RESOURCES = {
+    "engine://runtime/snapshot",
     "engine://project/info",
     "engine://scene/current",
     "engine://scene/hierarchy",

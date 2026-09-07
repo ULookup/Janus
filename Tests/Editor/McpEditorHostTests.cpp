@@ -174,6 +174,38 @@ private:
 
 } // namespace
 
+TEST_CASE("Published snapshot permission executes on the owner thread before resource handling",
+          "[snapshot][mcp][permission]")
+{
+    ProjectFixture fixture;
+    class DenyRuntimeRead final : public Janus::MCP::IMcpPermissionPolicy
+    {
+      public:
+        std::thread::id owner = std::this_thread::get_id();
+        mutable bool visited = false;
+        Janus::Result<void> Authorize(Janus::MCP::McpOperation operation,
+                                      const Janus::MCP::McpRequestContext&) const override
+        {
+            REQUIRE(std::this_thread::get_id() == owner);
+            visited = true;
+            REQUIRE(operation == Janus::MCP::McpOperation::RuntimeRead);
+            return Janus::Result<void>::Failure(Janus::ErrorCode::InvalidState, "Snapshot denied");
+        }
+    } policy;
+    std::istringstream input(
+        EncodeRequest(1, "resources/read", {{"uri", "engine://runtime/snapshot"}}));
+    std::ostringstream output;
+    auto created = Janus::Editor::McpEditorHost::Create(*fixture.project, input, output, policy);
+    REQUIRE(created);
+    auto host = std::move(created).Value();
+    REQUIRE(host->Start());
+    REQUIRE(PumpUntilWorkerStops(*host));
+    const auto responses = ParseResponses(output.str());
+    REQUIRE(policy.visited);
+    REQUIRE(responses.size() == 1);
+    REQUIRE(responses[0]["error"]["code"] == Janus::MCP::McpPermissionDenied);
+}
+
 TEST_CASE(
     "Live Editor MCP write marks dirty and shares Human undo history",
     "[editor][mcp][host][v0.8]")

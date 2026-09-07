@@ -135,6 +135,59 @@ Result<void> RegisterDebugCapabilities(ToolRegistry& tools, ResourceRegistry& re
          { return ResourceContent(uri, RuntimePayload(context)); }});
     if (!added)
         return added;
+    added = resources.RegisterResource(
+        {"engine://runtime/snapshot", "runtime-snapshot", "Published script snapshot",
+         "Last explicitly published bounded scalar snapshot; optional runtimeId and field filters.",
+         "application/json",
+         [context](std::string_view uri, McpProtocolEra) -> McpDispatchResult
+         {
+             auto query = Query(uri);
+             if (!query)
+                 return Invalid(query.GetError().message);
+             const auto status = context.status();
+             std::optional<std::string> field;
+             for (const auto& [key, value] : query.Value())
+             {
+                 if (key == "runtimeId")
+                 {
+                     auto id = UUID::Parse(value);
+                     if (!id || status.state == RuntimeState::Stopped ||
+                         id.Value() != status.runtimeId)
+                         return Invalid("Requested runtimeId is not active.");
+                 }
+                 else if (key == "field")
+                     field = value;
+                 else
+                     return Invalid("Unknown snapshot query parameter.");
+             }
+             const auto snapshot = status.state != RuntimeState::Stopped && context.snapshot
+                                       ? context.snapshot()
+                                       : std::nullopt;
+             Json payload = {{"available", snapshot.has_value()},
+                             {"runtime", RuntimePayload(context)}};
+             if (!snapshot)
+             {
+                 if (field)
+                     return Invalid("No published snapshot field is available.");
+                 payload["reason"] = status.state == RuntimeState::Stopped
+                                         ? "No active runtime"
+                                         : "No snapshot published";
+                 return ResourceContent(uri, payload);
+             }
+             if (field && !snapshot->fields.contains(*field))
+                 return Invalid("Unknown published snapshot field.");
+             Json values = Json::object();
+             for (const auto& [key, value] : snapshot->fields)
+                 if (!field || key == *field)
+                     std::visit([&](const auto& scalar) { values[key] = scalar; }, value);
+             payload["runtimeId"] = snapshot->runtimeId.ToString();
+             payload["publishedFrameIndex"] = snapshot->frameIndex;
+             payload["fields"] = std::move(values);
+             return ResourceContent(uri, payload);
+         },
+         true});
+    if (!added)
+        return added;
     added = resources.RegisterTemplate(
         {"engine://runtime/entity/{uuid}", "runtime-entity", "Runtime entity",
          "Read a live runtime entity by persistent UUID.", "application/json",

@@ -13,6 +13,7 @@
 
 #include <chrono>
 #include <limits>
+#include <variant>
 
 namespace
 {
@@ -66,6 +67,100 @@ struct ExecutionFixture
     }
 };
 } // namespace
+
+TEST_CASE("Script snapshots are bounded atomic values with runtime identity and frame provenance",
+          "[snapshot][v0.10]")
+{
+    ExecutionFixture fixture(R"lua(
+return {
+ OnCreate = function(self)
+   Diagnostics.publish_snapshot({phase='menu', hp=12, ready=true})
+ end,
+ OnUpdate = function(self)
+   local bad = {
+     {hp={nested=true}}, {hp=function() end}, {hp=self.entity}, {hp=0/0}, {hp=math.huge},
+     {[1]=4}, {['bad key']=4}, {['']=4}, {[string.rep('k',65)]=4},
+     {hp=string.rep('x',257)}, {hp=string.char(255)}
+   }
+   local tooMany = {}; for i=1,33 do tooMany['k'..i]=i end
+   bad[#bad+1] = tooMany
+   local tooBig = {}; for i=1,32 do tooBig['k'..i]=string.rep('x',256) end
+   bad[#bad+1] = tooBig
+   for _, value in ipairs(bad) do
+     assert(not pcall(Diagnostics.publish_snapshot, value))
+   end
+ end,
+ OnDestroy = function(self) Diagnostics.publish_snapshot({phase='destroy'}) end
+}
+)lua");
+    auto execution = fixture.Create();
+    REQUIRE_FALSE(execution->GetSnapshot());
+    REQUIRE(execution->Start());
+    const auto initial = execution->GetSnapshot();
+    REQUIRE(initial);
+    REQUIRE(initial->runtimeId.IsValid());
+    REQUIRE(initial->frameIndex == 0);
+    REQUIRE(std::get<double>(initial->fields.at("hp")) == 12);
+    REQUIRE(execution->Advance(Janus::TimeStep{}, {}));
+    REQUIRE(execution->GetSnapshot()->fields == initial->fields);
+    REQUIRE(execution->GetSnapshot()->frameIndex == 0);
+    REQUIRE(execution->Stop());
+    REQUIRE_FALSE(execution->GetSnapshot());
+    REQUIRE(execution->Start());
+    REQUIRE(execution->GetSnapshot()->runtimeId != initial->runtimeId);
+}
+
+TEST_CASE("Snapshot publication copies data and fault provenance survives until stop",
+          "[snapshot][v0.10]")
+{
+    ExecutionFixture fixture(R"lua(
+return {
+ OnUpdate = function(self)
+   local value={phase='battle', hp=8}
+   Diagnostics.publish_snapshot(value)
+   value.hp=99
+   error('after publication')
+ end
+}
+)lua");
+    auto execution = fixture.Create();
+    REQUIRE(execution->Start());
+    REQUIRE_FALSE(execution->GetSnapshot());
+    REQUIRE_FALSE(execution->Advance(Janus::TimeStep{}, {}));
+    REQUIRE(execution->GetSnapshot()->frameIndex == 1);
+    REQUIRE(std::get<double>(execution->GetSnapshot()->fields.at("hp")) == 8);
+    REQUIRE(execution->Stop());
+    REQUIRE_FALSE(execution->GetSnapshot());
+}
+
+TEST_CASE("Failed startup clears published snapshots", "[snapshot][v0.10]")
+{
+    ExecutionFixture fixture(R"lua(return { OnCreate=function(self)
+      Diagnostics.publish_snapshot({phase='partial'})
+      error('startup')
+    end })lua");
+    auto execution = fixture.Create();
+    REQUIRE_FALSE(execution->Start());
+    REQUIRE_FALSE(execution->GetSnapshot());
+}
+
+TEST_CASE("Snapshot accepts exact field and string bounds without invoking metamethods",
+          "[snapshot][v0.10]")
+{
+    ExecutionFixture fixture(R"lua(return { OnCreate=function(self)
+      local fields={}
+      for i=1,31 do fields['key'..i]=i end
+      fields[string.rep('k',64)]=string.rep('x',256)
+      setmetatable(fields, {__pairs=function() error('must not run') end})
+      Diagnostics.publish_snapshot(fields)
+    end })lua");
+    auto execution = fixture.Create();
+    REQUIRE(execution->Start());
+    const auto snapshot = execution->GetSnapshot();
+    REQUIRE(snapshot);
+    REQUIRE(snapshot->fields.size() == 32);
+    REQUIRE(std::get<std::string>(snapshot->fields.at(std::string(64, 'k'))).size() == 256);
+}
 
 TEST_CASE("Runtime execution owns input snapshots and stops before its borrowed scene dies",
           "[runtime-execution][v0.10]")

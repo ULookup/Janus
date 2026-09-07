@@ -4,9 +4,11 @@
 #include "Core/Input/InputActions.h"
 #include "Core/Input/InputState.h"
 #include "Core/Time/TimeStep.h"
+#include "Diagnostics/ScriptSnapshot.h"
 #include "UI/UIInteraction.h"
 
 #include <memory>
+#include <optional>
 
 namespace Janus
 {
@@ -56,6 +58,11 @@ class RuntimeExecution final
     [[nodiscard]] Result<void> Stop();
     [[nodiscard]] bool IsRunning() const noexcept;
     [[nodiscard]] usize InstanceCount() const noexcept;
+    [[nodiscard]] std::optional<ScriptSnapshot> GetSnapshot() const;
+    [[nodiscard]] UUID GetRuntimeId() const noexcept
+    {
+        return m_RuntimeId;
+    }
 
   private:
     explicit RuntimeExecution(Scene& scene, const InputState& initialInput,
@@ -67,5 +74,7 @@ class RuntimeExecution final
     // Lua borrows this stable buffer even when the caller supplies a temporary neutral frame.
     InputState m_Input;
     std::unique_ptr<ScriptEngine> m_ScriptEngine;
+    UUID m_RuntimeId;
+    u64 m_FrameIndex = 0;
 };
 } // namespace Janus

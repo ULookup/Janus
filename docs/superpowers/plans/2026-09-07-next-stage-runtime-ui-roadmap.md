@@ -11,6 +11,8 @@
 最新执行更新（10-05a）：Button、焦点遍历、固定 OnClick、共享输入消费和 ButtonShowcase 点击计数菜单已在同一本地工作树实现。见[设计](../specs/2026-09-07-v0.10-ui-button-design.md)及[验收](../../verification/2026-09-07-v0.10-ui-button.md)。当前下一包为 10-05b 固定战斗/结构化快照；Text 以 PR #85 面向 main 提交（携带 #84 布局依赖）；Button 在 `codex/v0.10-ui-buttons` 上基于 Text 分支单独评审。
 
 
+最新执行更新（10-05b）：2026-09-07 fetch 后 main 为 `fbb1dc5`，PR #85 Text 已合并（包含布局依赖），覆盖上方待合并历史状态。Button 基线为 `973659d`；10-05b 在 `codex/v0.10-playable-combat` 本地实现 Game/ 固定战斗、选牌/出牌、胜负/重开、受控标量快照与双协议 Agent 回归。见[设计](../specs/2026-09-07-v0.10-playable-combat-design.md)、[验收](../../verification/2026-09-07-v0.10-playable-combat.md)及 [Game 使用说明](../../../Game/README.md)。下一包为 **10-06 AnimationClip/Animator**；尚未提交或合并本包，整个 v0.10 仍未完成。
+
 ## 1. 建议决策
 
 **下一阶段定为“共享 Runtime 执行阶段 + 最小可玩 UI”，先交付 10-03，再以连续完整切片完成 10-04/10-05。** 产品结果是一份可在 Editor 和独立入口运行的单机卡牌战斗小样：进入菜单、选择卡牌、出牌、显示伤害与血量、胜负、重开。Human 可以制作与游玩；Agent 可以通过同源 authoring 能力配置界面，并读取结构化运行结果。

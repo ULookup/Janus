@@ -16,6 +16,7 @@ extern "C"
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <filesystem>
 #include <new>
 #include <optional>
@@ -51,6 +52,9 @@ struct BindingContext
     Scene* scene = nullptr;
     const InputState* input = nullptr;
     const InputBindings* bindings = nullptr;
+    std::optional<ScriptSnapshot> snapshot;
+    UUID runtimeId;
+    u64 frameIndex = 0;
 };
 
 struct LuaEntityRef
@@ -295,6 +299,103 @@ int ReadOnlyNewIndex(lua_State* state)
     return luaL_error(state, "Input table is read-only.");
 }
 
+bool SnapshotKey(std::string_view key)
+{
+    if (key.empty() || key.size() > ScriptSnapshot::MaxKeyBytes)
+        return false;
+    for (usize i = 0; i < key.size(); ++i)
+    {
+        const char c = key[i];
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' ||
+              (i > 0 && c >= '0' && c <= '9')))
+            return false;
+    }
+    return true;
+}
+
+// Use raw iteration and type checks: observing publication must never invoke table metamethods.
+// Return before luaL_error so C++ containers are destroyed before Lua's longjmp.
+bool CopySnapshot(lua_State* state, BindingContext& context)
+{
+    ScriptSnapshot next{context.runtimeId, context.frameIndex, {}};
+    usize bytes = 0;
+    lua_pushnil(state);
+    while (lua_next(state, 1) != 0)
+    {
+        if (next.fields.size() >= ScriptSnapshot::MaxFields || lua_type(state, -2) != LUA_TSTRING)
+            return false;
+        size_t keySize = 0;
+        const char* keyData = lua_tolstring(state, -2, &keySize);
+        const std::string_view key(keyData, keySize);
+        if (!SnapshotKey(key))
+            return false;
+        SnapshotScalar value;
+        bytes += keySize;
+        switch (lua_type(state, -1))
+        {
+        case LUA_TBOOLEAN:
+            value = lua_toboolean(state, -1) != 0;
+            bytes += 1;
+            break;
+        case LUA_TNUMBER:
+        {
+            const f64 number = lua_tonumber(state, -1);
+            if (!std::isfinite(number))
+                return false;
+            value = number;
+            bytes += sizeof(f64);
+            break;
+        }
+        case LUA_TSTRING:
+        {
+            size_t size = 0;
+            const char* data = lua_tolstring(state, -1, &size);
+            if (size > ScriptSnapshot::MaxStringBytes ||
+                !ValidateTextContent(std::string_view(data, size)))
+                return false;
+            value = std::string(data, size);
+            bytes += size;
+            break;
+        }
+        default:
+            return false;
+        }
+        if (bytes > ScriptSnapshot::MaxBytes)
+            return false;
+        next.fields.emplace(key, std::move(value));
+        lua_pop(state, 1);
+    }
+    context.snapshot = std::move(next);
+    return true;
+}
+
+int PublishSnapshot(lua_State* state)
+{
+    auto* context = GetBindingContext(state);
+    luaL_checktype(state, 1, LUA_TTABLE);
+    if (!CopySnapshot(state, *context))
+        return luaL_error(state, "Snapshot requires <=32 scalar fields, ASCII identifier keys "
+                                 "<=64 bytes, finite numbers, UTF-8 strings <=256 bytes, "
+                                 "and <=8192 total bytes.");
+    return 0;
+}
+
+void RegisterDiagnosticsBinding(lua_State* state)
+{
+    lua_newtable(state);
+    lua_newtable(state);
+    lua_newtable(state);
+    lua_pushcfunction(state, PublishSnapshot);
+    lua_setfield(state, -2, "publish_snapshot");
+    lua_setfield(state, -2, "__index");
+    lua_pushcfunction(state, ReadOnlyNewIndex);
+    lua_setfield(state, -2, "__newindex");
+    lua_pushliteral(state, "locked");
+    lua_setfield(state, -2, "__metatable");
+    lua_setmetatable(state, -2);
+    lua_setglobal(state, "Diagnostics");
+}
+
 void PushEntityReference(lua_State* state, UUID entityId)
 {
     void* storage = lua_newuserdatauv(state, sizeof(LuaEntityRef), 0);
@@ -419,6 +520,7 @@ struct ScriptEngine::Impl
         lua_rawset(state, LUA_REGISTRYINDEX);
         RegisterEntityBinding(state);
         RegisterInputBinding(state);
+        RegisterDiagnosticsBinding(state);
 
         lua_settop(state, initialTop);
     }
@@ -1005,6 +1107,7 @@ Result<void> ScriptEngine::Start()
             "ScriptEngine is already running.");
     }
 
+    m_Impl->bindingContext.snapshot.reset();
     m_Impl->running = true;
     auto reconciled = m_Impl->Reconcile();
     if (!reconciled)
@@ -1013,6 +1116,7 @@ Result<void> ScriptEngine::Start()
         static_cast<void>(m_Impl->StopInstances());
         m_Impl->scriptWriteTimes.clear();
         m_Impl->running = false;
+        m_Impl->bindingContext.snapshot.reset();
         return Result<void>::Failure(startupError);
     }
 
@@ -1023,6 +1127,7 @@ Result<void> ScriptEngine::Start()
         static_cast<void>(m_Impl->StopInstances());
         m_Impl->scriptWriteTimes.clear();
         m_Impl->running = false;
+        m_Impl->bindingContext.snapshot.reset();
         return Result<void>::Failure(startupError);
     }
 
@@ -1089,6 +1194,7 @@ Result<void> ScriptEngine::Stop()
     auto stopped = m_Impl->StopInstances();
     m_Impl->scriptWriteTimes.clear();
     m_Impl->running = false;
+    m_Impl->bindingContext.snapshot.reset();
     return stopped;
 }
 
@@ -1100,6 +1206,17 @@ bool ScriptEngine::IsRunning() const noexcept
 usize ScriptEngine::InstanceCount() const noexcept
 {
     return m_Impl->instances.size();
+}
+
+void ScriptEngine::SetSnapshotContext(UUID runtimeId, u64 frameIndex)
+{
+    m_Impl->bindingContext.runtimeId = runtimeId;
+    m_Impl->bindingContext.frameIndex = frameIndex;
+}
+
+std::optional<ScriptSnapshot> ScriptEngine::GetSnapshot() const
+{
+    return m_Impl->bindingContext.snapshot;
 }
 
 } // namespace Janus

@@ -119,3 +119,14 @@ TEST_CASE("Unknown MCP operations never downgrade to project read", "[permission
     REQUIRE(ClassifyMcpOperation("resources/read", {{"uri", "engine://logs/recent?limit=2"}}) ==
             McpOperation::DiagnosticsRead);
 }
+
+TEST_CASE("Published snapshots are explicitly RuntimeRead and similar names stay denied",
+          "[snapshot][permission]")
+{
+    using namespace Janus::MCP;
+    REQUIRE(
+        ClassifyMcpOperation("resources/read", {{"uri", "engine://runtime/snapshot?field=hp"}}) ==
+        McpOperation::RuntimeRead);
+    REQUIRE(ClassifyMcpOperation("resources/read", {{"uri", "engine://runtime/snapshot/eval"}}) ==
+            McpOperation::Unclassified);
+}
