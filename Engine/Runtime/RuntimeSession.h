@@ -1,4 +1,5 @@
 #pragma once
+#include "Audio/AudioSystem.h"
 #include "Core/Error/Result.h"
 #include "Core/Input/InputActions.h"
 #include "Core/Input/InputState.h"
@@ -44,7 +45,7 @@ class RuntimeSession final
     [[nodiscard]] static Result<std::unique_ptr<RuntimeSession>>
     Start(const Scene& editorScene, const ReflectionRegistry& reflection, AssetService& assets,
           const InputState& input, bool startPaused = false, const InputBindings& bindings = {},
-          Viewport logicalViewport = {1280, 720});
+          Viewport logicalViewport = {1280, 720}, AudioDeviceFactory audioFactory = {});
     ~RuntimeSession();
     RuntimeSession(const RuntimeSession&) = delete;
     RuntimeSession& operator=(const RuntimeSession&) = delete;
@@ -61,6 +62,7 @@ class RuntimeSession final
     [[nodiscard]] const UIInteractionState& GetUIState() const noexcept;
     [[nodiscard]] RuntimeStatus GetStatus() const;
     [[nodiscard]] std::optional<ScriptSnapshot> GetSnapshot() const;
+    [[nodiscard]] const AudioSystem& GetAudio() const noexcept;
     [[nodiscard]] const AnimationSystem& GetAnimations() const noexcept;
     [[nodiscard]] Scene& GetScene() noexcept;
     [[nodiscard]] const Scene& GetScene() const noexcept;

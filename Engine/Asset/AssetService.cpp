@@ -3,6 +3,7 @@
 #include "Asset/AssetMetadata.h"
 #include "Asset/AssetRegistry.h"
 #include "Asset/Loader/AnimationClipLoader.h"
+#include "Asset/Loader/AudioClipLoader.h"
 #include "Asset/Loader/FontLoader.h"
 #include "Asset/Loader/LuaScriptSourceLoader.h"
 #include "Asset/Loader/ShaderSourceLoader.h"
@@ -28,6 +29,25 @@ AssetService::AssetService(
 AssetService::~AssetService()
 {
     Clear();
+}
+
+Result<std::shared_ptr<const AudioClip>> AssetService::LoadAudioClip(AssetHandle handle)
+{
+    using Output = Result<std::shared_ptr<const AudioClip>>;
+    if (auto cached = m_Cache.FindAudioClip(handle))
+        return Output::Success(std::move(cached));
+    const auto* metadata = m_Registry.Find(handle);
+    if (!metadata)
+        return Output::Failure(ErrorCode::AssetNotFound, "AudioClip is not registered.");
+    if (metadata->type != AssetType::AudioClip)
+        return Output::Failure(ErrorCode::AssetTypeMismatch, "Asset is not an AudioClip.");
+    auto clip = AudioClipLoader::Load(ResolvePath(metadata->relativePath));
+    if (!clip)
+        return Output::Failure(clip.GetError());
+    auto data = std::make_shared<const AudioClip>(std::move(clip).Value());
+    if (!m_Cache.StoreAudioClip(handle, data))
+        return Output::Failure(ErrorCode::InvalidState, "Failed to cache AudioClip.");
+    return Output::Success(std::move(data));
 }
 
 Result<const FontAsset*> AssetService::LoadFont(AssetHandle handle)
@@ -266,6 +286,7 @@ bool AssetService::IsLoaded(AssetHandle handle) const noexcept
 
 bool AssetService::Unload(AssetHandle handle) noexcept
 {
+    const bool removedAudio = m_Cache.RemoveAudioClip(handle);
     const bool removedAnimation = m_Cache.RemoveAnimationClip(handle);
     const bool invalidatedAnimations = m_Cache.RemoveAnimationsForTexture(handle) != 0;
     const bool removedFont = m_Cache.RemoveFont(handle);
@@ -283,7 +304,7 @@ bool AssetService::Unload(AssetHandle handle) noexcept
     }
 
     return m_Cache.RemoveLuaScriptSource(handle) || removedFont || invalidated ||
-           removedAnimation || invalidatedAnimations;
+           removedAnimation || invalidatedAnimations || removedAudio;
 }
 
 void AssetService::Clear() noexcept

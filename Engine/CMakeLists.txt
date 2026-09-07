@@ -56,6 +56,11 @@ target_sources(
         Scripting/ScriptEngine.cpp
         Runtime/RuntimeSession.cpp
         Runtime/RuntimeExecution.cpp
+        Audio/AudioSystem.cpp
+        Audio/AudioReflection.cpp
+        Asset/Loader/AudioClipLoader.cpp
+        Asset/Loader/AudioClipLoader.h
+        Platform/SDL/SDLAudioDevice.cpp
         Animation/AnimationSystem.cpp
         Animation/AnimationReflection.cpp
         Asset/Loader/AnimationClipLoader.cpp
@@ -92,6 +97,10 @@ target_sources(
 
     PUBLIC
 
+        Asset/AudioClip.h
+        Audio/AudioDevice.h
+        Audio/AudioSourceComponent.h
+        Audio/AudioSystem.h
         Core/Base.h
         Core/Types.h
         Core/Assert.h

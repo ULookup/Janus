@@ -17,6 +17,7 @@ class AssetService;
 class InputState;
 class Scene;
 class AnimationSystem;
+class AudioSystem;
 
 class ScriptEngine final
 {
@@ -44,6 +45,7 @@ public:
 
 private:
   friend class RuntimeExecution;
+  void SetAudio(AudioSystem* audio);
   void SetAnimations(AnimationSystem* animations);
   void SetSnapshotContext(UUID runtimeId, u64 frameIndex);
   struct Impl;

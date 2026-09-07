@@ -5,6 +5,7 @@
 #include "ProjectSession.h"
 
 #include "Asset/AssetMetadata.h"
+#include "Audio/AudioSourceComponent.h"
 #include "Scene/Components.h"
 #include "Scene/Scene.h"
 #include "UI/UIComponents.h"
@@ -32,7 +33,8 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
         return std::nullopt;
     }
 
-    static const char* FilterNames[] = {"All", "Texture", "LuaScript", "ShaderSource", "Font"};
+    static const char* FilterNames[] = {"All",          "Texture", "LuaScript",
+                                        "ShaderSource", "Font",    "AudioClip"};
 
     ImGui::SetNextItemWidth(140.0f);
     ImGui::Combo(
@@ -64,6 +66,9 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
             break;
         case 4:
             include = asset.type == AssetType::Font;
+            break;
+        case 5:
+            include = asset.type == AssetType::AudioClip;
             break;
         default:
             break;
@@ -200,6 +205,22 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
         }
         else
             ImGui::TextDisabled("Selected entity has no Text.");
+    }
+    else if (selected->type == AssetType::AudioClip)
+    {
+        if (scene.HasComponent<AudioSourceComponent>(target))
+        {
+            if (ImGui::Button("Assign to AudioSource"))
+            {
+                auto assigned = m_Actions.SetProperty(entityId, MakeComponentTypeId("AudioSource"),
+                                                      MakePropertyId("AudioSource.clip"),
+                                                      AssetReferenceValue{selected->handle.id});
+                if (!assigned)
+                    error = assigned.GetError();
+            }
+        }
+        else
+            ImGui::TextDisabled("Selected entity has no AudioSource.");
     }
     else if (selected->type == AssetType::LuaScript)
     {

@@ -15,7 +15,8 @@ enum class AssetType
     ShaderSource,
     LuaScript,
     Font,
-    AnimationClip
+    AnimationClip,
+    AudioClip
 };
 
 [[nodiscard]] std::string_view AssetTypeName(AssetType type) noexcept;

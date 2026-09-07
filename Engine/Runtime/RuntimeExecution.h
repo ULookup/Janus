@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Animation/AnimationSystem.h"
+#include "Audio/AudioSystem.h"
 #include "Core/Error/Result.h"
 #include "Core/Input/InputActions.h"
 #include "Core/Input/InputState.h"
@@ -30,7 +31,8 @@ class RuntimeExecution final
   public:
     [[nodiscard]] static Result<std::unique_ptr<RuntimeExecution>>
     Create(Scene& scene, AssetService& assets, const InputState& initialInput,
-           const InputBindings& bindings = {}, Viewport logicalViewport = {1280, 720});
+           const InputBindings& bindings = {}, Viewport logicalViewport = {1280, 720},
+           AudioDeviceFactory audioFactory = {});
     ~RuntimeExecution();
 
     RuntimeExecution(const RuntimeExecution&) = delete;
@@ -38,7 +40,7 @@ class RuntimeExecution final
     RuntimeExecution(RuntimeExecution&&) = delete;
     RuntimeExecution& operator=(RuntimeExecution&&) = delete;
 
-    [[nodiscard]] Result<void> Start();
+    [[nodiscard]] Result<void> Start(bool audioSuspended = false);
     [[nodiscard]] Result<void>
     Advance(TimeStep timeStep, const InputState& input,
             ScriptReloadPolicy reload = ScriptReloadPolicy::CheckForChanges,
@@ -64,6 +66,14 @@ class RuntimeExecution final
     {
         return m_RuntimeId;
     }
+    void SetAudioSuspended(bool suspended) noexcept
+    {
+        m_Audio->SetSuspended(suspended);
+    }
+    [[nodiscard]] const AudioSystem& GetAudio() const noexcept
+    {
+        return *m_Audio;
+    }
     [[nodiscard]] const AnimationSystem& GetAnimations() const noexcept
     {
         return *m_Animations;
@@ -80,6 +90,7 @@ class RuntimeExecution final
     InputState m_Input;
     // Scripts borrow animations during callbacks, so they must be destroyed first.
     std::unique_ptr<AnimationSystem> m_Animations;
+    std::unique_ptr<AudioSystem> m_Audio;
     std::unique_ptr<ScriptEngine> m_ScriptEngine;
     UUID m_RuntimeId;
     u64 m_FrameIndex = 0;

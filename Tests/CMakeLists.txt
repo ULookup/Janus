@@ -47,6 +47,7 @@ add_executable(
     Runtime/RuntimeExecutionTests.cpp
     Game/CombatTests.cpp
     Animation/AnimationTests.cpp
+    Audio/AudioTests.cpp
     UI/UILayoutTests.cpp
     UI/UIRenderTests.cpp
     UI/TextTests.cpp
@@ -107,7 +108,7 @@ target_link_libraries(
 janus_set_warnings(JanusTests)
 
 include(Catch)
-catch_discover_tests(JanusTests)
+catch_discover_tests(JanusTests PROPERTIES ENVIRONMENT "SDL_AUDIO_DRIVER=dummy")
 
 # ============================================================
 # External MCP process E2E
@@ -192,3 +193,8 @@ endforeach()
 add_executable(JanusCpuProfilerBenchmark Benchmarks/CpuProfilerBenchmark.cpp)
 target_link_libraries(JanusCpuProfilerBenchmark PRIVATE JanusEngine)
 janus_set_warnings(JanusCpuProfilerBenchmark)
+
+# Explicit local device smoke; deliberately excluded from device-independent CTest.
+add_executable(JanusAudioDeviceSmoke Audio/AudioDeviceSmoke.cpp)
+target_link_libraries(JanusAudioDeviceSmoke PRIVATE JanusEngine)
+janus_set_warnings(JanusAudioDeviceSmoke)

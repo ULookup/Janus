@@ -1,4 +1,4 @@
-# Janus Card Combat / 10-05b + 10-06
+# Janus Card Combat / 10-05b + 10-06 + 10-07
 
 This disk-backed game uses the existing shared Runtime, Canvas, Text and Button APIs.
 All combat rules are in [Combat.lua](Scripts/Combat.lua); Engine contains no card or HP rules.
@@ -18,6 +18,42 @@ Enter/Space confirm. Controls outside their valid phase do nothing; select a car
 Pause/Step does not click buttons. Stop restores the EditorScene's original text.
 Successful card plays now trigger a one-shot green border animation. Invalid plays do not
 restart it; Restart restores the base border. The animation does not change combat timing.
+
+## Audio
+
+The menu and battle share a quiet background loop; a valid card play triggers one short
+tone. Restart stops the card tone and restarts the music. Runtime Pause/Faulted clears
+pending output; Step advances playback state silently; Resume continues from that cursor.
+Stop releases all voices and the device. An unavailable device produces a diagnostic and
+silent playback without preventing the project from opening or running.
+
+AudioSource stores `clip`, `enabled`, `playOnStart`, `volume` (0–1), and `loop`. Add it
+disabled, assign an `audio-clip` via Inspector/Asset Browser or shared MCP commands, then
+enable it. `assets.search` supports `type="audio-clip"`. Clips are PCM16 WAV, mono/stereo,
+8–96 kHz, up to 120 seconds and 32 MiB. They are decoded into shared immutable CPU data.
+
+Lua entity methods: `play_audio([clip UUID])`, `pause_audio()`, `resume_audio()`,
+`stop_audio()`, `set_audio_volume(value)`, `set_audio_loop(bool)`. `audio_state()` returns
+status (`Playing`/`Paused`/`Stopped`), cursor seconds, volume and loop. `audio_output()`
+returns device availability and an error string (empty if none); availability is false
+before the first audible Advance because opening the device is lazy.
+
+Game snapshots include `cardAudioStatus`, `cardAudioCursor`, `musicAudioStatus`,
+`musicAudioCursor`, `audioAvailable`, and `audioError`. Lua publishes before this frame's
+Audio Advance; cursors describe logical simulation playback, not measured speaker output.
+
+Run `python tools/generate_demo_audio.py` to recreate the original [tones](Audio/README.md).
+The device-independent tests use fake sinks and SDL's dummy driver. To check the local
+default device explicitly after building the tests preset, run:
+
+```powershell
+./out/build/windows-msvc-debug-tests/Tests/JanusAudioDeviceSmoke.exe
+```
+
+This plays three quiet one-second tones and checks open/submit/clear/close. See the
+[audio design](../docs/superpowers/specs/2026-09-07-v0.10-audio-design.md) for the 64-source,
+100 ms output-block and 200 ms queue bounds. Streaming codecs, spatial audio, DSP, and
+music-grade clock synchronization are outside this first slice.
 
 ## Animation showcase
 
@@ -88,4 +124,4 @@ The FakeRenderDevice host is test-only. No production headless or MCP input inje
 Font files are copies of the existing project-authored [demo font](Fonts/README.md).
 After regenerating the Sandbox font, copy its JSON and PNG into Game/Fonts as well.
 No new dependencies, downloaded artwork, or licensing changes are involved.
-Animation, audio, physics, Prefab and a full Roguelike remain later work packages.
+Physics, Prefab, integrated v0.10 acceptance and a full Roguelike remain later work packages.

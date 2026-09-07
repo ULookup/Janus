@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Asset/AnimationClip.h"
+#include "Asset/AudioClip.h"
+#include <memory>
 #include "Asset/AssetHandle.h"
 #include "Asset/FontAsset.h"
 #include "Core/Types.h"
@@ -16,6 +18,10 @@ namespace Janus
 class AssetCache
 {
 public:
+    [[nodiscard]] std::shared_ptr<const AudioClip> FindAudioClip(AssetHandle handle) const noexcept;
+    bool StoreAudioClip(AssetHandle handle, std::shared_ptr<const AudioClip> clip);
+    bool RemoveAudioClip(AssetHandle handle) noexcept;
+
     [[nodiscard]] const AnimationClip* FindAnimationClip(AssetHandle handle) const noexcept;
     bool StoreAnimationClip(AssetHandle handle, AnimationClip clip);
     bool RemoveAnimationClip(AssetHandle handle) noexcept;
@@ -59,6 +65,7 @@ public:
     void Clear() noexcept;
 
 private:
+    std::unordered_map<AssetHandle, std::shared_ptr<const AudioClip>, AssetHandleHash> m_Audio;
     std::unordered_map<AssetHandle, AnimationClip, AssetHandleHash> m_Animations;
     std::unordered_map<AssetHandle, FontAsset, AssetHandleHash> m_Fonts;
     std::unordered_map<AssetHandle, TextureHandle, AssetHandleHash> m_Textures;
