@@ -4,6 +4,7 @@
 #include "Core/Input/InputState.h"
 #include "Core/Time/TimeStep.h"
 #include "Core/UUID/UUID.h"
+#include "Diagnostics/ScriptSnapshot.h"
 #include "UI/UIInteraction.h"
 #include <memory>
 #include <optional>
@@ -58,6 +59,7 @@ class RuntimeSession final
     }
     [[nodiscard]] const UIInteractionState& GetUIState() const noexcept;
     [[nodiscard]] RuntimeStatus GetStatus() const;
+    [[nodiscard]] std::optional<ScriptSnapshot> GetSnapshot() const;
     [[nodiscard]] Scene& GetScene() noexcept;
     [[nodiscard]] const Scene& GetScene() const noexcept;
 

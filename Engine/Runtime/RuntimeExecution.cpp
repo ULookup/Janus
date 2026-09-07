@@ -38,6 +38,11 @@ RuntimeExecution::~RuntimeExecution()
 
 Result<void> RuntimeExecution::Start()
 {
+    if (IsRunning())
+        return Result<void>::Failure(ErrorCode::InvalidState, "Runtime is already started.");
+    m_RuntimeId = UUID::Random();
+    m_FrameIndex = 0;
+    m_ScriptEngine->SetSnapshotContext(m_RuntimeId, 0);
     return m_ScriptEngine->Start();
 }
 
@@ -64,6 +69,8 @@ Result<void> RuntimeExecution::Advance(TimeStep timeStep, const InputState& inpu
         m_UI.Cancel();
         m_Input = input;
     }
+    // Publications during reload, clicks and Update share the attempted simulation frame.
+    m_ScriptEngine->SetSnapshotContext(m_RuntimeId, ++m_FrameIndex);
     if (reload == ScriptReloadPolicy::CheckForChanges)
     {
         auto reloaded = m_ScriptEngine->ReloadChangedScripts();
@@ -93,5 +100,9 @@ bool RuntimeExecution::IsRunning() const noexcept
 usize RuntimeExecution::InstanceCount() const noexcept
 {
     return m_ScriptEngine ? m_ScriptEngine->InstanceCount() : 0;
+}
+std::optional<ScriptSnapshot> RuntimeExecution::GetSnapshot() const
+{
+    return m_ScriptEngine ? m_ScriptEngine->GetSnapshot() : std::nullopt;
 }
 } // namespace Janus

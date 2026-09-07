@@ -2,7 +2,7 @@
 
 ## Mission
 
-Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.10 Game Systems**. Stage A is integrated; 10-03 Shared Runtime is integrated in main at `c71ad50` (PR #83). 10-04a UI layout/images (PR #84) is merged into its shared-runtime parent branch but is not in that main baseline. Work package 10-04b Text/font assets is implemented locally on `codex/v0.10-ui-text`, which includes latest main and 10-04a. Text/font assets are submitted as PR #85 targeting main. Work package 10-05a Button/events and input consumption is implemented on `codex/v0.10-ui-buttons`, stacked above the Text branch. The next work package is 10-05b: playable combat and structured game snapshots. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
+Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.10 Game Systems**. Stage A, 10-03 Shared Runtime and 10-04a/b UI layout/text are integrated in main (`fbb1dc5`, PR #85, fetched 2026-09-07). 10-05a Button/events is implemented at `973659d`. Work package 10-05b playable combat and structured snapshots is committed on `codex/v0.10-playable-combat` for review against `codex/v0.10-ui-text` (Button PR #86 is merged there at `451c2e1`, but not in main). See its design and verification record before integration. The next work package is **10-06 AnimationClip + Animator**; Audio, Physics, Prefab and integrated acceptance follow. v0.10 is not complete or released. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
 
 This file applies to the entire repository. A more deeply nested `AGENTS.md` may add stricter rules for its subtree.
 
@@ -155,4 +155,13 @@ A change is complete only when:
 - UIInteraction is owned by RuntimeExecution; hover/focus/capture are transient and never serialized. Button uses shared Reflection/Command authoring and fixed same-entity Lua OnClick.
 - Consume UI input before Lua Update, dispatch UUID events on the owner thread, and preserve game release continuity. Do not replace ordered input with final-frame pointer hit testing.
 - Captures cancel on drag-out, invalid targets, focus loss and Pause/Stop; consumed gestures remain quarantined until release. Prime Start/Resume so paused input is not replayed. Neutral Step never dispatches UI.
-- See docs/superpowers/specs/2026-09-07-v0.10-ui-button-design.md. ButtonShowcase is a click-counter demonstration; combat rules and snapshots remain 10-05b.
+- See docs/superpowers/specs/2026-09-07-v0.10-ui-button-design.md. ButtonShowcase is a click-counter demonstration; Game/ contains the separate 10-05b combat slice.
+
+## v0.10 Combat and snapshot constraints
+
+- Game/Scripts/Combat.lua owns fixed battle rules; Engine must not define Card/Health or game-specific state.
+- Diagnostics.publish_snapshot atomically replaces one bounded scalar map per ScriptEngine. Reads never execute Lua or traverse arbitrary script tables. RuntimeExecution supplies the run UUID and publication frame; RuntimeSession reuses that identity.
+- Invalid publication preserves the previous value. Stop/startup failure clears values; Faulted retains the last publication with attempted-frame metadata. Snapshots are transient and never enter Scene serialization, commands or dirty/history.
+- engine://runtime/snapshot is RuntimeRead through the existing owner-thread dispatcher and permission path. Unknown fields/old runtime IDs fail; no MCP input injection.
+- CombatVerification.scene calls the same game rule function during neutral Update/Step; it validates rules and observation, separately from pointer/keyboard UI tests.
+- See docs/superpowers/specs/2026-09-07-v0.10-playable-combat-design.md and docs/verification/2026-09-07-v0.10-playable-combat.md.

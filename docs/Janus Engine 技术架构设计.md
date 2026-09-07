@@ -1788,3 +1788,8 @@ Asset 增加 Font v1 离线图集/Unicode 字形度量，CPU 缓存复用 AssetC
 ## v0.10 / 10-05a Button 实现补充
 
 RuntimeExecution 拥有 UIInteraction 的临时焦点/捕获状态，布局收集 UUID 事件后先消费输入，再通过 ScriptEngine 调用同实体固定 OnClick，随后执行 OnUpdate。Button 作者态仍通过 active Reflection、Scene v1、Clone、共享 Command、Inspector/MCP；Renderer 只读交互状态生成按钮颜色，Core 仅提供有界事件记录及通用输入过滤。Start/Resume 不重放旧输入，Paused Step 不派发 UI。详见[设计](superpowers/specs/2026-09-07-v0.10-ui-button-design.md)和[验收](verification/2026-09-07-v0.10-ui-button.md)。10-05b 玩法与结构化快照尚未实现。
+
+
+## v0.10 / 10-05b Combat 与诊断快照实现补充
+
+Game/ 是复用共享 Runtime 和既有 UI 的独立磁盘游戏项目，固定卡牌规则完全位于 Lua。ScriptEngine 缓存脚本显式发布的有界平坦标量映射，RuntimeExecution 赋运行 UUID/发布帧，RuntimeSession 使用同一身份；Application/RuntimeSession 暴露相同只读快照。MCP 的 engine://runtime/snapshot 经 RuntimeRead 和主线程权限链读取缓存，不调用 Lua。Stop 清理，Faulted 保留最后原子发布及失败帧状态；不改 Scene 作者态或 neutral Step。见[设计](superpowers/specs/2026-09-07-v0.10-playable-combat-design.md)和[验收](verification/2026-09-07-v0.10-playable-combat.md)。上方 10-05b 尚未实现的表述为历史状态；Animation/Audio/Physics/Prefab 仍未由本包实现。

@@ -171,7 +171,12 @@ Result<void> McpEditorHost::RegisterCapabilities()
          &m_Project.GetReflectionRegistry(), &m_Project.GetAssetRegistry(), m_Project.GetLogStore(),
          [this](std::optional<u64> id)
          { return id ? m_Project.FindDiagnosticsFrame(*id) : m_Project.GetDiagnosticsFrame(); },
-         [this]() { return m_Project.IsAuthoringReadOnly(); }});
+         [this]() { return m_Project.IsAuthoringReadOnly(); },
+         [this]() -> std::optional<ScriptSnapshot>
+         {
+             const auto* runtime = m_Project.GetRuntimeSession();
+             return runtime ? runtime->GetSnapshot() : std::nullopt;
+         }});
     if (!debug)
         return debug;
 

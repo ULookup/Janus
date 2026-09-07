@@ -4,11 +4,13 @@
 #include "Core/Input/InputState.h"
 #include "Core/Log/LogStore.h"
 #include "Core/Time/FrameClock.h"
+#include "Diagnostics/ScriptSnapshot.h"
 
 #include "Application/ApplicationConfig.h"
 #include "Application/Detail/ApplicationDependencies.h"
 
 #include <memory>
+#include <optional>
 
 namespace Janus
 {
@@ -45,8 +47,9 @@ public:
     [[nodiscard]] ReflectionRegistry& GetReflectionRegistry() noexcept;
     [[nodiscard]] const ReflectionRegistry& GetReflectionRegistry() const noexcept;
     [[nodiscard]] Scene& GetScene() noexcept;
+    [[nodiscard]] std::optional<ScriptSnapshot> GetSnapshot() const;
 
-private:
+  private:
     Application(
         ApplicationConfig config,
         Detail::ApplicationDependencies dependencies);

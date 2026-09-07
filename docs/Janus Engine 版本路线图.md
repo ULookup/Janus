@@ -1705,3 +1705,8 @@ Janus v1.0 的真正完成标志不是某一个技术模块。
 ## 10-05a 本地执行更新
 
 Button/焦点/OnClick/输入消费及可运行计数菜单已完成本地实现，见[验收记录](verification/2026-09-07-v0.10-ui-button.md)。本段覆盖历史表中的 Button 未实现状态；Text 已提交 PR #85，Button 以其为基线单独评审；尚未合并，下一包为 10-05b 固定战斗与结构化快照，不改变 v0.10 尚未整体完成的状态。
+
+
+## 10-05b 执行状态更新（2026-09-07）
+
+main 已更新至 `fbb1dc5`（#85），Text/布局已进入 main。基于 Button `973659d` 的 `codex/v0.10-playable-combat` 已本地实现菜单、选牌出牌、确定性胜负/重开及 Agent 结构化快照。Game/ 拥有规则，Engine 只提供有界标量诊断。见[设计](superpowers/specs/2026-09-07-v0.10-playable-combat-design.md)和[验收](verification/2026-09-07-v0.10-playable-combat.md)。本段覆盖旧的“下一包战斗/Text 未合并”状态，下一包为 10-06 AnimationClip/Animator，然后是 Audio、Physics、Prefab、综合验收。v0.10 尚未整体完成或发布。

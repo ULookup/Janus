@@ -17,6 +17,7 @@ struct McpDebugContext
     std::shared_ptr<LogStore> logs;
     std::function<std::optional<DiagnosticsFrame>(std::optional<u64>)> profile;
     std::function<bool()> authoringReadOnly;
+    std::function<std::optional<ScriptSnapshot>()> snapshot;
 };
 Json RuntimeStatusJson(const RuntimeStatus& status);
 Json ResourceContent(std::string_view uri, const Json& payload);

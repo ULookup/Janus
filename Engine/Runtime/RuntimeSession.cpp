@@ -70,7 +70,7 @@ RuntimeSession::Start(const Scene& editorScene, const ReflectionRegistry& reflec
     if (!started)
         return Result<std::unique_ptr<RuntimeSession>>::Failure(
             BoundedRuntimeError(started.GetError()));
-    session->m_Status.runtimeId = UUID::Random();
+    session->m_Status.runtimeId = session->m_Execution->GetRuntimeId();
     session->m_Status.state = startPaused ? RuntimeState::Paused : RuntimeState::Playing;
     return Result<std::unique_ptr<RuntimeSession>>::Success(std::move(session));
 }
@@ -157,6 +157,10 @@ RuntimeStatus RuntimeSession::GetStatus() const
     status.entityCount = m_RuntimeScene->GetEntities().size();
     status.scriptInstanceCount = m_Execution ? m_Execution->InstanceCount() : 0;
     return status;
+}
+std::optional<ScriptSnapshot> RuntimeSession::GetSnapshot() const
+{
+    return m_Execution ? m_Execution->GetSnapshot() : std::nullopt;
 }
 Scene& RuntimeSession::GetScene() noexcept
 {
