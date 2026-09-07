@@ -48,6 +48,7 @@ target_sources(
         Scene/SceneReflection.cpp
         Scene/Command/SceneCommands.cpp
         Scene/Command/EntityCommands.cpp
+        Prefab/Prefab.cpp
         Scene/SceneRenderer.cpp
 
         Scripting/LuaStackGuard.h
@@ -160,6 +161,7 @@ target_sources(
         Scene/SceneReflection.h
         Scene/Command/SceneCommands.h
         Scene/Command/EntityCommands.h
+        Prefab/Prefab.h
         Scene/SceneRenderer.h
 
         Scripting/ScriptEngine.h

@@ -30,6 +30,12 @@ struct EntitySubtreeSnapshot
     std::vector<EntityAuthoringSnapshot> entities;
 };
 
+// Internal authoring snapshots use the host registry and persistent identities.
+[[nodiscard]] Result<EntitySubtreeSnapshot>
+CaptureEntitySubtree(Scene& scene, const SceneReflection& reflection, UUID root);
+[[nodiscard]] Result<void> RestoreEntitySubtree(Scene& scene, const SceneReflection& reflection,
+                                                const EntitySubtreeSnapshot& snapshot);
+
 class ReparentEntityCommand final : public ICommand
 {
   public:

@@ -219,6 +219,7 @@ Result<void> SceneRenderer::RenderPrepared(
     RenderFrameDesc frame;
     frame.camera = request.camera;
     frame.viewport = request.viewport;
+    frame.projectionViewport = request.logicalViewport;
     frame.target = request.target;
 
     auto began = request.renderer.BeginFrame(frame);

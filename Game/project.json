@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "name": "Janus Card Combat",
-  "defaultScene": "Scenes/Combat.scene",
+  "name": "Janus Robot Card Arena",
+  "defaultScene": "Scenes/Integrated.scene",
   "assetRegistry": "Config/AssetRegistry.json",
   "assetRoot": "Assets",
   "scriptRoot": "Scripts",
@@ -13,6 +13,21 @@
     "Confirm": [
       "Space",
       "Enter"
+    ],
+    "StartBattle": [
+      "Digit1"
+    ],
+    "SelectStrike": [
+      "Digit2"
+    ],
+    "SelectWait": [
+      "Digit3"
+    ],
+    "PlayCard": [
+      "Digit4"
+    ],
+    "RestartBattle": [
+      "Digit0"
     ]
   }
 }

@@ -1,6 +1,6 @@
 # Janus Engine 版本路线图
 
-当前执行状态（2026-09-07）：main / origin/main 仍为 `fbb1dc5`；战斗/动画和 Audio `b4eaab7` 位于依赖分支。10-08 Physics 已在 `codex/v0.10-physics` 实现，当前下一包为 **10-09 Prefab**，之后 10-10 综合验收。详见[当前路线](superpowers/plans/2026-09-07-physics-next-stage-roadmap.md)、[物理设计](superpowers/specs/2026-09-07-v0.10-physics-design.md)及[验收](verification/2026-09-07-v0.10-physics.md)。本文后续“未提交/下一包动画/音频/物理”的执行段落属于历史状态；以本段为当前状态，不改变 v0.10 八项完整范围或发布门槛。
+当前执行状态（2026-09-07）：main / origin/main 为 `b9b990b`，包含 UI/Button、战斗/动画、Audio 和 Physics。10-09 Prefab Foundation 与 10-10 综合验收在 `codex/v0.10-acceptance` 本地完成，见[综合验收计划](superpowers/plans/2026-09-07-v0.10-integrated-acceptance.md)与[验证记录](verification/2026-09-07-v0.10-integrated-acceptance.md)。本轮继续推进代码评审与 main 集成，见[集成复审](verification/2026-09-07-v0.10-integration-review.md)；提交/合并状态以 Git 和 PR 为准，v0.10 未发布。后文分阶段的 main、依赖分支与“下一包”描述是历史记录，以本段为当前状态。
 
 ## 1. 路线图目标
 

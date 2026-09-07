@@ -1803,3 +1803,36 @@ RuntimeExecution 在 Lua 初始化前启动 AnimationSystem，在每帧 Lua Upda
 ## v0.10 / 10-07 Audio 实现补充
 
 RuntimeExecution 拥有 AudioSystem 与惰性 AudioDevice，在 Lua、Animation 后混合推进；暂停/故障清空输出，单步静音推进逻辑，停止在 Lua 清理后释放设备。audio-clip 采用有界 PCM16 WAV，由 AssetCache 与 UUID voice 共享不可变 PCM；AudioSource 的 clip/enabled/playOnStart/volume/loop 通过 active Reflection、Scene v1、Clone 和共享命令贯通 Human/Agent。SDL 3.4.14 作为既有成熟后端保留在 PRIVATE Platform 实现内，未增加依赖。设备不可用可诊断且静音继续；内容错误明确失败。播放状态可经 Lua 显式发布到既有 snapshot，读取不执行脚本。详见[设计](superpowers/specs/2026-09-07-v0.10-audio-design.md)和[验收](verification/2026-09-07-v0.10-audio.md)。本补充覆盖前文 Audio 未实现的历史描述；下一包为 Physics，Prefab 和综合验收仍待完成。
+
+
+## v0.10 / 10-09 Prefab Foundation 实现补充
+
+Prefab v1 在 Engine/Prefab 中定义有界单根子树资产，嵌入 Scene v1 并复用 active
+ReflectionRegistry 与共享 EntitySubtreeSnapshot 捕获/恢复。实例化重映射实体身份和
+内部 parent，保留局部字段、兄弟顺序及资产引用；展开实例没有来源连接或 override。
+InstantiatePrefabCommand 贯通 Human/MCP、ProjectSession guards、事务预算与 Undo/Redo，
+Redo 不读磁盘。注册资产加载检查外部资产存在性和类型；导出新资产由 ProjectSession
+管理磁盘与 registry 发布，不改变 Scene dirty/history。scene.export_prefab 为 SceneSave，
+scene.instantiate_prefab 为 SceneWrite，沿既有主线程权限链执行。未添加依赖或全局缓存。
+见[设计](superpowers/specs/2026-09-07-v0.10-prefab-design.md)和
+[验收](verification/2026-09-07-v0.10-prefab.md)。main 基线已是 b9b990b；历史“未集成”
+状态不再代表当前 Git。后续为综合验收，Prefab Override 仍在未来范围内。
+
+
+## v0.10 / 10-10 综合验收实现补充
+
+Integrated 场景在 Game 层组合既有卡牌规则、菜单/按钮、两个展开的 Fighter Prefab、
+Animation、Audio 和 Physics 落地/受击反馈，不增加 Engine 游戏规则或运行时 Prefab 生成。
+IntegratedVerification 使用相同 Game action 入口完成中性 Step 胜负回归。
+
+RuntimeExecution 接收可选借用 CpuProfiler，由 ProjectSession 或 Application 显式持有。
+UI、Reload、Lua、Physics（包含碰撞 Lua 回调）、Animation、Audio 各阶段独立记录 CPU scope；
+错误返回仍通过 RAII 闭合。Application 整段记录模拟和 Render 提交，不包含 client 更新、
+Present、GPU 或帧限速。Editor 继续复用现有 diagnostics resource 和 Profiler 面板。
+
+原生综合验收发现目标像素尺寸与逻辑分辨率混用：小 Game View 中世界/UI 比例不同。
+RenderFrameDesc 的可选 projectionViewport 使 Game 世界投影与 UI 都使用项目逻辑尺寸，
+实际 viewport 仍用于 GPU 目标；Scene View 没有逻辑尺寸，保持编辑相机语义。
+
+本地验证与性能记录见[10-10 验收](verification/2026-09-07-v0.10-integrated-acceptance.md)。
+本补充覆盖前文综合验收未实现的历史状态，但不代表这些本地改动已经合并或发布。

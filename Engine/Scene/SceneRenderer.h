@@ -24,6 +24,7 @@ struct SceneRenderRequest
     OrthographicCamera camera;
     Viewport viewport;
     RenderTargetHandle target;
+    // Game world projection and screen-space UI share this logical size; zero uses target pixels.
     Viewport logicalViewport;
     bool includeUI = true;
     const UIInteractionState* uiState = nullptr;

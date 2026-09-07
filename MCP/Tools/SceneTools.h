@@ -3,7 +3,9 @@
 #include "Core/Error/Result.h"
 #include "Registry/ToolRegistry.h"
 
+#include "Asset/AssetHandle.h"
 #include "Core/Command/ICommand.h"
+#include <filesystem>
 #include <functional>
 #include <memory>
 
@@ -29,6 +31,8 @@ struct McpSceneToolContext
     std::function<void()> markDirty;
     std::function<bool()> authoringReadOnly;
     std::function<Result<void>(std::unique_ptr<ICommand>, UUID)> executeCommand;
+    std::filesystem::path projectRoot;
+    std::function<Result<AssetHandle>(UUID)> exportPrefab;
 };
 
 [[nodiscard]] Result<void> RegisterSceneTools(

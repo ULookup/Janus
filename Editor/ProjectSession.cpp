@@ -3,12 +3,14 @@
 #include "RuntimeSession.h"
 
 #include "Asset/AssetService.h"
+#include "Core/FileSystem/FileSystem.h"
 #include "Core/Input/InputState.h"
+#include "Prefab/Prefab.h"
 #include "Renderer/Renderer2D.h"
 #include "Scene/Scene.h"
 #include "Scene/SceneDeserializer.h"
-#include "Scene/SceneSerializer.h"
 #include "Scene/SceneReflection.h"
+#include "Scene/SceneSerializer.h"
 
 #include <string>
 #include <string_view>
@@ -84,6 +86,54 @@ ProjectSession::ProjectSession(std::filesystem::path projectRoot,
 }
 
 ProjectSession::~ProjectSession() = default;
+
+Result<AssetHandle> ProjectSession::ExportPrefab(UUID root)
+{
+    if (HasRuntime() || m_CommandBus.HasTransaction() || m_CommandBus.RecoveryRequired())
+        return Result<AssetHandle>::Failure(
+            ErrorCode::InvalidState,
+            "Stop runtime and finish transaction/recovery before exporting a Prefab.");
+    auto text = Prefab::Capture(*m_EditorScene, root, m_ReflectionRegistry);
+    if (!text)
+        return Result<AssetHandle>::Failure(text.GetError());
+    const AssetHandle handle{UUID::Random()};
+    const auto relative = std::filesystem::path("Prefabs") / (handle.ToString() + ".prefab");
+    auto path = ResolveProjectPath(m_ProjectRoot, relative);
+    if (!path)
+        return Result<AssetHandle>::Failure(path.GetError());
+    auto registryPath = ResolveProjectPath(m_ProjectRoot, m_Settings.assetRegistry);
+    if (!registryPath)
+        return Result<AssetHandle>::Failure(registryPath.GetError());
+    AssetRegistry next = m_AssetRegistry;
+    auto registered = next.Register(AssetMetadata{handle, AssetType::Prefab, relative});
+    if (!registered)
+        return Result<AssetHandle>::Failure(registered.GetError());
+    std::error_code error;
+    const bool exists = std::filesystem::exists(path.Value(), error);
+    if (error || exists)
+        return Result<AssetHandle>::Failure(ErrorCode::FileWriteFailed,
+                                            "Prefab destination is unavailable.");
+    std::filesystem::create_directories(path.Value().parent_path(), error);
+    if (error)
+        return Result<AssetHandle>::Failure(ErrorCode::FileWriteFailed, error.message());
+    auto written = FileSystem::WriteTextAtomic(path.Value(), text.Value());
+    if (!written)
+        return Result<AssetHandle>::Failure(written.GetError());
+    auto saved = next.Save(registryPath.Value());
+    if (!saved)
+    {
+        // Only this fresh UUID file belongs to the failed export. Existing assets are untouched.
+        std::filesystem::remove(path.Value(), error);
+        if (error)
+            return Result<AssetHandle>::Failure(
+                ErrorCode::FileWriteFailed,
+                saved.GetError().message +
+                    " Unregistered Prefab cleanup failed: " + error.message());
+        return Result<AssetHandle>::Failure(saved.GetError());
+    }
+    m_AssetRegistry = std::move(next);
+    return Result<AssetHandle>::Success(handle);
+}
 
 Result<void> ProjectSession::SaveProjectSettings(const ProjectSettings& settings)
 {
@@ -162,7 +212,7 @@ Result<void> ProjectSession::StartRuntime(const InputState& input, bool startPau
                                      "Finish authoring transaction or recovery before Play.");
     auto runtime = RuntimeSession::Start(*m_EditorScene, m_ReflectionRegistry, *m_AssetService,
                                          input, startPaused, m_Settings.inputBindings,
-                                         {m_Settings.width, m_Settings.height});
+                                         {m_Settings.width, m_Settings.height}, {}, &m_Profiler);
     if (!runtime)
     {
         m_LastRuntimeStatus = {};

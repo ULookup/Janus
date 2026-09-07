@@ -48,7 +48,7 @@ Result<std::unique_ptr<RuntimeSession>>
 RuntimeSession::Start(const Scene& editorScene, const ReflectionRegistry& reflection,
                       AssetService& assets, const InputState& input, bool startPaused,
                       const InputBindings& bindings, Viewport logicalViewport,
-                      AudioDeviceFactory audioFactory)
+                      AudioDeviceFactory audioFactory, CpuProfiler* profiler)
 {
     auto cloned = SceneCloner::Clone(editorScene, reflection);
     if (!cloned)
@@ -63,7 +63,7 @@ RuntimeSession::Start(const Scene& editorScene, const ReflectionRegistry& reflec
                 assets.Unload(script.script);
         });
     auto execution = RuntimeExecution::Create(*session->m_RuntimeScene, assets, input, bindings,
-                                              logicalViewport, std::move(audioFactory));
+                                              logicalViewport, std::move(audioFactory), profiler);
     if (!execution)
         return Result<std::unique_ptr<RuntimeSession>>::Failure(execution.GetError());
     session->m_Execution = std::move(execution).Value();

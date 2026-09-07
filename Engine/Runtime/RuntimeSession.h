@@ -19,6 +19,7 @@ class Scene;
 class RuntimeExecution;
 class AnimationSystem;
 class PhysicsSystem;
+class CpuProfiler;
 enum class RuntimeState
 {
     Stopped,
@@ -46,7 +47,8 @@ class RuntimeSession final
     [[nodiscard]] static Result<std::unique_ptr<RuntimeSession>>
     Start(const Scene& editorScene, const ReflectionRegistry& reflection, AssetService& assets,
           const InputState& input, bool startPaused = false, const InputBindings& bindings = {},
-          Viewport logicalViewport = {1280, 720}, AudioDeviceFactory audioFactory = {});
+          Viewport logicalViewport = {1280, 720}, AudioDeviceFactory audioFactory = {},
+          CpuProfiler* profiler = nullptr);
     ~RuntimeSession();
     RuntimeSession(const RuntimeSession&) = delete;
     RuntimeSession& operator=(const RuntimeSession&) = delete;

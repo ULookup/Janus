@@ -48,6 +48,7 @@ public:
       return m_Settings;
   }
   [[nodiscard]] Result<void> SaveProjectSettings(const ProjectSettings& settings);
+  [[nodiscard]] Result<AssetHandle> ExportPrefab(UUID root);
   [[nodiscard]] const std::filesystem::path& GetProjectRoot() const noexcept;
   [[nodiscard]] const std::filesystem::path& GetCurrentScenePath() const noexcept;
   [[nodiscard]] const AssetRegistry& GetAssetRegistry() const noexcept;
@@ -132,6 +133,7 @@ private:
   // Keep history after those dependencies in declaration order so it
   // is destroyed before Scene, AssetRegistry, and ReflectionRegistry.
   CommandBus m_CommandBus;
+  CpuProfiler m_Profiler;
   std::unique_ptr<RuntimeSession> m_RuntimeSession;
   bool m_Dirty = false;
   RuntimeStatus m_LastRuntimeStatus;
@@ -141,7 +143,6 @@ private:
   std::chrono::steady_clock::time_point m_TransactionDeadline;
   std::deque<std::pair<UUID, UUID>> m_TransactionOwners;
   u64 m_SceneRevision = 0;
-  CpuProfiler m_Profiler;
   DiagnosticsFrame m_PendingDiagnostics;
   std::optional<DiagnosticsFrame> m_Diagnostics;
   std::deque<DiagnosticsFrame> m_DiagnosticsHistory;

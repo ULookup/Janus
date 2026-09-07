@@ -56,6 +56,31 @@
       "handle": "af100000-0000-4000-8000-000000000001",
       "type": "lua-script",
       "path": "Scripts/PhysicsShowcase.lua"
+    },
+    {
+      "handle": "ab100000-0000-4000-8000-000000000001",
+      "type": "prefab",
+      "path": "Prefabs/Robot.prefab"
+    },
+    {
+      "handle": "ab100000-0000-4000-8000-000000000002",
+      "type": "lua-script",
+      "path": "Scripts/PrefabRobot.lua"
+    },
+    {
+      "handle": "ac100000-0000-4000-8000-000000000001",
+      "type": "prefab",
+      "path": "Prefabs/Fighter.prefab"
+    },
+    {
+      "handle": "ac100000-0000-4000-8000-000000000002",
+      "type": "lua-script",
+      "path": "Scripts/Fighter.lua"
+    },
+    {
+      "handle": "ac100000-0000-4000-8000-000000000003",
+      "type": "lua-script",
+      "path": "Scripts/Arena.lua"
     }
   ]
 }

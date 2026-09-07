@@ -14,6 +14,7 @@ local function reset()
     JanusCombat.lastDamage = 0
     JanusCombat.lastRetaliation = 0
     JanusCombat.selectedCard = "none"
+    if JanusCombat.resetFeedback then JanusCombat.resetFeedback() end
 end
 
 local function refresh()
@@ -32,7 +33,7 @@ local function refresh()
         "%s\nENEMY HP %d / 12     YOUR HP %d / 6     TURN %d\nSELECTED %s     DAMAGE %d     RETURN DAMAGE %d",
         hints[b.phase], b.enemyHp, b.playerHp, b.turn,
         string.upper(b.selectedCard), b.lastDamage, b.lastRetaliation))
-    Diagnostics.publish_snapshot({
+    local fields = {
         phase = b.phase, enemyHp = b.enemyHp, playerHp = b.playerHp,
         turn = b.turn, lastDamage = b.lastDamage, lastRetaliation = b.lastRetaliation,
         selectedCard = b.selectedCard,
@@ -40,7 +41,9 @@ local function refresh()
         cardAudioStatus = cardStatus, cardAudioCursor = cardCursor,
         musicAudioStatus = musicStatus, musicAudioCursor = musicCursor,
         audioAvailable = audioAvailable, audioError = audioError
-    })
+    }
+    if b.decorateSnapshot then b.decorateSnapshot(fields) end
+    Diagnostics.publish_snapshot(fields)
 end
 
 -- Both Button.OnClick and the neutral-step verification scene use this one rule entry.
@@ -66,6 +69,7 @@ local function act(action)
             b.play:play_audio()
             if b.enemyHp == 0 then b.phase = "victory"
             elseif b.playerHp == 0 then b.phase = "defeat" end
+            if b.feedback then b.feedback() end
         end
     end
     refresh()
@@ -75,7 +79,10 @@ function Script.OnCreate(self)
     local name = self.entity:name()
     -- The controller has the smallest scripted UUID; startup order is explicit in the scene.
     if name == "Status" or name == "Verification" then
-        JanusCombat = {status = self.entity, music = self.entity}
+        -- Arena may still hold this table when only Combat.lua is hot reloaded.
+        JanusCombat = JanusCombat or {}
+        JanusCombat.status, JanusCombat.music = self.entity, self.entity
+        JanusCombat.act, JanusCombat.refresh = act, refresh
         reset()
         self.verificationStep = 0
         refresh()

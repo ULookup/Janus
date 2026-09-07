@@ -14,6 +14,45 @@
 
 using namespace Janus;
 
+TEST_CASE("Game world and UI retain the same composition when the render target shrinks",
+          "[acceptance][ui][render]")
+{
+    Test::FakeRenderDevice device;
+    auto renderer = Detail::Renderer2DTestAccess::Create(device);
+    auto reflection = CreateBuiltinSceneReflectionRegistry();
+    REQUIRE(reflection);
+    const auto root = std::filesystem::path(JANUS_TEST_SOURCE_DIR).parent_path() / "Game";
+    auto scene = SceneDeserializer::Load(root / "Scenes/Integrated.scene", reflection.Value());
+    REQUIRE(scene);
+    auto registry = AssetRegistry::Load(root / "Config/AssetRegistry.json");
+    REQUIRE(registry);
+    AssetService assets(root, registry.Value(), *renderer);
+    SceneRenderer sceneRenderer;
+    for (const auto viewport : {Viewport{1280, 720}, Viewport{640, 360}, Viewport{800, 600}})
+    {
+        device.drawProjections.clear();
+        auto target = renderer->CreateRenderTarget({viewport.width, viewport.height});
+        REQUIRE(target);
+        auto camera = sceneRenderer.ResolvePrimaryCamera(*scene.Value());
+        REQUIRE(camera);
+        REQUIRE(sceneRenderer.Render(SceneRenderRequest{*scene.Value(),
+                                                        assets,
+                                                        *renderer,
+                                                        camera.Value(),
+                                                        viewport,
+                                                        target.Value(),
+                                                        {1280, 720}}));
+        REQUIRE(device.drawProjections.size() >= 2);
+        auto worldPoint = Mat4::TransformPoint(device.drawProjections.front(), {3, 1.5f});
+        CHECK(worldPoint.x == Catch::Approx(0.3f));
+        CHECK(worldPoint.y == Catch::Approx(192.0f / 720));
+        auto uiPoint = Mat4::TransformPoint(device.drawProjections.back(), {832, 264});
+        CHECK(uiPoint.x == Catch::Approx(worldPoint.x));
+        CHECK(uiPoint.y == Catch::Approx(worldPoint.y));
+        REQUIRE(renderer->DestroyRenderTarget(target.Value()));
+    }
+}
+
 TEST_CASE("UI showcase loads through production persistence and renders its registered assets",
           "[ui][render]")
 {

@@ -3,6 +3,7 @@
 #include "Core/Error/Result.h"
 #include "Core/Input/InputState.h"
 #include "Core/Log/LogStore.h"
+#include "Core/Profiling/CpuProfiler.h"
 #include "Core/Time/FrameClock.h"
 #include "Diagnostics/ScriptSnapshot.h"
 
@@ -48,6 +49,10 @@ public:
     [[nodiscard]] const ReflectionRegistry& GetReflectionRegistry() const noexcept;
     [[nodiscard]] Scene& GetScene() noexcept;
     [[nodiscard]] std::optional<ScriptSnapshot> GetSnapshot() const;
+    [[nodiscard]] const CpuProfiler& GetProfiler() const noexcept
+    {
+        return m_Profiler;
+    }
 
   private:
     Application(
@@ -67,6 +72,7 @@ public:
     std::unique_ptr<AssetService> m_AssetService;
     std::unique_ptr<SceneRenderer> m_SceneRenderer;
     std::unique_ptr<Scene> m_Scene;
+    CpuProfiler m_Profiler;
     std::unique_ptr<RuntimeExecution> m_Execution;
     InputState m_Input;
     FrameClock m_FrameClock;
