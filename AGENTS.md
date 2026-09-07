@@ -2,7 +2,7 @@
 
 ## Mission
 
-Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.10 Game Systems**. Stage A, 10-03 Shared Runtime and 10-04a/b UI layout/text are integrated in main (`fbb1dc5`, PR #85, fetched 2026-09-07). 10-05a Button/events is implemented at `973659d`. Work package 10-05b playable combat and structured snapshots is committed on `codex/v0.10-playable-combat` for review against `codex/v0.10-ui-text` (Button PR #86 is merged there at `451c2e1`, but not in main). See its design and verification record before integration. The next work package is **10-06 AnimationClip + Animator**; Audio, Physics, Prefab and integrated acceptance follow. v0.10 is not complete or released. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
+Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.10 Game Systems**. Stage A, 10-03 Shared Runtime and 10-04a/b UI layout/text are integrated in main (`fbb1dc5`, PR #85, fetched 2026-09-07). 10-05a Button/events is implemented at `973659d`. Work packages 10-05b playable combat/snapshots and 10-06 AnimationClip/Animator are committed separately for stacked review: `codex/v0.10-playable-combat` targets `codex/v0.10-ui-text`, and `codex/v0.10-animation` targets the combat branch. Button PR #86 is merged into Text at `451c2e1`, but is not in main. See their design and verification records before integration. The next work package is **10-07 Audio**; Physics, Prefab and integrated acceptance follow. v0.10 is not complete or released. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
 
 This file applies to the entire repository. A more deeply nested `AGENTS.md` may add stricter rules for its subtree.
 
@@ -64,6 +64,14 @@ v0.8 MCP Agent Foundation is complete and is the capability baseline for v0.9.
 - Text content is valid UTF-8, at most 4096 bytes; missing glyphs use the declared fallback. Explicit newlines, per-line left/center/right alignment, own-rect and parent clipping are supported; shaping, auto wrapping and full Unicode font coverage are not.
 - Text authoring follows active ReflectionRegistry, Scene v1, shared commands and guards. Lua get_text/set_text operate on the bound Runtime Scene through existing shared execution.
 - assets.search is a bounded read-only AssetRegistry query classified as ProjectRead. It must use the existing main-thread dispatch/permission path and never dirty or load the project.
+
+## v0.10 Animation constraints
+
+- AnimationClip v1 is a bounded CPU asset referencing one registered Texture atlas; playback owns a value copy and no second GPU texture.
+- Animator stores only clip/enabled/playOnStart/speed through active Reflection, Scene v1 and shared commands. RuntimeExecution owns UUID-keyed AnimationSystem cursors.
+- Advance runs Lua before Animation. Renderer and UI layout read transient poses without changing SpriteRenderer/Image authoring fields.
+- Play/Switch validates before replacing playback and holds frame 0 for its issuing Advance. Stop restores the base pose; natural one-shot completion holds the last frame. Pause freezes; neutral Step advances 1/60 without automatic asset reload; a new Start refreshes configured clips.
+- See docs/superpowers/specs/2026-09-07-v0.10-animation-design.md and docs/verification/2026-09-07-v0.10-animation.md. State machines and animation editors remain out of scope.
 
 ## Source of truth
 

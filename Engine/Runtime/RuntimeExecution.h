@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Animation/AnimationSystem.h"
 #include "Core/Error/Result.h"
 #include "Core/Input/InputActions.h"
 #include "Core/Input/InputState.h"
@@ -63,6 +64,10 @@ class RuntimeExecution final
     {
         return m_RuntimeId;
     }
+    [[nodiscard]] const AnimationSystem& GetAnimations() const noexcept
+    {
+        return *m_Animations;
+    }
 
   private:
     explicit RuntimeExecution(Scene& scene, const InputState& initialInput,
@@ -73,6 +78,8 @@ class RuntimeExecution final
 
     // Lua borrows this stable buffer even when the caller supplies a temporary neutral frame.
     InputState m_Input;
+    // Scripts borrow animations during callbacks, so they must be destroyed first.
+    std::unique_ptr<AnimationSystem> m_Animations;
     std::unique_ptr<ScriptEngine> m_ScriptEngine;
     UUID m_RuntimeId;
     u64 m_FrameIndex = 0;

@@ -1,4 +1,5 @@
 #include "Scripting/ScriptEngine.h"
+#include "Animation/AnimationSystem.h"
 #include "UI/TextLayout.h"
 
 #include "Asset/AssetService.h"
@@ -49,6 +50,7 @@ char BindingContextRegistryKey = 0;
 
 struct BindingContext
 {
+    AnimationSystem* animations = nullptr;
     Scene* scene = nullptr;
     const InputState* input = nullptr;
     const InputBindings* bindings = nullptr;
@@ -153,6 +155,70 @@ int EntityGetText(lua_State* state)
         return luaL_error(state, "Janus Entity is missing TextComponent.");
     lua_pushlstring(state, text->content.data(), text->content.size());
     return 1;
+}
+
+int EntityPlayAnimation(lua_State* state)
+{
+    auto* context = GetBindingContext(state);
+    const auto* reference = CheckEntityRef(state);
+    static_cast<void>(ResolveEntity(state, *context, *reference));
+    if (!context->animations)
+        return luaL_error(state, "Animation control requires managed RuntimeExecution.");
+    AssetHandle clip;
+    bool valid = true;
+    if (!lua_isnoneornil(state, 2))
+    {
+        luaL_checktype(state, 2, LUA_TSTRING);
+        size_t size = 0;
+        const char* text = lua_tolstring(state, 2, &size);
+        {
+            auto parsed = AssetHandle::Parse(std::string_view(text, size));
+            valid = static_cast<bool>(parsed);
+            if (valid)
+                clip = parsed.Value();
+        }
+    }
+    if (!valid)
+        return luaL_error(state, "Animation clip requires a valid UUID.");
+    // Result owns strings; destroy it before Lua's longjmp error boundary.
+    {
+        auto result = context->animations->Play(UUID(reference->bytes), clip);
+        valid = static_cast<bool>(result);
+        if (!valid)
+            lua_pushlstring(state, result.GetError().message.data(),
+                            result.GetError().message.size());
+    }
+    return valid ? 0 : lua_error(state);
+}
+int EntityStopAnimation(lua_State* state)
+{
+    auto* context = GetBindingContext(state);
+    const auto* reference = CheckEntityRef(state);
+    static_cast<void>(ResolveEntity(state, *context, *reference));
+    if (!context->animations)
+        return luaL_error(state, "Animation control requires managed RuntimeExecution.");
+    bool valid = false;
+    {
+        auto result = context->animations->Stop(UUID(reference->bytes));
+        valid = static_cast<bool>(result);
+        if (!valid)
+            lua_pushlstring(state, result.GetError().message.data(),
+                            result.GetError().message.size());
+    }
+    return valid ? 0 : lua_error(state);
+}
+int EntityAnimationState(lua_State* state)
+{
+    auto* context = GetBindingContext(state);
+    const auto* reference = CheckEntityRef(state);
+    static_cast<void>(ResolveEntity(state, *context, *reference));
+    if (!context->animations)
+        return luaL_error(state, "Animation observation requires managed RuntimeExecution.");
+    const auto* pose = context->animations->GetPose(UUID(reference->bytes));
+    lua_pushboolean(state, pose && pose->playing);
+    lua_pushinteger(state, pose ? static_cast<lua_Integer>(pose->frameIndex) : 0);
+    lua_pushnumber(state, pose ? pose->elapsedSeconds : 0);
+    return 3;
 }
 
 int EntitySetText(lua_State* state)
@@ -409,6 +475,9 @@ void RegisterEntityBinding(lua_State* state)
     if (luaL_newmetatable(state, EntityMetatableName) != 0)
     {
         static const luaL_Reg Methods[] = {{"id", EntityId},
+                                           {"play_animation", EntityPlayAnimation},
+                                           {"stop_animation", EntityStopAnimation},
+                                           {"animation_state", EntityAnimationState},
                                            {"name", EntityName},
                                            {"get_position", EntityGetPosition},
                                            {"get_text", EntityGetText},
@@ -500,7 +569,7 @@ struct ScriptEngine::Impl
     Impl(Scene& sceneRef, AssetService& assetService, const InputState& inputState,
          const InputBindings& actionBindings, std::unique_ptr<LuaVirtualMachine> machine)
         : scene(sceneRef), assets(assetService), input(inputState), bindings(actionBindings),
-          virtualMachine(std::move(machine)), bindingContext{&scene, &input, &bindings}
+          virtualMachine(std::move(machine)), bindingContext{nullptr, &scene, &input, &bindings}
     {
     }
 
@@ -1212,6 +1281,10 @@ void ScriptEngine::SetSnapshotContext(UUID runtimeId, u64 frameIndex)
 {
     m_Impl->bindingContext.runtimeId = runtimeId;
     m_Impl->bindingContext.frameIndex = frameIndex;
+}
+void ScriptEngine::SetAnimations(AnimationSystem* animations)
+{
+    m_Impl->bindingContext.animations = animations;
 }
 
 std::optional<ScriptSnapshot> ScriptEngine::GetSnapshot() const

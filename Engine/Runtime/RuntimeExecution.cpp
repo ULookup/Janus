@@ -21,10 +21,12 @@ RuntimeExecution::Create(Scene& scene, AssetService& assets, const InputState& i
 {
     auto execution = std::unique_ptr<RuntimeExecution>(
         new RuntimeExecution(scene, initialInput, logicalViewport));
+    execution->m_Animations = std::make_unique<AnimationSystem>(scene, assets);
     auto scripts = ScriptEngine::Create(scene, assets, execution->m_Input, bindings);
     if (!scripts)
         return Result<std::unique_ptr<RuntimeExecution>>::Failure(scripts.GetError());
     execution->m_ScriptEngine = std::move(scripts).Value();
+    execution->m_ScriptEngine->SetAnimations(execution->m_Animations.get());
     return Result<std::unique_ptr<RuntimeExecution>>::Success(std::move(execution));
 }
 
@@ -43,7 +45,13 @@ Result<void> RuntimeExecution::Start()
     m_RuntimeId = UUID::Random();
     m_FrameIndex = 0;
     m_ScriptEngine->SetSnapshotContext(m_RuntimeId, 0);
-    return m_ScriptEngine->Start();
+    auto animations = m_Animations->Start();
+    if (!animations)
+        return animations;
+    auto scripts = m_ScriptEngine->Start();
+    if (!scripts)
+        m_Animations->Stop();
+    return scripts;
 }
 
 Result<void> RuntimeExecution::Advance(TimeStep timeStep, const InputState& input,
@@ -57,7 +65,7 @@ Result<void> RuntimeExecution::Advance(TimeStep timeStep, const InputState& inpu
     std::vector<UUID> clicks;
     if (dispatchUI)
     {
-        auto layout = UILayout::Build(m_Scene, m_LogicalViewport);
+        auto layout = UILayout::Build(m_Scene, m_LogicalViewport, m_Animations.get());
         if (!layout)
             return Result<void>::Failure(layout.GetError());
         auto routed = m_UI.Process(m_Scene, layout.Value(), input);
@@ -83,13 +91,19 @@ Result<void> RuntimeExecution::Advance(TimeStep timeStep, const InputState& inpu
         if (!dispatched)
             return dispatched;
     }
-    return m_ScriptEngine->Update(timeStep);
+    auto updated = m_ScriptEngine->Update(timeStep);
+    if (!updated)
+        return updated;
+    return m_Animations->Advance(timeStep);
 }
 
 Result<void> RuntimeExecution::Stop()
 {
     m_UI.Cancel();
-    return m_ScriptEngine ? m_ScriptEngine->Stop() : Result<void>::Success();
+    auto result = m_ScriptEngine ? m_ScriptEngine->Stop() : Result<void>::Success();
+    if (m_Animations)
+        m_Animations->Stop();
+    return result;
 }
 
 bool RuntimeExecution::IsRunning() const noexcept

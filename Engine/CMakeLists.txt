@@ -56,6 +56,10 @@ target_sources(
         Scripting/ScriptEngine.cpp
         Runtime/RuntimeSession.cpp
         Runtime/RuntimeExecution.cpp
+        Animation/AnimationSystem.cpp
+        Animation/AnimationReflection.cpp
+        Asset/Loader/AnimationClipLoader.cpp
+        Asset/Loader/AnimationClipLoader.h
         Asset/Loader/FontLoader.cpp
         Asset/Loader/FontLoader.h
         UI/UIInteraction.cpp
@@ -148,6 +152,9 @@ target_sources(
         Scripting/ScriptEngine.h
         Runtime/RuntimeSession.h
         Runtime/RuntimeExecution.h
+        Animation/AnimationSystem.h
+        Animation/AnimatorComponent.h
+        Asset/AnimationClip.h
         Asset/FontAsset.h
         UI/UIInteraction.h
         UI/TextLayout.h

@@ -2,6 +2,7 @@
 local Script = {}
 
 local function reset()
+    if JanusCombat.play then JanusCombat.play:stop_animation() end
     JanusCombat.phase = "menu"
     JanusCombat.enemyHp = 12
     JanusCombat.playerHp = 6
@@ -50,6 +51,7 @@ local function act(action)
             b.selectedCard = "none"
             b.lastRetaliation = b.enemyHp > 0 and 2 or 0
             b.playerHp = math.max(0, b.playerHp - b.lastRetaliation)
+            b.play:play_animation()
             if b.enemyHp == 0 then b.phase = "victory"
             elseif b.playerHp == 0 then b.phase = "defeat" end
         end
@@ -65,6 +67,8 @@ function Script.OnCreate(self)
         reset()
         self.verificationStep = 0
         refresh()
+    elseif name == "Play" then
+        JanusCombat.play = self.entity
     end
 end
 

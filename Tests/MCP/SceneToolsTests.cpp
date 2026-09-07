@@ -1,3 +1,4 @@
+#include "Animation/AnimatorComponent.h"
 #include "Tools/SceneTools.h"
 
 #include "Asset/AssetRegistry.h"
@@ -613,4 +614,37 @@ TEST_CASE("MCP asset search is read-only typed bounded and rejects invalid param
                                      Janus::MCP::McpProtocolEra::Modern2026);
         RequireDispatchError(invalid);
     }
+}
+
+TEST_CASE("MCP discovers animation clips and authors Animator through guarded commands",
+          "[animation][mcp]")
+{
+    ToolFixture fixture;
+    auto clip = fixture.assets.Register(Janus::AssetType::AnimationClip, "Animations/Pulse.json");
+    REQUIRE(clip);
+    auto texture = fixture.assets.Register(Janus::AssetType::Texture, "Animations/Atlas.png");
+    REQUIRE(texture);
+    const auto search = CallTool(fixture, "assets.search", {{"type", "animation-clip"}});
+    REQUIRE(search.at("structuredContent").at("assets").size() == 1);
+    CHECK_FALSE(fixture.dirty);
+    const auto entity = fixture.scene.CreateEntity("Animated");
+    const auto id =
+        fixture.scene.GetComponent<Janus::EntityIdentityComponent>(entity)->id.ToString();
+    REQUIRE(CallTool(fixture, "scene.add_component", {{"entity", id}, {"component", "Animator"}})
+                .at("structuredContent")
+                .at("ok") == true);
+    auto set = [&](const char* property, Janus::MCP::Json value)
+    {
+        return CallTool(
+            fixture, "scene.set_component_property",
+            {{"entity", id}, {"component", "Animator"}, {"property", property}, {"value", value}});
+    };
+    REQUIRE(set("clip", texture.Value().ToString()).at("isError") == true);
+    REQUIRE(set("clip", clip.Value().ToString()).at("structuredContent").at("ok") == true);
+    REQUIRE(set("enabled", true).at("structuredContent").at("ok") == true);
+    REQUIRE(fixture.commands.Undo());
+    CHECK_FALSE(fixture.scene.GetComponent<Janus::AnimatorComponent>(entity)->enabled);
+    fixture.readOnly = true;
+    REQUIRE(set("speed", 2).at("isError") == true);
+    CHECK(fixture.scene.GetComponent<Janus::AnimatorComponent>(entity)->speed == 1);
 }

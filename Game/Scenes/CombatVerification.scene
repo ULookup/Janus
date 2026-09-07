@@ -590,6 +590,30 @@
         "LuaScript": {
           "script": "fc100000-0000-4000-8000-000000000001",
           "enabled": true
+        },
+        "Image": {
+          "texture": "ad100000-0000-4000-8000-000000000001",
+          "color": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "uvMin": [
+            0.8,
+            0
+          ],
+          "uvMax": [
+            1,
+            0.5
+          ],
+          "enabled": true
+        },
+        "Animator": {
+          "clip": "ad100000-0000-4000-8000-000000000002",
+          "enabled": true,
+          "playOnStart": false,
+          "speed": 1
         }
       }
     },

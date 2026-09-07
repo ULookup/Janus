@@ -304,4 +304,8 @@ Janus/
 
 [Game/](Game/README.md) 已提供菜单、选牌/出牌、血量、胜负与重开。构建后运行 `JanusSandbox.exe ./Game` 或 `JanusEditor.exe --project ./Game`；Editor 在 Game View 中 Play。三次 Strike 胜利，三次 Wait 失败；鼠标和 Up/Down + Enter/Space 共用 Button 规则。
 
-Agent 可读 `engine://runtime/snapshot` 获取阶段、血量、伤害、回合与运行身份。验证场景和 modern/legacy 回归样例见 [Game 说明](Game/README.md)，本次证据见[验收记录](docs/verification/2026-09-07-v0.10-playable-combat.md)。下一包为 10-06 AnimationClip/Animator；v0.10 尚未整体完成。
+Agent 可读 `engine://runtime/snapshot` 获取阶段、血量、伤害、回合与运行身份。验证场景和 modern/legacy 回归样例见 [Game 说明](Game/README.md)，本次证据见[验收记录](docs/verification/2026-09-07-v0.10-playable-combat.md)。
+
+## 10-06 Sprite 动画（本地实现）
+
+AnimationClip/Animator 已接入共享 Runtime，支持帧时长、循环、Play/Stop/Switch、暂停单步和 Sprite/Image 帧覆盖。战斗成功出牌会播放一次边框动画；`Game/Scenes/AnimationShowcase.scene` 演示循环机器人、Space 停止、Enter 重播和 D 切换一次播放。运行与 Agent 编辑方法见 [Game 说明](Game/README.md)，边界和证据见[设计](docs/superpowers/specs/2026-09-07-v0.10-animation-design.md)、[验收](docs/verification/2026-09-07-v0.10-animation.md)。10-05b 与 10-06 已拆为独立提交和依赖式 PR（战斗基于 Text，动画基于战斗）；下一包为 10-07 Audio，v0.10 尚未整体完成。

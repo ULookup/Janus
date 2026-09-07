@@ -162,6 +162,10 @@ std::optional<ScriptSnapshot> RuntimeSession::GetSnapshot() const
 {
     return m_Execution ? m_Execution->GetSnapshot() : std::nullopt;
 }
+const AnimationSystem& RuntimeSession::GetAnimations() const noexcept
+{
+    return m_Execution->GetAnimations();
+}
 Scene& RuntimeSession::GetScene() noexcept
 {
     return *m_RuntimeScene;

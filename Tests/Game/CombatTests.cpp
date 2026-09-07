@@ -1,4 +1,5 @@
 #include "../Renderer/FakeRenderDevice.h"
+#include "Animation/AnimationSystem.h"
 #include "ProjectSession.h"
 #include "Renderer/Renderer2D.h"
 #include "Scene/Scene.h"
@@ -72,6 +73,8 @@ TEST_CASE("Combat pointer input completes victory defeat and restart without aut
     REQUIRE(std::get<std::string>(fields().at("phase")) == "menu");
     fixture.Click(940, 530); // Playing a card outside battle is a no-op.
     REQUIRE(std::get<double>(fields().at("turn")) == 0);
+    const auto playId = Janus::UUID::Parse("fc200000-0000-4000-8000-000000000024").Value();
+    REQUIRE_FALSE(fixture.project->GetRuntimeSession()->GetAnimations().GetPose(playId));
     fixture.Click(180, 245); // Start.
     fixture.Click(940, 530); // Must select a card before playing.
     REQUIRE(std::get<double>(fields().at("enemyHp")) == 12);
@@ -80,6 +83,10 @@ TEST_CASE("Combat pointer input completes victory defeat and restart without aut
         fixture.Click(180, 390); // Strike card.
         REQUIRE(std::get<double>(fields().at("enemyHp")) == hp + 4);
         fixture.Click(940, 530); // Play selected card.
+        const auto* pose = fixture.project->GetRuntimeSession()->GetAnimations().GetPose(playId);
+        REQUIRE(pose);
+        CHECK(pose->frameIndex == 0);
+        CHECK(pose->playing);
         REQUIRE(std::get<double>(fields().at("enemyHp")) == hp);
         REQUIRE(std::get<double>(fields().at("lastDamage")) == 4);
     }

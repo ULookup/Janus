@@ -1210,6 +1210,9 @@ void EditorApplication::OnUpdate(
                                    true,
                                    m_ProjectSession->GetRuntimeSession()
                                        ? &m_ProjectSession->GetRuntimeSession()->GetUIState()
+                                       : nullptr,
+                                   m_ProjectSession->GetRuntimeSession()
+                                       ? &m_ProjectSession->GetRuntimeSession()->GetAnimations()
                                        : nullptr});
 
             if (rendered)

@@ -9,6 +9,7 @@
 namespace Janus
 {
 class Scene;
+class AnimationSystem;
 struct UIBounds
 {
     Vector2 min;
@@ -42,6 +43,7 @@ struct UILayoutResult
 class UILayout final
 {
   public:
-    [[nodiscard]] static Result<UILayoutResult> Build(const Scene& scene, Viewport logicalViewport);
+    [[nodiscard]] static Result<UILayoutResult> Build(const Scene& scene, Viewport logicalViewport,
+                                                      const AnimationSystem* animations = nullptr);
 };
 } // namespace Janus

@@ -1710,3 +1710,8 @@ Button/焦点/OnClick/输入消费及可运行计数菜单已完成本地实现�
 ## 10-05b 执行状态更新（2026-09-07）
 
 main 已更新至 `fbb1dc5`（#85），Text/布局已进入 main。基于 Button `973659d` 的 `codex/v0.10-playable-combat` 已本地实现菜单、选牌出牌、确定性胜负/重开及 Agent 结构化快照。Game/ 拥有规则，Engine 只提供有界标量诊断。见[设计](superpowers/specs/2026-09-07-v0.10-playable-combat-design.md)和[验收](verification/2026-09-07-v0.10-playable-combat.md)。本段覆盖旧的“下一包战斗/Text 未合并”状态，下一包为 10-06 AnimationClip/Animator，然后是 Audio、Physics、Prefab、综合验收。v0.10 尚未整体完成或发布。
+
+
+## 10-06 执行状态更新（2026-09-07）
+
+`codex/v0.10-animation` 保留未提交的 10-05b，并已本地实现 AnimationClip/Animator：有界 JSON 帧资产、Play/Stop/Switch、循环/单次结束、暂停/单步、Sprite/Image 运行时帧覆盖和 Lua 控制。战斗成功出牌播放边框反馈，独立 AnimationShowcase 展示世界 Sprite。见[设计](superpowers/specs/2026-09-07-v0.10-animation-design.md)与[验收](verification/2026-09-07-v0.10-animation.md)。本段覆盖上方“下一包 10-06”的历史状态；下一包为 **10-07 Audio**，之后 Physics、Prefab、综合验收。本包未提交、未合并，v0.10 未整体完成或发布。

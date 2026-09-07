@@ -1,4 +1,4 @@
-# Janus Card Combat / 10-05b
+# Janus Card Combat / 10-05b + 10-06
 
 This disk-backed game uses the existing shared Runtime, Canvas, Text and Button APIs.
 All combat rules are in [Combat.lua](Scripts/Combat.lua); Engine contains no card or HP rules.
@@ -16,6 +16,27 @@ The enemy returns 2 damage after each nonlethal turn. Three **Wait** cards lose.
 **Restart to Menu** restores HP, turn, selection and damage. Up/Down select a button;
 Enter/Space confirm. Controls outside their valid phase do nothing; select a card each turn.
 Pause/Step does not click buttons. Stop restores the EditorScene's original text.
+Successful card plays now trigger a one-shot green border animation. Invalid plays do not
+restart it; Restart restores the base border. The animation does not change combat timing.
+
+## Animation showcase
+
+To inspect the world Sprite separately, copy Game and set the copy's `project.json`
+`defaultScene` to `Scenes/AnimationShowcase.scene`. Open the copy with either executable.
+The robot loops automatically; **Space** stops and restores its base frame, **Enter** replays
+the configured loop, and **D** switches to a short one-shot that holds its final frame.
+Editor keyboard input requires Game View focus while playing.
+Pause freezes playback; Step advances 1/60 second; Stop restores authoring state.
+The sample publishes `playing`, `animationFrame` and `elapsed` in the existing snapshot
+resource during Lua Update, before that frame's animation advance.
+
+`Animations/*.clip.json` are version 1 `animation-clip` assets. Animator is editable through
+Inspector or the same MCP component commands: add it disabled, assign a clip, then enable.
+`assets.search` accepts `type="animation-clip"`. Lua provides `play_animation([clip UUID])`,
+`stop_animation()` and `animation_state()` returning playing, zero-based frame and elapsed seconds.
+See the [animation design](../docs/superpowers/specs/2026-09-07-v0.10-animation-design.md).
+Run `python tools/generate_demo_animation.py` from the repository root to recreate the
+original geometric atlas and clips with the Python standard library. No external art is used.
 
 ## Agent observation
 
