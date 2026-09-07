@@ -109,6 +109,9 @@ Result<UILayoutResult> UILayout::Build(const Scene& scene, Viewport logicalViewp
             const auto* image = scene.GetComponent<ImageComponent>(entity);
             if (image && image->enabled && image->texture.id.IsValid())
                 result.items.push_back({id, UIDrawKind::Image, bounds, visible});
+            const auto* text = scene.GetComponent<TextComponent>(entity);
+            if (text && text->enabled && !text->content.empty())
+                result.items.push_back({id, UIDrawKind::Text, bounds, visible});
         }
         if (rect && rect->clipChildren)
             clip = visible;

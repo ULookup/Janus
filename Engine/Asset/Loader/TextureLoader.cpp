@@ -13,6 +13,21 @@
 namespace Janus
 {
 
+Result<Viewport> TextureLoader::ReadDimensions(const std::filesystem::path& path)
+{
+    auto bytes = FileSystem::ReadBinary(path);
+    if (!bytes)
+        return Result<Viewport>::Failure(bytes.GetError());
+    int width = 0, height = 0, channels = 0;
+    if (bytes.Value().size() > static_cast<usize>(std::numeric_limits<int>::max()) ||
+        !stbi_info_from_memory(bytes.Value().data(), static_cast<int>(bytes.Value().size()), &width,
+                               &height, &channels) ||
+        width <= 0 || height <= 0)
+        return Result<Viewport>::Failure(ErrorCode::AssetDecodeFailed,
+                                         "Cannot read font atlas dimensions.");
+    return Result<Viewport>::Success({static_cast<u32>(width), static_cast<u32>(height)});
+}
+
 Result<TextureHandle> TextureLoader::Load(
     const std::filesystem::path& path,
     Renderer2D& renderer)

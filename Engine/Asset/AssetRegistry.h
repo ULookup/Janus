@@ -6,12 +6,19 @@
 #include "Core/Types.h"
 
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 namespace Janus
 {
+
+struct AssetSearchResult
+{
+    std::vector<AssetMetadata> assets;
+    usize total = 0;
+};
 
 class AssetRegistry
 {
@@ -29,6 +36,11 @@ public:
     [[nodiscard]] bool Contains(AssetHandle handle) const noexcept;
     [[nodiscard]] usize Size() const noexcept;
     [[nodiscard]] std::vector<AssetMetadata> GetAssets() const;
+
+    // Case-sensitive substring of the normalized relative path, ordered by path.
+    [[nodiscard]] Result<AssetSearchResult> Search(std::string_view name = {},
+                                                   std::optional<AssetType> type = {},
+                                                   usize offset = 0, usize limit = 50) const;
 
     [[nodiscard]] Result<void> Save(
         const std::filesystem::path& registryPath) const;

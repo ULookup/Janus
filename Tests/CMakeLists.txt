@@ -47,6 +47,7 @@ add_executable(
     Runtime/RuntimeExecutionTests.cpp
     UI/UILayoutTests.cpp
     UI/UIRenderTests.cpp
+    UI/TextTests.cpp
     Renderer/RendererTypesTests.cpp
     Renderer/RenderQueueTests.cpp
     Renderer/BatchRendererTests.cpp

@@ -13,6 +13,8 @@ std::string_view AssetTypeName(AssetType type) noexcept
         return "texture";
     case AssetType::ShaderSource:
         return "shader_source";
+    case AssetType::Font:
+        return "font";
     case AssetType::LuaScript:
         return "lua-script";
     }
@@ -22,6 +24,9 @@ std::string_view AssetTypeName(AssetType type) noexcept
 
 Result<AssetType> ParseAssetType(std::string_view name)
 {
+    if (name == "font")
+        return Result<AssetType>::Success(AssetType::Font);
+
     if (name == "texture")
     {
         return Result<AssetType>::Success(AssetType::Texture);

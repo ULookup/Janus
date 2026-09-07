@@ -19,6 +19,8 @@ McpOperation ClassifyMcpOperation(std::string_view method, const Json& params) n
         if (it == params.end() || !it->is_string())
             return McpOperation::Unclassified;
         const std::string_view name = it->get_ref<const std::string&>();
+        if (name == "assets.search")
+            return McpOperation::ProjectRead;
         if (name == "scene.save")
             return McpOperation::SceneSave;
         for (auto known : {"scene.create_entity", "scene.delete_entity", "scene.rename_entity",

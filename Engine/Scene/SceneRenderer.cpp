@@ -6,6 +6,7 @@
 #include "Scene/Components.h"
 #include "Scene/Hierarchy.h"
 #include "Scene/Scene.h"
+#include "UI/TextLayout.h"
 #include "UI/UIComponents.h"
 #include "UI/UILayout.h"
 
@@ -125,6 +126,30 @@ Result<void> SceneRenderer::RenderPrepared(
         for (const auto& item : layout.Value().items)
         {
             const auto entity = request.scene.FindEntity(item.entity);
+            if (item.kind == UIDrawKind::Text)
+            {
+                const auto& text = *request.scene.GetComponent<TextComponent>(entity);
+                auto font = request.assets.LoadFont(AssetHandle{text.font.id});
+                if (!font)
+                    return Result<void>::Failure(font.GetError().code,
+                                                 "UI Text " + item.entity.ToString() + ": " +
+                                                     font.GetError().message);
+                auto glyphs = TextLayout::Build(text, *font.Value(), item);
+                if (!glyphs)
+                    return Result<void>::Failure(glyphs.GetError());
+                if (!glyphs.Value().empty())
+                {
+                    auto texture = request.assets.LoadTexture(font.Value()->atlas);
+                    if (!texture)
+                        return Result<void>::Failure(texture.GetError());
+                    for (auto& glyph : glyphs.Value())
+                    {
+                        glyph.texture = texture.Value();
+                        overlay.push_back(glyph);
+                    }
+                }
+                continue;
+            }
             Sprite sprite;
             ColorValue color;
             if (item.kind == UIDrawKind::Panel)

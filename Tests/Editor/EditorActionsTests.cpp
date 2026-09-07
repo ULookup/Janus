@@ -8,6 +8,7 @@
 #include "Scene/Components.h"
 #include "Scene/Scene.h"
 #include "Scene/SceneReflection.h"
+#include "UI/UIComponents.h"
 
 #include "../Renderer/FakeRenderDevice.h"
 
@@ -366,11 +367,11 @@ TEST_CASE(
 
     for (const auto& asset : assets)
     {
-        if (asset.type == Janus::AssetType::Texture)
+        if (asset.relativePath == "Assets/player.png")
         {
             texture = asset.handle;
         }
-        else if (asset.type == Janus::AssetType::LuaScript)
+        else if (asset.relativePath == "Scripts/PlayerController.lua")
         {
             script = asset.handle;
         }
@@ -665,4 +666,41 @@ TEST_CASE(
     REQUIRE(
         second->GetCommandBus().GetCursor()
         == 0);
+}
+
+TEST_CASE("Editor Text font assignment validates asset type supports undo and Runtime guard",
+          "[ui][text][editor]")
+{
+    using namespace Janus;
+    Test::FakeRenderDevice device;
+    auto renderer = Detail::Renderer2DTestAccess::Create(device);
+    auto project = OpenProject(*renderer);
+    Editor::EditorContext context;
+    context.project = project.get();
+    Editor::EditorActions actions(context);
+    auto id = actions.CreateEntity("TextTarget");
+    REQUIRE(id);
+    REQUIRE(actions.AddComponent(id.Value(), MakeComponentTypeId("Text")));
+    const auto* font = project->GetAssetRegistry().FindByPath("Fonts/JanusPixel.font.json");
+    REQUIRE(font);
+    REQUIRE(actions.SetProperty(id.Value(), MakeComponentTypeId("Text"),
+                                MakePropertyId("Text.font"), AssetReferenceValue{font->handle.id}));
+    auto* text = project->GetEditorScene().GetComponent<TextComponent>(
+        project->GetEditorScene().FindEntity(id.Value()));
+    CHECK(text->font.id == font->handle.id);
+    REQUIRE(actions.Undo());
+    CHECK_FALSE(text->font.id.IsValid());
+    REQUIRE(actions.Redo());
+    const auto* wrong = project->GetAssetRegistry().FindByPath("Assets/player.png");
+    REQUIRE(wrong);
+    CHECK_FALSE(actions.SetProperty(id.Value(), MakeComponentTypeId("Text"),
+                                    MakePropertyId("Text.font"),
+                                    AssetReferenceValue{wrong->handle.id}));
+    CHECK(text->font.id == font->handle.id);
+    InputState input;
+    REQUIRE(project->StartRuntime(input));
+    CHECK_FALSE(actions.SetProperty(id.Value(), MakeComponentTypeId("Text"),
+                                    MakePropertyId("Text.content"), std::string("Blocked")));
+    REQUIRE(project->StopRuntime());
+    CHECK(text->content.empty());
 }

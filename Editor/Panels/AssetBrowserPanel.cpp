@@ -7,6 +7,7 @@
 #include "Asset/AssetMetadata.h"
 #include "Scene/Components.h"
 #include "Scene/Scene.h"
+#include "UI/UIComponents.h"
 
 #include <imgui.h>
 
@@ -31,11 +32,7 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
         return std::nullopt;
     }
 
-    static const char* FilterNames[] = {
-        "All",
-        "Texture",
-        "LuaScript",
-        "ShaderSource"};
+    static const char* FilterNames[] = {"All", "Texture", "LuaScript", "ShaderSource", "Font"};
 
     ImGui::SetNextItemWidth(140.0f);
     ImGui::Combo(
@@ -64,6 +61,9 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
             break;
         case 3:
             include = asset.type == AssetType::ShaderSource;
+            break;
+        case 4:
+            include = asset.type == AssetType::Font;
             break;
         default:
             break;
@@ -185,6 +185,22 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
                 "Selected entity has no SpriteRenderer.");
         }
     }
+    else if (selected->type == AssetType::Font)
+    {
+        if (scene.HasComponent<TextComponent>(target))
+        {
+            if (ImGui::Button("Assign to Text"))
+            {
+                auto assigned = m_Actions.SetProperty(entityId, MakeComponentTypeId("Text"),
+                                                      MakePropertyId("Text.font"),
+                                                      AssetReferenceValue{selected->handle.id});
+                if (!assigned)
+                    error = assigned.GetError();
+            }
+        }
+        else
+            ImGui::TextDisabled("Selected entity has no Text.");
+    }
     else if (selected->type == AssetType::LuaScript)
     {
         if (scene.HasComponent<LuaScriptComponent>(target))
@@ -209,8 +225,7 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
     }
     else
     {
-        ImGui::TextDisabled(
-            "This asset type has no v0.6 Inspector assignment.");
+        ImGui::TextDisabled("This asset type has no component assignment.");
     }
 
     ImGui::EndDisabled();

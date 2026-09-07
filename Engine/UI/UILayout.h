@@ -19,7 +19,8 @@ struct UIBounds
 enum class UIDrawKind
 {
     Panel,
-    Image
+    Image,
+    Text
 };
 struct UILayoutItem
 {
@@ -31,7 +32,7 @@ struct UILayoutItem
 
 struct UILayoutResult
 {
-    // Preorder, then Panel before Image on the same entity. Never texture-sort.
+    // Preorder, then Panel, Image, then Text on the same entity. Never texture-sort.
     std::vector<UILayoutItem> items;
     [[nodiscard]] UUID HitTest(Vector2 point) const noexcept;
 };

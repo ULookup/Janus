@@ -29,7 +29,7 @@ TEST_CASE(
 {
     auto result = Janus::CreateBuiltinSceneReflectionRegistry();
     REQUIRE(result);
-    REQUIRE(result.Value().GetComponentCount() == 8);
+    REQUIRE(result.Value().GetComponentCount() == 9);
 }
 
 TEST_CASE(
@@ -38,7 +38,7 @@ TEST_CASE(
 {
     Janus::ReflectionRegistry registry;
     REQUIRE(Janus::RegisterBuiltinSceneReflection(registry));
-    REQUIRE(registry.GetComponentCount() == 8);
+    REQUIRE(registry.GetComponentCount() == 9);
 
     const auto* transform =
         registry.FindComponent(

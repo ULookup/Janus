@@ -408,6 +408,78 @@ McpToolDescriptor CreateEntityTool(
         }};
 }
 
+McpToolDescriptor SearchAssetsTool(const AssetRegistry* assets)
+{
+    return McpToolDescriptor{
+        "assets.search",
+        "Search Assets",
+        "Find registered assets by case-sensitive relative-path substring and optional type. "
+        "Stable path order; offset pagination, limit 1..100. Does not load files.",
+        Json{{"type", "object"},
+             {"additionalProperties", false},
+             {"properties",
+              {{"name", {{"type", "string"}, {"maxLength", 256}}},
+               {"type",
+                {{"type", "string"},
+                 {"enum", Json::array({"texture", "shader_source", "lua-script", "font"})}}},
+               {"offset", {{"type", "integer"}, {"minimum", 0}, {"maximum", 2147483647}}},
+               {"limit", {{"type", "integer"}, {"minimum", 1}, {"maximum", 100}}}}}},
+        Json{{"type", "object"}},
+        Json{{"readOnlyHint", true}, {"destructiveHint", false}, {"idempotentHint", true}},
+        [assets](const Json& arguments, McpProtocolEra) -> McpDispatchResult
+        {
+            if (!arguments.is_object())
+                return InvalidParams("Asset search requires an object.");
+            for (auto it = arguments.begin(); it != arguments.end(); ++it)
+                if (it.key() != "name" && it.key() != "type" && it.key() != "offset" &&
+                    it.key() != "limit")
+                    return InvalidParams("Unknown asset search parameter.");
+            std::string name;
+            std::optional<AssetType> type;
+            usize offset = 0, limit = 50;
+            if (auto it = arguments.find("name"); it != arguments.end())
+            {
+                if (!it->is_string() || it->get_ref<const std::string&>().size() > 256)
+                    return InvalidParams("name must be a string of at most 256 bytes.");
+                name = it->get<std::string>();
+            }
+            if (auto it = arguments.find("type"); it != arguments.end())
+            {
+                if (!it->is_string())
+                    return InvalidParams("type must be a known asset type string.");
+                auto parsed = ParseAssetType(it->get_ref<const std::string&>());
+                if (!parsed)
+                    return InvalidParams(parsed.GetError().message);
+                type = parsed.Value();
+            }
+            if (auto it = arguments.find("offset"); it != arguments.end())
+            {
+                if (!it->is_number_integer() || *it < 0 || *it > 2147483647)
+                    return InvalidParams("offset must be an integer in [0, 2147483647].");
+                offset = it->get<usize>();
+            }
+            if (auto it = arguments.find("limit"); it != arguments.end())
+            {
+                if (!it->is_number_integer() || *it < 1 || *it > 100)
+                    return InvalidParams("limit must be an integer in [1, 100].");
+                limit = it->get<usize>();
+            }
+            auto found = assets->Search(name, type, offset, limit);
+            if (!found)
+                return ToolExecutionError(found.GetError());
+            Json entries = Json::array();
+            for (const auto& asset : found.Value().assets)
+                entries.push_back({{"handle", asset.handle.ToString()},
+                                   {"type", AssetTypeName(asset.type)},
+                                   {"path", asset.relativePath.generic_string()}});
+            return ToolResult(Json{{"ok", true},
+                                   {"assets", std::move(entries)},
+                                   {"total", found.Value().total},
+                                   {"offset", offset},
+                                   {"limit", limit}});
+        }};
+}
+
 McpToolDescriptor ReparentEntityTool(McpSceneToolContext context)
 {
     return McpToolDescriptor{
@@ -986,6 +1058,10 @@ Result<void> RegisterSceneTools(
     }
 
     result = registry.RegisterTool(ReparentEntityTool(context));
+    if (!result)
+        return result;
+
+    result = registry.RegisterTool(SearchAssetsTool(context.assets));
     if (!result)
         return result;
 

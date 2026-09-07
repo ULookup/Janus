@@ -36,7 +36,7 @@ ctest --preset windows-msvc-debug-tests
 
 ## v0.10 Stage A：Project Settings + Action Input
 
-后续 10-03 已在开发分支完成本地实现：managed Application 与 Editor RuntimeSession 共用 `RuntimeExecution`，保持原有 Scene 所有权、Pause/Step/Faulted 与清理契约。全量回归 308/308 通过，详见[共享 Runtime 验收记录](docs/verification/2026-09-07-v0.10-shared-runtime.md)。该变更尚未合并。10-04a 现已在同一开发分支实现 Canvas/UIRect/Panel/Image、裁剪与共享 Reparent；使用方式、验证结果及局限见[UI 布局验收记录](docs/verification/2026-09-07-v0.10-ui-layout.md)。下一包为 10-04b Text/字体资产。
+10-03 共享 Runtime 已通过 PR #83 合入 main（`c71ad50`），[验收记录](docs/verification/2026-09-07-v0.10-shared-runtime.md)。10-04a UI 布局的 PR #84 已合入其 shared-runtime 父分支，尚未进入该 main 基线，[验收记录](docs/verification/2026-09-07-v0.10-ui-layout.md)。10-04b Text/离线字体图集、Lua 文本更新、Inspector 多行编辑、Font 赋值和 MCP `assets.search` 已在 `codex/v0.10-ui-text` 本地实现；试用与验证见[Text 验收记录](docs/verification/2026-09-07-v0.10-ui-text.md)。下一包为 10-05a Button/事件/输入消费。
 
 当前开发切片增加 `project.json` 和 Editor 底部的 **Project Settings** 标签，可配置默认 Scene、资源路径、游戏分辨率、VSync、Target FPS 和多个按键到 Action 的映射。没有 manifest 的旧项目仍使用原路径；非法配置明确报错。SandboxProject 已提供示例配置。
 
@@ -176,7 +176,7 @@ Delete Undo 使用 persistent UUID + reflected authoring snapshot 重建实体�
 
 当前 v0.7 的明确边界：
 
-- 通用 Inspector 的 AssetReference 展示 UUID 与类型约束；Texture / LuaScript 的类型安全赋值继续由 Asset Browser 完成；
+- 通用 Inspector 的 AssetReference 展示 UUID 与类型约束；Texture / LuaScript / Font 的类型安全赋值由 Asset Browser 完成；
 - 通用 Inspector 一次提交一个 reflected property；为了不提前引入 Transaction，旧的多字段兼容 helper 可能对应多个 history entry；
 - Command history 只属于当前 ProjectSession / authoring document；
 - 不包含 MCP transport/JSON-RPC、Transaction、Audit、Agent Activity、Profiler 或 user-facing Reparent workflow，这些属于后续里程碑。

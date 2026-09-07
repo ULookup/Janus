@@ -11,6 +11,21 @@
       "handle": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
       "type": "lua-script",
       "path": "Scripts/PlayerController.lua"
+    },
+    {
+      "handle": "fa100000-0000-4000-8000-000000000001",
+      "type": "texture",
+      "path": "Fonts/JanusPixel.png"
+    },
+    {
+      "handle": "fa100000-0000-4000-8000-000000000002",
+      "type": "font",
+      "path": "Fonts/JanusPixel.font.json"
+    },
+    {
+      "handle": "fa100000-0000-4000-8000-000000000003",
+      "type": "lua-script",
+      "path": "Scripts/TextShowcase.lua"
     }
   ]
 }

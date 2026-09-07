@@ -1779,4 +1779,8 @@ Janus 的架构价值在于：
 
 ## v0.10 / 10-04a UI 布局实现补充
 
-Engine/UI 持有可反射的 Canvas/UIRect/Panel/Image 作者态定义，UILayout 从 Scene 层级生成共享绘制与几何命中顺序。SceneRenderer 将 UI 作为世界 Sprite 后的屏幕空间阶段，使用项目逻辑分辨率、CPU 矩形/UV 裁剪和只合并相邻图元的批处理。ReparentEntityCommand 供 EditorActions 与 MCP 共用，保留局部字段及可撤销兄弟顺序。详见[专项设计](superpowers/specs/2026-09-07-v0.10-ui-layout-design.md)和[本地验收](verification/2026-09-07-v0.10-ui-layout.md)；当前尚未合并，Text/Button 与后续游戏系统不在本包。
+Engine/UI 持有可反射的 Canvas/UIRect/Panel/Image 作者态定义，UILayout 从 Scene 层级生成共享绘制与几何命中顺序。SceneRenderer 将 UI 作为世界 Sprite 后的屏幕空间阶段，使用项目逻辑分辨率、CPU 矩形/UV 裁剪和只合并相邻图元的批处理。ReparentEntityCommand 供 EditorActions 与 MCP 共用，保留局部字段及可撤销兄弟顺序。详见[专项设计](superpowers/specs/2026-09-07-v0.10-ui-layout-design.md)和[本地验收](verification/2026-09-07-v0.10-ui-layout.md)；#84 已合入 shared-runtime 父分支，尚未进入 `c71ad50` main。Text 属于下述 10-04b，Button 与后续游戏系统不在布局包。
+
+## v0.10 / 10-04b Text 实现补充
+
+Asset 增加 Font v1 离线图集/Unicode 字形度量，CPU 缓存复用 AssetCache，atlas 纹理由既有 AssetService/Renderer2D 管理。TextLayout 负责有界 UTF-8、换行、按行对齐和矩形/UV 裁剪，SceneRenderer 在稳定 UI 顺序中提交字形。Text 贯通 Reflection/Scene v1/Clone/Command/Inspector/MCP；Lua get_text/set_text 通过既有共享 RuntimeExecution 修改运行 Scene。AssetRegistry::Search 与 ProjectRead 分类的 MCP assets.search 提供稳定、有界的只读资产发现。详见[专项设计](superpowers/specs/2026-09-07-v0.10-ui-text-design.md)及[本地验收](verification/2026-09-07-v0.10-ui-text.md)。不新增运行时字体依赖；Button、事件消费和单局玩法仍属于 10-05。

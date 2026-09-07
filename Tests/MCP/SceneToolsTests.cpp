@@ -155,7 +155,7 @@ TEST_CASE(
 {
     ToolFixture fixture;
 
-    REQUIRE(fixture.tools.GetToolCount() == 8);
+    REQUIRE(fixture.tools.GetToolCount() == 9);
     REQUIRE(
         fixture.tools.FindTool(
             "scene.create_entity")
@@ -588,4 +588,29 @@ TEST_CASE(
             .at("ok")
         == true);
     REQUIRE(fixture.saved);
+}
+
+TEST_CASE("MCP asset search is read-only typed bounded and rejects invalid parameters",
+          "[ui][text][mcp]")
+{
+    ToolFixture fixture;
+    REQUIRE(fixture.assets.Register(Janus::AssetType::Font, "Fonts/Menu.json"));
+    REQUIRE(fixture.assets.Register(Janus::AssetType::Texture, "Fonts/Menu.png"));
+    fixture.readOnly = true;
+    const auto result =
+        CallTool(fixture, "assets.search", {{"name", "Menu"}, {"type", "font"}, {"limit", 1}});
+    const auto& data = result.at("structuredContent");
+    CHECK(data.at("total") == 1);
+    REQUIRE(data.at("assets").size() == 1);
+    CHECK(data.at("assets")[0].at("path") == "Fonts/Menu.json");
+    CHECK_FALSE(fixture.dirty);
+    for (auto arguments : {Janus::MCP::Json{{"limit", -1}}, Janus::MCP::Json{{"limit", 101}},
+                           Janus::MCP::Json{{"offset", 1.5}}, Janus::MCP::Json{{"type", "typo"}},
+                           Janus::MCP::Json{{"name", 12}}, Janus::MCP::Json{{"transaction", "x"}}})
+    {
+        auto invalid =
+            fixture.tools.HandleCall({{"name", "assets.search"}, {"arguments", arguments}},
+                                     Janus::MCP::McpProtocolEra::Modern2026);
+        RequireDispatchError(invalid);
+    }
 }

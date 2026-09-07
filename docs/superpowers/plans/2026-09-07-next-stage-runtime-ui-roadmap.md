@@ -6,6 +6,9 @@
 
 执行更新（2026-09-07）：用户随后确认执行。首轮 10-03 已在 `codex/v0.10-shared-runtime` 实现并完成本地验证，通过独立 PR 提交评审，尚未合并；共享 RuntimeExecution 已供两个宿主使用，308/308 CTest 通过，真实 Sandbox/Editor 启停及 Editor Play/Pause/Step/Stop 已验证。详见[专项设计](../specs/2026-09-07-v0.10-shared-runtime-design.md)和[验收记录](../../verification/2026-09-07-v0.10-shared-runtime.md)。下方 main 源码事实和第 9 节仍是实施前的调研基线；续轮 10-04a 已实现单 Canvas、UIRect、Panel/Image、CPU 裁剪、稳定绘制/几何命中顺序以及 Human/MCP Reparent；[专项设计](../specs/2026-09-07-v0.10-ui-layout-design.md)与[验收记录](../../verification/2026-09-07-v0.10-ui-layout.md)记录最终证据。当前下一包为 10-04b Text/字体资产，Button 和可玩单局仍未实现。
 
+最新执行更新（2026-09-07，10-04b）：fetch 后 main 为 `c71ad50`（#83）；#84 已合入 shared-runtime 父分支但未进入该 main。10-04b 已在包含 main 与 UI 布局的 `codex/v0.10-ui-text` 本地实现，见[Text/字体设计](../specs/2026-09-07-v0.10-ui-text-design.md)和[验收记录](../../verification/2026-09-07-v0.10-ui-text.md)。本段覆盖上方旧的“尚未合并/下一包 Text”状态，下方调研表保留历史基线；当前下一包为 10-05a。
+
+
 ## 1. 建议决策
 
 **下一阶段定为“共享 Runtime 执行阶段 + 最小可玩 UI”，先交付 10-03，再以连续完整切片完成 10-04/10-05。** 产品结果是一份可在 Editor 和独立入口运行的单机卡牌战斗小样：进入菜单、选择卡牌、出牌、显示伤害与血量、胜负、重开。Human 可以制作与游玩；Agent 可以通过同源 authoring 能力配置界面，并读取结构化运行结果。

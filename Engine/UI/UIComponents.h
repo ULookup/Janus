@@ -39,5 +39,15 @@ struct ImageComponent
     bool enabled = true;
 };
 
+struct TextComponent
+{
+    AssetReferenceValue font;
+    std::string content;
+    f32 fontSize = 24;
+    ColorValue color;
+    std::string alignment = "left";
+    bool enabled = true;
+};
+
 [[nodiscard]] Result<void> ValidateUIRect(const UIRectComponent& rect);
 } // namespace Janus

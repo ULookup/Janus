@@ -46,7 +46,7 @@ private:
     UUID m_PropertyBufferEntity;
     std::optional<u64> m_ActiveProperty;
     std::unordered_map<u64, PropertyValue> m_PropertyBuffers;
-    std::unordered_map<u64, std::array<char, 256>> m_StringBuffers;
+    std::unordered_map<u64, std::array<char, 4097>> m_StringBuffers;
 };
 
 } // namespace Janus::Editor

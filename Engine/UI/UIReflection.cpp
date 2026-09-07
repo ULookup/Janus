@@ -1,5 +1,6 @@
 #include "UI/UIReflection.h"
 #include "Core/Reflection/ReflectionRegistry.h"
+#include "UI/TextLayout.h"
 #include "UI/UIComponents.h"
 #include <cmath>
 #include <type_traits>
@@ -16,7 +17,7 @@ PropertyDescriptor Field(const char* component, const char* name, T C::* member)
     property.name = property.serializedName = name;
     property.type = GetPropertyType(PropertyValue{T{}});
     if constexpr (std::is_same_v<T, AssetReferenceValue>)
-        property.referenceConstraint = "texture";
+        property.referenceConstraint = std::is_same_v<C, TextComponent> ? "font" : "texture";
     property.getter = [member](const void* value)
     { return Result<PropertyValue>::Success(static_cast<const C*>(value)->*member); };
     property.setter = [member](void* object, const PropertyValue& value)
@@ -93,6 +94,18 @@ Result<void> RegisterUIReflection(ReflectionRegistry& registry)
                              Field("Image", "enabled", &ImageComponent::enabled)}});
     if (!image)
         return image;
-    return Result<void>::Success();
+    return registry.RegisterComponent(ComponentDescriptor{
+        MakeComponentTypeId("Text"),
+        "Text",
+        "Text",
+        true,
+        true,
+        {Field("Text", "font", &TextComponent::font),
+         Field("Text", "content", &TextComponent::content),
+         Field("Text", "fontSize", &TextComponent::fontSize),
+         Field("Text", "color", &TextComponent::color),
+         Field("Text", "alignment", &TextComponent::alignment),
+         Field("Text", "enabled", &TextComponent::enabled)},
+        [](const void* value) { return ValidateText(*static_cast<const TextComponent*>(value)); }});
 }
 } // namespace Janus
