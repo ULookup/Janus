@@ -704,3 +704,42 @@ TEST_CASE("Editor Text font assignment validates asset type supports undo and Ru
     REQUIRE(project->StopRuntime());
     CHECK(text->content.empty());
 }
+
+TEST_CASE("Editor Button authoring uses undo validation and Runtime guards", "[ui][button][editor]")
+{
+    using namespace Janus;
+    Test::FakeRenderDevice device;
+    auto renderer = Detail::Renderer2DTestAccess::Create(device);
+    auto project = OpenProject(*renderer);
+    Editor::EditorContext context;
+    context.project = project.get();
+    Editor::EditorActions actions(context);
+    auto id = actions.CreateEntity("ButtonTarget");
+    REQUIRE(id);
+    REQUIRE(actions.AddComponent(id.Value(), MakeComponentTypeId("Button")));
+    REQUIRE(actions.SetProperty(id.Value(), MakeComponentTypeId("Button"),
+                                MakePropertyId("Button.interactable"), false));
+    auto button = [&]
+    {
+        return project->GetEditorScene().GetComponent<ButtonComponent>(
+            project->GetEditorScene().FindEntity(id.Value()));
+    };
+    CHECK_FALSE(button()->interactable);
+    REQUIRE(actions.Undo());
+    CHECK(button()->interactable);
+    REQUIRE(actions.Redo());
+    CHECK_FALSE(button()->interactable);
+    CHECK_FALSE(actions.SetProperty(id.Value(), MakeComponentTypeId("Button"),
+                                    MakePropertyId("Button.color"), ColorValue{2, 0, 0, 1}));
+    InputState input;
+    REQUIRE(project->StartRuntime(input));
+    CHECK_FALSE(actions.SetProperty(id.Value(), MakeComponentTypeId("Button"),
+                                    MakePropertyId("Button.enabled"), false));
+    REQUIRE(project->StopRuntime());
+    CHECK(button()->enabled);
+    REQUIRE(actions.RemoveComponent(id.Value(), MakeComponentTypeId("Button")));
+    CHECK_FALSE(button());
+    REQUIRE(actions.Undo());
+    REQUIRE(button());
+    CHECK_FALSE(button()->interactable);
+}

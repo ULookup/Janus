@@ -43,7 +43,8 @@ McpOperation ClassifyMcpOperation(std::string_view method, const Json& params) n
             return McpOperation::Unclassified;
         std::string_view uri = it->get_ref<const std::string&>();
         uri = uri.substr(0, uri.find('?'));
-        if (uri == "engine://runtime/status" || uri.starts_with("engine://runtime/entity/"))
+        if (uri == "engine://runtime/status" || uri == "engine://runtime/snapshot" ||
+            uri.starts_with("engine://runtime/entity/"))
             return McpOperation::RuntimeRead;
         if (uri == "engine://logs/recent" || uri == "engine://profiler/latest-frame")
             return McpOperation::DiagnosticsRead;

@@ -45,9 +45,12 @@ add_executable(
     Editor/ProjectSessionTests.cpp
     Editor/RuntimeSessionTests.cpp
     Runtime/RuntimeExecutionTests.cpp
+    Game/CombatTests.cpp
+    Animation/AnimationTests.cpp
     UI/UILayoutTests.cpp
     UI/UIRenderTests.cpp
     UI/TextTests.cpp
+    UI/ButtonTests.cpp
     Renderer/RendererTypesTests.cpp
     Renderer/RenderQueueTests.cpp
     Renderer/BatchRendererTests.cpp
@@ -175,6 +178,15 @@ set_tests_properties(
         TIMEOUT 30
         RUN_SERIAL TRUE
 )
+
+# The same external host exercises the game observation chain in both protocol eras.
+foreach(era IN ITEMS modern legacy)
+    add_test(NAME MCP.Combat.${era}
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/MCP/combat_external_e2e.py
+            --host $<TARGET_FILE:JanusMcpExternalHost>
+            --project ${CMAKE_SOURCE_DIR}/Game --era ${era})
+    set_tests_properties(MCP.Combat.${era} PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
+endforeach()
 
 # Manual CPU instrumentation overhead measurement; no timing threshold in CTest.
 add_executable(JanusCpuProfilerBenchmark Benchmarks/CpuProfilerBenchmark.cpp)

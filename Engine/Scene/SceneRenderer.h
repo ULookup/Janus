@@ -13,6 +13,8 @@ namespace Janus
 class AssetService;
 class Renderer2D;
 class Scene;
+class AnimationSystem;
+struct UIInteractionState;
 
 struct SceneRenderRequest
 {
@@ -24,13 +26,17 @@ struct SceneRenderRequest
     RenderTargetHandle target;
     Viewport logicalViewport;
     bool includeUI = true;
+    const UIInteractionState* uiState = nullptr;
+    const AnimationSystem* animations = nullptr;
 };
 
 class SceneRenderer
 {
 public:
   [[nodiscard]] Result<void> Render(Scene& scene, AssetService& assets, Renderer2D& renderer,
-                                    Viewport viewport, Viewport logicalViewport = {});
+                                    Viewport viewport, Viewport logicalViewport = {},
+                                    const UIInteractionState* uiState = nullptr,
+                                    const AnimationSystem* animations = nullptr);
 
   [[nodiscard]] Result<void> Render(const SceneRenderRequest& request);
 

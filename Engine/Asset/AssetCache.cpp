@@ -4,6 +4,26 @@
 
 namespace Janus
 {
+const AnimationClip* AssetCache::FindAnimationClip(AssetHandle handle) const noexcept
+{
+    const auto found = m_Animations.find(handle);
+    return found == m_Animations.end() ? nullptr : &found->second;
+}
+bool AssetCache::StoreAnimationClip(AssetHandle handle, AnimationClip clip)
+{
+    if (!handle.IsValid() || Contains(handle) || !clip.texture.IsValid() || clip.frames.empty())
+        return false;
+    return m_Animations.emplace(handle, std::move(clip)).second;
+}
+bool AssetCache::RemoveAnimationClip(AssetHandle handle) noexcept
+{
+    return m_Animations.erase(handle) != 0;
+}
+usize AssetCache::RemoveAnimationsForTexture(AssetHandle texture) noexcept
+{
+    return std::erase_if(m_Animations,
+                         [texture](const auto& entry) { return entry.second.texture == texture; });
+}
 
 const FontAsset* AssetCache::FindFont(AssetHandle handle) const noexcept
 {
@@ -112,7 +132,8 @@ bool AssetCache::RemoveLuaScriptSource(AssetHandle handle) noexcept
 bool AssetCache::Contains(AssetHandle handle) const noexcept
 {
     return m_Textures.contains(handle) || m_ShaderSources.contains(handle) ||
-           m_LuaScriptSources.contains(handle) || m_Fonts.contains(handle);
+           m_LuaScriptSources.contains(handle) || m_Fonts.contains(handle) ||
+           m_Animations.contains(handle);
 }
 
 usize AssetCache::TextureCount() const noexcept
@@ -132,6 +153,7 @@ usize AssetCache::LuaScriptSourceCount() const noexcept
 
 void AssetCache::Clear() noexcept
 {
+    m_Animations.clear();
     m_Textures.clear();
     m_Fonts.clear();
     m_ShaderSources.clear();

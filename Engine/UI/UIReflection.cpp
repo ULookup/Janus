@@ -94,6 +94,20 @@ Result<void> RegisterUIReflection(ReflectionRegistry& registry)
                              Field("Image", "enabled", &ImageComponent::enabled)}});
     if (!image)
         return image;
+    auto button = registry.RegisterComponent(
+        ComponentDescriptor{MakeComponentTypeId("Button"),
+                            "Button",
+                            "Button",
+                            true,
+                            true,
+                            {Field("Button", "enabled", &ButtonComponent::enabled),
+                             Field("Button", "interactable", &ButtonComponent::interactable),
+                             Field("Button", "color", &ButtonComponent::color),
+                             Field("Button", "focusedColor", &ButtonComponent::focusedColor),
+                             Field("Button", "pressedColor", &ButtonComponent::pressedColor),
+                             Field("Button", "disabledColor", &ButtonComponent::disabledColor)}});
+    if (!button)
+        return button;
     return registry.RegisterComponent(ComponentDescriptor{
         MakeComponentTypeId("Text"),
         "Text",

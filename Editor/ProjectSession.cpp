@@ -161,7 +161,8 @@ Result<void> ProjectSession::StartRuntime(const InputState& input, bool startPau
         return Result<void>::Failure(ErrorCode::InvalidState,
                                      "Finish authoring transaction or recovery before Play.");
     auto runtime = RuntimeSession::Start(*m_EditorScene, m_ReflectionRegistry, *m_AssetService,
-                                         input, startPaused, m_Settings.inputBindings);
+                                         input, startPaused, m_Settings.inputBindings,
+                                         {m_Settings.width, m_Settings.height});
     if (!runtime)
     {
         m_LastRuntimeStatus = {};

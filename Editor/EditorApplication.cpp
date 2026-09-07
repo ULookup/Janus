@@ -1206,7 +1206,14 @@ void EditorApplication::OnUpdate(
                                    m_GameViewViewport,
                                    m_GameViewTarget,
                                    {m_ProjectSession->GetProjectSettings().width,
-                                    m_ProjectSession->GetProjectSettings().height}});
+                                    m_ProjectSession->GetProjectSettings().height},
+                                   true,
+                                   m_ProjectSession->GetRuntimeSession()
+                                       ? &m_ProjectSession->GetRuntimeSession()->GetUIState()
+                                       : nullptr,
+                                   m_ProjectSession->GetRuntimeSession()
+                                       ? &m_ProjectSession->GetRuntimeSession()->GetAnimations()
+                                       : nullptr});
 
             if (rendered)
                 m_ProjectSession->CaptureRenderPass(true, renderer.GetStatistics(),

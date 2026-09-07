@@ -29,6 +29,9 @@ public:
     AssetService(AssetService&&) = delete;
     AssetService& operator=(AssetService&&) = delete;
 
+    // Valid until this clip, its texture dependency, or the cache is unloaded.
+    [[nodiscard]] Result<const AnimationClip*> LoadAnimationClip(AssetHandle handle);
+
     // Pointer remains valid until this font, its atlas, or the service cache is unloaded.
     [[nodiscard]] Result<const FontAsset*> LoadFont(AssetHandle handle);
     [[nodiscard]] Result<TextureHandle> LoadTexture(AssetHandle handle);

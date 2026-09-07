@@ -82,7 +82,7 @@ TEST_CASE(
     const auto& model =
         modelResult.Value();
 
-    REQUIRE(model.size() == 9);
+    REQUIRE(model.size() == 11);
 
     const auto* transform =
         FindComponent(

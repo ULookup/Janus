@@ -1,0 +1,46 @@
+{
+  "schema": "janus.asset-registry",
+  "version": 1,
+  "assets": [
+    {
+      "handle": "fa100000-0000-4000-8000-000000000001",
+      "type": "texture",
+      "path": "Fonts/JanusPixel.png"
+    },
+    {
+      "handle": "fa100000-0000-4000-8000-000000000002",
+      "type": "font",
+      "path": "Fonts/JanusPixel.font.json"
+    },
+    {
+      "handle": "fc100000-0000-4000-8000-000000000001",
+      "type": "lua-script",
+      "path": "Scripts/Combat.lua"
+    },
+    {
+      "handle": "ad100000-0000-4000-8000-000000000001",
+      "type": "texture",
+      "path": "Animations/DemoAtlas.png"
+    },
+    {
+      "handle": "ad100000-0000-4000-8000-000000000002",
+      "type": "animation-clip",
+      "path": "Animations/CardPulse.clip.json"
+    },
+    {
+      "handle": "ad100000-0000-4000-8000-000000000003",
+      "type": "animation-clip",
+      "path": "Animations/RobotWalk.clip.json"
+    },
+    {
+      "handle": "ad100000-0000-4000-8000-000000000004",
+      "type": "animation-clip",
+      "path": "Animations/RobotAction.clip.json"
+    },
+    {
+      "handle": "ad100000-0000-4000-8000-000000000005",
+      "type": "lua-script",
+      "path": "Scripts/AnimationShowcase.lua"
+    }
+  ]
+}

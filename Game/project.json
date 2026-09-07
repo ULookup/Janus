@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "name": "Janus Card Combat",
+  "defaultScene": "Scenes/Combat.scene",
+  "assetRegistry": "Config/AssetRegistry.json",
+  "assetRoot": "Assets",
+  "scriptRoot": "Scripts",
+  "width": 1280,
+  "height": 720,
+  "vsync": true,
+  "targetFps": 0,
+  "inputBindings": {
+    "Confirm": [
+      "Space",
+      "Enter"
+    ]
+  }
+}

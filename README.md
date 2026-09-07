@@ -36,7 +36,7 @@ ctest --preset windows-msvc-debug-tests
 
 ## v0.10 Stage A：Project Settings + Action Input
 
-10-03 共享 Runtime 已通过 PR #83 合入 main（`c71ad50`），[验收记录](docs/verification/2026-09-07-v0.10-shared-runtime.md)。10-04a UI 布局的 PR #84 已合入其 shared-runtime 父分支，尚未进入该 main 基线，[验收记录](docs/verification/2026-09-07-v0.10-ui-layout.md)。10-04b Text/离线字体图集、Lua 文本更新、Inspector 多行编辑、Font 赋值和 MCP `assets.search` 已在 `codex/v0.10-ui-text` 本地实现；试用与验证见[Text 验收记录](docs/verification/2026-09-07-v0.10-ui-text.md)。下一包为 10-05a Button/事件/输入消费。
+10-03 共享 Runtime 已通过 PR #83 合入 main（`c71ad50`），[验收记录](docs/verification/2026-09-07-v0.10-shared-runtime.md)。10-04a UI 布局的 PR #84 已合入其 shared-runtime 父分支，尚未进入该 main 基线，[验收记录](docs/verification/2026-09-07-v0.10-ui-layout.md)。10-04b Text/离线字体图集、Lua 文本更新、Inspector 多行编辑、Font 赋值和 MCP `assets.search` 已在 `codex/v0.10-ui-text` 本地实现；试用与验证见[Text 验收记录](docs/verification/2026-09-07-v0.10-ui-text.md)。10-05a Button/事件/输入消费和计数菜单已本地实现，下一包为 10-05b 战斗/结构化快照。
 
 当前开发切片增加 `project.json` 和 Editor 底部的 **Project Settings** 标签，可配置默认 Scene、资源路径、游戏分辨率、VSync、Target FPS 和多个按键到 Action 的映射。没有 manifest 的旧项目仍使用原路径；非法配置明确报错。SandboxProject 已提供示例配置。
 
@@ -292,3 +292,20 @@ Janus/
 - 行为变更必须配套自动测试和可复现验证。
 
 项目尚未选择开源 License。在明确 License 前，请不要假设代码可被重新分发或用于其他项目。
+
+## 10-05a Button 计数菜单（本地实现）
+
+`SandboxProject/Scenes/ButtonShowcase.scene` 演示两个计数按钮、禁用状态与 Lua `OnClick(self)`。在项目副本的 `project.json` 中将 `defaultScene` 设为 `Scenes/ButtonShowcase.scene`，用 `JanusSandbox.exe <项目副本路径>` 或 `JanusEditor.exe --project <项目副本路径>` 打开。Editor 在 Game View 中 Play 后点击；Up/Down 选按钮，Enter/Space 确认，拖出取消，Stop 恢复作者态计数。Button 的启用状态和四种颜色可在 Inspector 编辑并撤销；相同字段也支持 MCP 场景工具。
+
+这完成 10-05a 点击计数切片；10-05b 的后续实现见下节。见[设计](docs/superpowers/specs/2026-09-07-v0.10-ui-button-design.md)与[验收](docs/verification/2026-09-07-v0.10-ui-button.md)。
+
+
+## 10-05b 固定卡牌战斗（本地实现）
+
+[Game/](Game/README.md) 已提供菜单、选牌/出牌、血量、胜负与重开。构建后运行 `JanusSandbox.exe ./Game` 或 `JanusEditor.exe --project ./Game`；Editor 在 Game View 中 Play。三次 Strike 胜利，三次 Wait 失败；鼠标和 Up/Down + Enter/Space 共用 Button 规则。
+
+Agent 可读 `engine://runtime/snapshot` 获取阶段、血量、伤害、回合与运行身份。验证场景和 modern/legacy 回归样例见 [Game 说明](Game/README.md)，本次证据见[验收记录](docs/verification/2026-09-07-v0.10-playable-combat.md)。
+
+## 10-06 Sprite 动画（本地实现）
+
+AnimationClip/Animator 已接入共享 Runtime，支持帧时长、循环、Play/Stop/Switch、暂停单步和 Sprite/Image 帧覆盖。战斗成功出牌会播放一次边框动画；`Game/Scenes/AnimationShowcase.scene` 演示循环机器人、Space 停止、Enter 重播和 D 切换一次播放。运行与 Agent 编辑方法见 [Game 说明](Game/README.md)，边界和证据见[设计](docs/superpowers/specs/2026-09-07-v0.10-animation-design.md)、[验收](docs/verification/2026-09-07-v0.10-animation.md)。10-05b 与 10-06 已拆为独立提交和依赖式 PR（战斗基于 Text，动画基于战斗）；下一包为 10-07 Audio，v0.10 尚未整体完成。

@@ -56,8 +56,13 @@ target_sources(
         Scripting/ScriptEngine.cpp
         Runtime/RuntimeSession.cpp
         Runtime/RuntimeExecution.cpp
+        Animation/AnimationSystem.cpp
+        Animation/AnimationReflection.cpp
+        Asset/Loader/AnimationClipLoader.cpp
+        Asset/Loader/AnimationClipLoader.h
         Asset/Loader/FontLoader.cpp
         Asset/Loader/FontLoader.h
+        UI/UIInteraction.cpp
         UI/TextLayout.cpp
         UI/UILayout.cpp
         UI/UIReflection.cpp
@@ -96,6 +101,7 @@ target_sources(
 
         Core/Log/Log.h
         Diagnostics/DiagnosticsFrame.h
+        Diagnostics/ScriptSnapshot.h
         Core/Profiling/CpuProfiler.h
         Core/Log/LogStore.h
         Core/Log/LogOutput.h
@@ -146,7 +152,11 @@ target_sources(
         Scripting/ScriptEngine.h
         Runtime/RuntimeSession.h
         Runtime/RuntimeExecution.h
+        Animation/AnimationSystem.h
+        Animation/AnimatorComponent.h
+        Asset/AnimationClip.h
         Asset/FontAsset.h
+        UI/UIInteraction.h
         UI/TextLayout.h
         UI/UIComponents.h
         UI/UILayout.h

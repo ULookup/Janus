@@ -1,4 +1,5 @@
 #include "Scene/SceneReflection.h"
+#include "Animation/AnimatorComponent.h"
 
 #include "Asset/AssetMetadata.h"
 #include "Asset/AssetRegistry.h"
@@ -111,6 +112,11 @@ Result<void*> GetMutableComponent(
             return Result<void*>::Success(value);
         }
     }
+    else if (component == Animator)
+    {
+        if (auto* value = scene.GetComponent<AnimatorComponent>(entity); value != nullptr)
+            return Result<void*>::Success(value);
+    }
     else if (component == Canvas)
     {
         if (auto* value = scene.GetComponent<CanvasComponent>(entity); value != nullptr)
@@ -134,6 +140,11 @@ Result<void*> GetMutableComponent(
     else if (component == Text)
     {
         if (auto* value = scene.GetComponent<TextComponent>(entity); value != nullptr)
+            return Result<void*>::Success(value);
+    }
+    else if (component == Button)
+    {
+        if (auto* value = scene.GetComponent<ButtonComponent>(entity); value != nullptr)
             return Result<void*>::Success(value);
     }
     else
@@ -174,6 +185,8 @@ Result<bool> HasBoundComponent(
             scene.HasComponent<LuaScriptComponent>(entity));
     }
 
+    if (component == Animator)
+        return Result<bool>::Success(scene.HasComponent<AnimatorComponent>(entity));
     if (component == Canvas)
         return Result<bool>::Success(scene.HasComponent<CanvasComponent>(entity));
     if (component == UIRect)
@@ -184,6 +197,8 @@ Result<bool> HasBoundComponent(
         return Result<bool>::Success(scene.HasComponent<ImageComponent>(entity));
     if (component == Text)
         return Result<bool>::Success(scene.HasComponent<TextComponent>(entity));
+    if (component == Button)
+        return Result<bool>::Success(scene.HasComponent<ButtonComponent>(entity));
 
     return Result<bool>::Failure(
         ErrorCode::InvalidArgument,
@@ -232,6 +247,11 @@ Result<const void*> GetConstComponent(
             return Result<const void*>::Success(value);
         }
     }
+    else if (component == Animator)
+    {
+        if (const auto* value = scene.GetComponent<AnimatorComponent>(entity); value != nullptr)
+            return Result<const void*>::Success(value);
+    }
     else if (component == Canvas)
     {
         if (const auto* value = scene.GetComponent<CanvasComponent>(entity); value != nullptr)
@@ -255,6 +275,11 @@ Result<const void*> GetConstComponent(
     else if (component == Text)
     {
         if (const auto* value = scene.GetComponent<TextComponent>(entity); value != nullptr)
+            return Result<const void*>::Success(value);
+    }
+    else if (component == Button)
+    {
+        if (const auto* value = scene.GetComponent<ButtonComponent>(entity); value != nullptr)
             return Result<const void*>::Success(value);
     }
     else
@@ -867,6 +892,9 @@ Result<void> RegisterBuiltinSceneReflection(
             }});
     if (!script)
         return script;
+    auto animation = RegisterAnimationReflection(registry);
+    if (!animation)
+        return animation;
     return RegisterUIReflection(registry);
 }
 
@@ -978,6 +1006,10 @@ Result<void> SceneReflection::AddComponent(
             entity.Value(),
             LuaScriptComponent{AssetHandle{}, false});
     }
+    else if (component == Animator)
+    {
+        added = scene.AddComponent<AnimatorComponent>(entity.Value(), AnimatorComponent{});
+    }
     else if (component == Canvas)
     {
         added = scene.AddComponent<CanvasComponent>(entity.Value(), CanvasComponent{});
@@ -997,6 +1029,10 @@ Result<void> SceneReflection::AddComponent(
     else if (component == Text)
     {
         added = scene.AddComponent<TextComponent>(entity.Value(), TextComponent{});
+    }
+    else if (component == Button)
+    {
+        added = scene.AddComponent<ButtonComponent>(entity.Value(), ButtonComponent{});
     }
     else
     {
@@ -1057,6 +1093,10 @@ Result<void> SceneReflection::RemoveComponent(
         removed = scene.RemoveComponent<LuaScriptComponent>(
             entity.Value());
     }
+    else if (component == Animator)
+    {
+        removed = scene.RemoveComponent<AnimatorComponent>(entity.Value());
+    }
     else if (component == Canvas)
     {
         removed = scene.RemoveComponent<CanvasComponent>(entity.Value());
@@ -1076,6 +1116,10 @@ Result<void> SceneReflection::RemoveComponent(
     else if (component == Text)
     {
         removed = scene.RemoveComponent<TextComponent>(entity.Value());
+    }
+    else if (component == Button)
+    {
+        removed = scene.RemoveComponent<ButtonComponent>(entity.Value());
     }
     else
     {

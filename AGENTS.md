@@ -2,7 +2,7 @@
 
 ## Mission
 
-Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.10 Game Systems**. Stage A is integrated; 10-03 Shared Runtime is integrated in main at `c71ad50` (PR #83). 10-04a UI layout/images (PR #84) is merged into its shared-runtime parent branch but is not in that main baseline. Work package 10-04b Text/font assets is implemented locally on `codex/v0.10-ui-text`, which includes latest main and 10-04a. The next work package is 10-05a: Button/events and input consumption. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
+Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.10 Game Systems**. Stage A, 10-03 Shared Runtime and 10-04a/b UI layout/text are integrated in main (`fbb1dc5`, PR #85, fetched 2026-09-07). 10-05a Button/events is implemented at `973659d`. Work packages 10-05b playable combat/snapshots and 10-06 AnimationClip/Animator are committed separately for stacked review: `codex/v0.10-playable-combat` targets `codex/v0.10-ui-text`, and `codex/v0.10-animation` targets the combat branch. Button PR #86 is merged into Text at `451c2e1`, but is not in main. See their design and verification records before integration. The next work package is **10-07 Audio**; Physics, Prefab and integrated acceptance follow. v0.10 is not complete or released. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
 
 This file applies to the entire repository. A more deeply nested `AGENTS.md` may add stricter rules for its subtree.
 
@@ -56,7 +56,7 @@ v0.8 MCP Agent Foundation is complete and is the capability baseline for v0.9.
 - UILayoutResult defines paint and reverse geometric hit order. UI batching combines only adjacent compatible sprites; world texture sorting must never reorder UI. CPU clipping adjusts both rectangles and UVs.
 - Renderer2D owns its lazy solid-color texture; overlay projection must be committed through UseShader before drawing. World and UI share one clear, target lifetime and cumulative statistics.
 - Reparent preserves local fields and restores parent UUID/sibling order on Undo. Human EditorActions and scene.reparent_entity use ReparentEntityCommand and ProjectSession guards. Root order remains UUID order.
-- UI preview is in Game View. Text and offline font assets are implemented by 10-04b; Button/events and the playable sample remain subsequent work. See docs/superpowers/specs/2026-09-07-v0.10-ui-layout-design.md and docs/superpowers/specs/2026-09-07-v0.10-ui-text-design.md.
+- UI preview is in Game View. Text and offline font assets are implemented by 10-04b; Button/events are implemented by 10-05a; the playable combat sample remains 10-05b. See docs/superpowers/specs/2026-09-07-v0.10-ui-layout-design.md and docs/superpowers/specs/2026-09-07-v0.10-ui-text-design.md.
 
 ## v0.10 Text constraints
 
@@ -64,6 +64,14 @@ v0.8 MCP Agent Foundation is complete and is the capability baseline for v0.9.
 - Text content is valid UTF-8, at most 4096 bytes; missing glyphs use the declared fallback. Explicit newlines, per-line left/center/right alignment, own-rect and parent clipping are supported; shaping, auto wrapping and full Unicode font coverage are not.
 - Text authoring follows active ReflectionRegistry, Scene v1, shared commands and guards. Lua get_text/set_text operate on the bound Runtime Scene through existing shared execution.
 - assets.search is a bounded read-only AssetRegistry query classified as ProjectRead. It must use the existing main-thread dispatch/permission path and never dirty or load the project.
+
+## v0.10 Animation constraints
+
+- AnimationClip v1 is a bounded CPU asset referencing one registered Texture atlas; playback owns a value copy and no second GPU texture.
+- Animator stores only clip/enabled/playOnStart/speed through active Reflection, Scene v1 and shared commands. RuntimeExecution owns UUID-keyed AnimationSystem cursors.
+- Advance runs Lua before Animation. Renderer and UI layout read transient poses without changing SpriteRenderer/Image authoring fields.
+- Play/Switch validates before replacing playback and holds frame 0 for its issuing Advance. Stop restores the base pose; natural one-shot completion holds the last frame. Pause freezes; neutral Step advances 1/60 without automatic asset reload; a new Start refreshes configured clips.
+- See docs/superpowers/specs/2026-09-07-v0.10-animation-design.md and docs/verification/2026-09-07-v0.10-animation.md. State machines and animation editors remain out of scope.
 
 ## Source of truth
 
@@ -149,3 +157,19 @@ A change is complete only when:
 - `git diff --check` reports no whitespace errors;
 - generated files remain ignored;
 - the final report names verification commands and any known limitations.
+
+## v0.10 Button constraints
+
+- UIInteraction is owned by RuntimeExecution; hover/focus/capture are transient and never serialized. Button uses shared Reflection/Command authoring and fixed same-entity Lua OnClick.
+- Consume UI input before Lua Update, dispatch UUID events on the owner thread, and preserve game release continuity. Do not replace ordered input with final-frame pointer hit testing.
+- Captures cancel on drag-out, invalid targets, focus loss and Pause/Stop; consumed gestures remain quarantined until release. Prime Start/Resume so paused input is not replayed. Neutral Step never dispatches UI.
+- See docs/superpowers/specs/2026-09-07-v0.10-ui-button-design.md. ButtonShowcase is a click-counter demonstration; Game/ contains the separate 10-05b combat slice.
+
+## v0.10 Combat and snapshot constraints
+
+- Game/Scripts/Combat.lua owns fixed battle rules; Engine must not define Card/Health or game-specific state.
+- Diagnostics.publish_snapshot atomically replaces one bounded scalar map per ScriptEngine. Reads never execute Lua or traverse arbitrary script tables. RuntimeExecution supplies the run UUID and publication frame; RuntimeSession reuses that identity.
+- Invalid publication preserves the previous value. Stop/startup failure clears values; Faulted retains the last publication with attempted-frame metadata. Snapshots are transient and never enter Scene serialization, commands or dirty/history.
+- engine://runtime/snapshot is RuntimeRead through the existing owner-thread dispatcher and permission path. Unknown fields/old runtime IDs fail; no MCP input injection.
+- CombatVerification.scene calls the same game rule function during neutral Update/Step; it validates rules and observation, separately from pointer/keyboard UI tests.
+- See docs/superpowers/specs/2026-09-07-v0.10-playable-combat-design.md and docs/verification/2026-09-07-v0.10-playable-combat.md.

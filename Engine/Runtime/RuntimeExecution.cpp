@@ -8,18 +8,25 @@
 
 namespace Janus
 {
-RuntimeExecution::RuntimeExecution(const InputState& initialInput) : m_Input(initialInput) {}
-
-Result<std::unique_ptr<RuntimeExecution>> RuntimeExecution::Create(Scene& scene,
-                                                                   AssetService& assets,
-                                                                   const InputState& initialInput,
-                                                                   const InputBindings& bindings)
+RuntimeExecution::RuntimeExecution(Scene& scene, const InputState& initialInput,
+                                   Viewport logicalViewport)
+    : m_Scene(scene), m_LogicalViewport(logicalViewport), m_Input(initialInput)
 {
-    auto execution = std::unique_ptr<RuntimeExecution>(new RuntimeExecution(initialInput));
+    m_UI.Prime(initialInput);
+}
+
+Result<std::unique_ptr<RuntimeExecution>>
+RuntimeExecution::Create(Scene& scene, AssetService& assets, const InputState& initialInput,
+                         const InputBindings& bindings, Viewport logicalViewport)
+{
+    auto execution = std::unique_ptr<RuntimeExecution>(
+        new RuntimeExecution(scene, initialInput, logicalViewport));
+    execution->m_Animations = std::make_unique<AnimationSystem>(scene, assets);
     auto scripts = ScriptEngine::Create(scene, assets, execution->m_Input, bindings);
     if (!scripts)
         return Result<std::unique_ptr<RuntimeExecution>>::Failure(scripts.GetError());
     execution->m_ScriptEngine = std::move(scripts).Value();
+    execution->m_ScriptEngine->SetAnimations(execution->m_Animations.get());
     return Result<std::unique_ptr<RuntimeExecution>>::Success(std::move(execution));
 }
 
@@ -33,30 +40,70 @@ RuntimeExecution::~RuntimeExecution()
 
 Result<void> RuntimeExecution::Start()
 {
-    return m_ScriptEngine->Start();
+    if (IsRunning())
+        return Result<void>::Failure(ErrorCode::InvalidState, "Runtime is already started.");
+    m_RuntimeId = UUID::Random();
+    m_FrameIndex = 0;
+    m_ScriptEngine->SetSnapshotContext(m_RuntimeId, 0);
+    auto animations = m_Animations->Start();
+    if (!animations)
+        return animations;
+    auto scripts = m_ScriptEngine->Start();
+    if (!scripts)
+        m_Animations->Stop();
+    return scripts;
 }
 
 Result<void> RuntimeExecution::Advance(TimeStep timeStep, const InputState& input,
-                                       ScriptReloadPolicy reload)
+                                       ScriptReloadPolicy reload, bool dispatchUI)
 {
     if (!std::isfinite(timeStep.GetSeconds()))
         return Result<void>::Failure(ErrorCode::InvalidArgument, "Invalid runtime timestep.");
     if (!IsRunning())
         return Result<void>::Failure(ErrorCode::InvalidState,
                                      "Runtime execution must be started before Advance.");
-    m_Input = input;
+    std::vector<UUID> clicks;
+    if (dispatchUI)
+    {
+        auto layout = UILayout::Build(m_Scene, m_LogicalViewport, m_Animations.get());
+        if (!layout)
+            return Result<void>::Failure(layout.GetError());
+        auto routed = m_UI.Process(m_Scene, layout.Value(), input);
+        m_Input = std::move(routed.gameplay);
+        clicks = std::move(routed.clicks);
+    }
+    else
+    {
+        m_UI.Cancel();
+        m_Input = input;
+    }
+    // Publications during reload, clicks and Update share the attempted simulation frame.
+    m_ScriptEngine->SetSnapshotContext(m_RuntimeId, ++m_FrameIndex);
     if (reload == ScriptReloadPolicy::CheckForChanges)
     {
         auto reloaded = m_ScriptEngine->ReloadChangedScripts();
         if (!reloaded)
             return reloaded;
     }
-    return m_ScriptEngine->Update(timeStep);
+    for (const auto id : clicks)
+    {
+        auto dispatched = m_ScriptEngine->DispatchButtonClick(id);
+        if (!dispatched)
+            return dispatched;
+    }
+    auto updated = m_ScriptEngine->Update(timeStep);
+    if (!updated)
+        return updated;
+    return m_Animations->Advance(timeStep);
 }
 
 Result<void> RuntimeExecution::Stop()
 {
-    return m_ScriptEngine ? m_ScriptEngine->Stop() : Result<void>::Success();
+    m_UI.Cancel();
+    auto result = m_ScriptEngine ? m_ScriptEngine->Stop() : Result<void>::Success();
+    if (m_Animations)
+        m_Animations->Stop();
+    return result;
 }
 
 bool RuntimeExecution::IsRunning() const noexcept
@@ -67,5 +114,9 @@ bool RuntimeExecution::IsRunning() const noexcept
 usize RuntimeExecution::InstanceCount() const noexcept
 {
     return m_ScriptEngine ? m_ScriptEngine->InstanceCount() : 0;
+}
+std::optional<ScriptSnapshot> RuntimeExecution::GetSnapshot() const
+{
+    return m_ScriptEngine ? m_ScriptEngine->GetSnapshot() : std::nullopt;
 }
 } // namespace Janus

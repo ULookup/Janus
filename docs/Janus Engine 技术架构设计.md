@@ -1784,3 +1784,17 @@ Engine/UI 持有可反射的 Canvas/UIRect/Panel/Image 作者态定义，UILayou
 ## v0.10 / 10-04b Text 实现补充
 
 Asset 增加 Font v1 离线图集/Unicode 字形度量，CPU 缓存复用 AssetCache，atlas 纹理由既有 AssetService/Renderer2D 管理。TextLayout 负责有界 UTF-8、换行、按行对齐和矩形/UV 裁剪，SceneRenderer 在稳定 UI 顺序中提交字形。Text 贯通 Reflection/Scene v1/Clone/Command/Inspector/MCP；Lua get_text/set_text 通过既有共享 RuntimeExecution 修改运行 Scene。AssetRegistry::Search 与 ProjectRead 分类的 MCP assets.search 提供稳定、有界的只读资产发现。详见[专项设计](superpowers/specs/2026-09-07-v0.10-ui-text-design.md)及[本地验收](verification/2026-09-07-v0.10-ui-text.md)。不新增运行时字体依赖；Button、事件消费和单局玩法仍属于 10-05。
+
+## v0.10 / 10-05a Button 实现补充
+
+RuntimeExecution 拥有 UIInteraction 的临时焦点/捕获状态，布局收集 UUID 事件后先消费输入，再通过 ScriptEngine 调用同实体固定 OnClick，随后执行 OnUpdate。Button 作者态仍通过 active Reflection、Scene v1、Clone、共享 Command、Inspector/MCP；Renderer 只读交互状态生成按钮颜色，Core 仅提供有界事件记录及通用输入过滤。Start/Resume 不重放旧输入，Paused Step 不派发 UI。详见[设计](superpowers/specs/2026-09-07-v0.10-ui-button-design.md)和[验收](verification/2026-09-07-v0.10-ui-button.md)。10-05b 玩法与结构化快照尚未实现。
+
+
+## v0.10 / 10-05b Combat 与诊断快照实现补充
+
+Game/ 是复用共享 Runtime 和既有 UI 的独立磁盘游戏项目，固定卡牌规则完全位于 Lua。ScriptEngine 缓存脚本显式发布的有界平坦标量映射，RuntimeExecution 赋运行 UUID/发布帧，RuntimeSession 使用同一身份；Application/RuntimeSession 暴露相同只读快照。MCP 的 engine://runtime/snapshot 经 RuntimeRead 和主线程权限链读取缓存，不调用 Lua。Stop 清理，Faulted 保留最后原子发布及失败帧状态；不改 Scene 作者态或 neutral Step。见[设计](superpowers/specs/2026-09-07-v0.10-playable-combat-design.md)和[验收](verification/2026-09-07-v0.10-playable-combat.md)。上方 10-05b 尚未实现的表述为历史状态；Animation/Audio/Physics/Prefab 仍未由本包实现。
+
+
+## v0.10 / 10-06 Animation 实现补充
+
+RuntimeExecution 在 Lua 初始化前启动 AnimationSystem，在每帧 Lua Update 后推进动画。AnimationClip 是 AssetCache/AssetService 管理的 CPU 帧表，使用注册 Texture atlas；AnimationSystem 以实体 UUID 持有独立 Clip 副本、游标和 pose。Animator 的 clip/enabled/playOnStart/speed 通过 active Reflection、Scene v1 与共享命令保存；Renderer/UILayout 只读运行时 pose 覆盖纹理/UV，不改作者态。循环使用总时长取余；明确 Play/Switch 才重启，Stop 恢复基础显示，非循环结束保留最后帧。两个宿主共享此执行顺序，Pause 不推进，neutral Step 固定 1/60 且不自动重载。布局可接收同一可选 AnimationSystem，使只有动画纹理的 Image 也参与绘制/命中顺序。见[设计](superpowers/specs/2026-09-07-v0.10-animation-design.md)与[验收](verification/2026-09-07-v0.10-animation.md)。上方 Animation 未实现属于历史状态；Fixed Update/Physics、Audio 和 Prefab 仍待后续包。
