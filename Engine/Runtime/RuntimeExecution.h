@@ -7,6 +7,7 @@
 #include "Core/Input/InputState.h"
 #include "Core/Time/TimeStep.h"
 #include "Diagnostics/ScriptSnapshot.h"
+#include "Physics/PhysicsSystem.h"
 #include "UI/UIInteraction.h"
 
 #include <memory>
@@ -70,6 +71,10 @@ class RuntimeExecution final
     {
         m_Audio->SetSuspended(suspended);
     }
+    [[nodiscard]] const PhysicsSystem& GetPhysics() const noexcept
+    {
+        return *m_Physics;
+    }
     [[nodiscard]] const AudioSystem& GetAudio() const noexcept
     {
         return *m_Audio;
@@ -91,6 +96,7 @@ class RuntimeExecution final
     // Scripts borrow animations during callbacks, so they must be destroyed first.
     std::unique_ptr<AnimationSystem> m_Animations;
     std::unique_ptr<AudioSystem> m_Audio;
+    std::unique_ptr<PhysicsSystem> m_Physics;
     std::unique_ptr<ScriptEngine> m_ScriptEngine;
     UUID m_RuntimeId;
     u64 m_FrameIndex = 0;

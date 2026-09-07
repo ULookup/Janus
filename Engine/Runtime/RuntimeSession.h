@@ -18,6 +18,7 @@ class ReflectionRegistry;
 class Scene;
 class RuntimeExecution;
 class AnimationSystem;
+class PhysicsSystem;
 enum class RuntimeState
 {
     Stopped,
@@ -62,6 +63,7 @@ class RuntimeSession final
     [[nodiscard]] const UIInteractionState& GetUIState() const noexcept;
     [[nodiscard]] RuntimeStatus GetStatus() const;
     [[nodiscard]] std::optional<ScriptSnapshot> GetSnapshot() const;
+    [[nodiscard]] const PhysicsSystem& GetPhysics() const noexcept;
     [[nodiscard]] const AudioSystem& GetAudio() const noexcept;
     [[nodiscard]] const AnimationSystem& GetAnimations() const noexcept;
     [[nodiscard]] Scene& GetScene() noexcept;

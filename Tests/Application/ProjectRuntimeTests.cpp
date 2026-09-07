@@ -1075,3 +1075,62 @@ TEST_CASE("Animation showcase Play Stop Switch matches Application and Editor fr
     REQUIRE(project->StopRuntime());
     CHECK_FALSE(project->IsDirty());
 }
+
+TEST_CASE("Physics showcase matches Application and Editor snapshots frame for frame",
+          "[physics][application]")
+{
+    RuntimeTestState state;
+    state.frameEvents.resize(180);
+    class Client final : public Janus::ApplicationClient
+    {
+      public:
+        Janus::Result<void> OnInitialize(Janus::Application&) override
+        {
+            return Janus::Result<void>::Success();
+        }
+        void OnUpdate(Janus::TimeStep step, Janus::Application&) override
+        {
+            steps.push_back(step);
+        }
+        std::vector<Janus::TimeStep> steps;
+    } client;
+    const auto root = std::filesystem::path(JANUS_TEST_SOURCE_DIR).parent_path() / "Game";
+    Janus::ProjectRuntimeConfig projectConfig{root};
+    projectConfig.startupScenePath = "Scenes/PhysicsShowcase.scene";
+    Janus::ApplicationConfig config;
+    config.project = projectConfig;
+    auto app = Janus::Detail::ApplicationTestAccess::Create(config, MakeDependencies(state));
+    std::vector<Janus::ScriptSnapshot> snapshots;
+    state.onPresent = [&]
+    {
+        REQUIRE(app->GetSnapshot());
+        snapshots.push_back(*app->GetSnapshot());
+        if (snapshots.size() == state.frameEvents.size())
+            app->RequestExit();
+    };
+    auto result = app->Run(client);
+    INFO((result ? "success" : result.GetError().message));
+    REQUIRE(result);
+    REQUIRE(snapshots.size() == 180);
+    const auto& last = snapshots.back().fields;
+    CHECK(std::get<double>(last.at("collisions")) >= 1);
+    CHECK(std::get<double>(last.at("triggerEnters")) == 1);
+    CHECK(std::get<double>(last.at("triggerExits")) == 1);
+    CHECK(std::get<double>(last.at("bodies")) == 5);
+    CHECK(std::get<bool>(last.at("rayFloor")));
+    CHECK(std::get<double>(last.at("y")) == Catch::Approx(0).margin(0.03));
+    Janus::Test::FakeRenderDevice device;
+    auto renderer = Janus::Detail::Renderer2DTestAccess::Create(device);
+    auto opened = Janus::Editor::ProjectSession::Open(projectConfig, *renderer);
+    REQUIRE(opened);
+    auto project = std::move(opened).Value();
+    Janus::InputState input;
+    REQUIRE(project->StartRuntime(input));
+    for (Janus::usize i = 0; i < snapshots.size(); ++i)
+    {
+        REQUIRE(project->UpdateRuntime(client.steps[i]));
+        REQUIRE(project->GetRuntimeSession()->GetSnapshot()->fields == snapshots[i].fields);
+    }
+    REQUIRE(project->StopRuntime());
+    CHECK_FALSE(project->IsDirty());
+}

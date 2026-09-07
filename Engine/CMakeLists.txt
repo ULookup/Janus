@@ -56,6 +56,8 @@ target_sources(
         Scripting/ScriptEngine.cpp
         Runtime/RuntimeSession.cpp
         Runtime/RuntimeExecution.cpp
+        Physics/PhysicsSystem.cpp
+        Physics/PhysicsReflection.cpp
         Audio/AudioSystem.cpp
         Audio/AudioReflection.cpp
         Asset/Loader/AudioClipLoader.cpp
@@ -100,6 +102,8 @@ target_sources(
         Asset/AudioClip.h
         Audio/AudioDevice.h
         Audio/AudioSourceComponent.h
+        Physics/PhysicsSystem.h
+        Physics/PhysicsComponents.h
         Audio/AudioSystem.h
         Core/Base.h
         Core/Types.h
@@ -223,6 +227,7 @@ target_link_libraries(
         glm::glm
         nlohmann_json::nlohmann_json
         JanusLua
+        box2d
 
     PUBLIC
 

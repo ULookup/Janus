@@ -15,6 +15,8 @@ class Scene;
 namespace SceneReflectionIds
 {
 
+inline constexpr ComponentTypeId RigidBody2D = MakeComponentTypeId("RigidBody2D");
+inline constexpr ComponentTypeId Collider2D = MakeComponentTypeId("Collider2D");
 inline constexpr ComponentTypeId AudioSource = MakeComponentTypeId("AudioSource");
 inline constexpr ComponentTypeId Animator = MakeComponentTypeId("Animator");
 inline constexpr ComponentTypeId Canvas = MakeComponentTypeId("Canvas");

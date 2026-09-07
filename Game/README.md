@@ -124,4 +124,32 @@ The FakeRenderDevice host is test-only. No production headless or MCP input inje
 Font files are copies of the existing project-authored [demo font](Fonts/README.md).
 After regenerating the Sandbox font, copy its JSON and PNG into Game/Fonts as well.
 No new dependencies, downloaded artwork, or licensing changes are involved.
-Physics, Prefab, integrated v0.10 acceptance and a full Roguelike remain later work packages.
+Prefab, integrated v0.10 acceptance and a full Roguelike remain later work packages.
+
+
+## Physics showcase (10-08)
+
+Open `Scenes/PhysicsShowcase.scene` in the Editor and Play. The left robot falls
+through a checkpoint onto the floor; the right robot is removed when it touches
+the collector. The left platform moves kinematically. Space applies an upward
+impulse, Enter teleports the player back to its initial pose and clears velocity.
+The physical boxes match the sprite rectangles, in metres at 64 pixels/metre.
+
+For an independent application, set a copied project's `defaultScene` to this
+scene or supply `ProjectRuntimeConfig.startupScenePath`; the default combat scene
+is preserved. Paused Step runs one neutral 1/60-second physics tick.
+
+The existing `engine://runtime/snapshot` reports tick, droppedSeconds, bodies,
+x/y, vx/vy, collisions, triggerEnters/Exits and rayFloor. Update publishes the prior
+completed tick, so 180 Steps report tick=179, one checkpoint entry/exit, floor
+contact, five remaining bodies, and player y approximately zero. Stop/Play restores
+all six authored bodies and resets counters.
+
+```powershell
+python Tests/MCP/physics_external_e2e.py --host out/build/windows-msvc-debug-tests/Tests/JanusMcpExternalHost.exe --project Game --era modern
+python Tests/MCP/physics_external_e2e.py --host out/build/windows-msvc-debug-tests/Tests/JanusMcpExternalHost.exe --project Game --era legacy
+```
+
+Only root unit-scale rectangular bodies are supported in this slice. Physics
+configuration is authored before Play; changes to active body/shape settings fail
+explicitly. Lua runtime methods and full limits are specified in the physics design.

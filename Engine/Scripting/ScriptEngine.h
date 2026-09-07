@@ -18,6 +18,8 @@ class InputState;
 class Scene;
 class AnimationSystem;
 class AudioSystem;
+class PhysicsSystem;
+struct PhysicsEvent;
 
 class ScriptEngine final
 {
@@ -45,6 +47,9 @@ public:
 
 private:
   friend class RuntimeExecution;
+  [[nodiscard]] Result<void> DispatchPhysicsEvent(const PhysicsEvent& event);
+  [[nodiscard]] Result<void> DestroyPhysicsEntity(UUID entity);
+  void SetPhysics(PhysicsSystem* physics);
   void SetAudio(AudioSystem* audio);
   void SetAnimations(AnimationSystem* animations);
   void SetSnapshotContext(UUID runtimeId, u64 frameIndex);

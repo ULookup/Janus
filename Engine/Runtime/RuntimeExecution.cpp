@@ -24,10 +24,12 @@ RuntimeExecution::Create(Scene& scene, AssetService& assets, const InputState& i
         new RuntimeExecution(scene, initialInput, logicalViewport));
     execution->m_Animations = std::make_unique<AnimationSystem>(scene, assets);
     execution->m_Audio = std::make_unique<AudioSystem>(scene, assets, std::move(audioFactory));
+    execution->m_Physics = std::make_unique<PhysicsSystem>(scene);
     auto scripts = ScriptEngine::Create(scene, assets, execution->m_Input, bindings);
     if (!scripts)
         return Result<std::unique_ptr<RuntimeExecution>>::Failure(scripts.GetError());
     execution->m_ScriptEngine = std::move(scripts).Value();
+    execution->m_ScriptEngine->SetPhysics(execution->m_Physics.get());
     execution->m_ScriptEngine->SetAudio(execution->m_Audio.get());
     execution->m_ScriptEngine->SetAnimations(execution->m_Animations.get());
     return Result<std::unique_ptr<RuntimeExecution>>::Success(std::move(execution));
@@ -58,9 +60,17 @@ Result<void> RuntimeExecution::Start(bool audioSuspended)
         m_Animations->Stop();
         return audio;
     }
+    auto physics = m_Physics->Start();
+    if (!physics)
+    {
+        m_Audio->Stop();
+        m_Animations->Stop();
+        return physics;
+    }
     auto scripts = m_ScriptEngine->Start();
     if (!scripts)
     {
+        m_Physics->Stop();
         m_Audio->Stop();
         m_Animations->Stop();
     }
@@ -118,6 +128,12 @@ Result<void> RuntimeExecution::Advance(TimeStep timeStep, const InputState& inpu
     auto updated = m_ScriptEngine->Update(timeStep);
     if (!updated)
         return updated;
+    auto physics = m_Physics->Advance(
+        timeStep,
+        [this](const PhysicsEvent& event) { return m_ScriptEngine->DispatchPhysicsEvent(event); },
+        [this](UUID entity) { return m_ScriptEngine->DestroyPhysicsEntity(entity); });
+    if (!physics)
+        return physics;
     auto animated = m_Animations->Advance(timeStep);
     if (!animated)
         return animated;
@@ -132,6 +148,8 @@ Result<void> RuntimeExecution::Stop()
     if (m_Audio)
         m_Audio->SetSuspended(true);
     auto result = m_ScriptEngine ? m_ScriptEngine->Stop() : Result<void>::Success();
+    if (m_Physics)
+        m_Physics->Stop();
     if (m_Audio)
         m_Audio->Stop();
     if (m_Animations)
