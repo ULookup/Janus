@@ -39,6 +39,17 @@ struct ImageComponent
     bool enabled = true;
 };
 
+// OnClick is the fixed callback on this entity's enabled LuaScript.
+struct ButtonComponent
+{
+    bool enabled = true;
+    bool interactable = true;
+    ColorValue color{0.15f, 0.25f, 0.4f, 1};
+    ColorValue focusedColor{0.25f, 0.5f, 0.8f, 1};
+    ColorValue pressedColor{0.1f, 0.65f, 0.55f, 1};
+    ColorValue disabledColor{0.25f, 0.25f, 0.25f, 1};
+};
+
 struct TextComponent
 {
     AssetReferenceValue font;

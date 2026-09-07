@@ -8,14 +8,19 @@
 
 namespace Janus
 {
-RuntimeExecution::RuntimeExecution(const InputState& initialInput) : m_Input(initialInput) {}
-
-Result<std::unique_ptr<RuntimeExecution>> RuntimeExecution::Create(Scene& scene,
-                                                                   AssetService& assets,
-                                                                   const InputState& initialInput,
-                                                                   const InputBindings& bindings)
+RuntimeExecution::RuntimeExecution(Scene& scene, const InputState& initialInput,
+                                   Viewport logicalViewport)
+    : m_Scene(scene), m_LogicalViewport(logicalViewport), m_Input(initialInput)
 {
-    auto execution = std::unique_ptr<RuntimeExecution>(new RuntimeExecution(initialInput));
+    m_UI.Prime(initialInput);
+}
+
+Result<std::unique_ptr<RuntimeExecution>>
+RuntimeExecution::Create(Scene& scene, AssetService& assets, const InputState& initialInput,
+                         const InputBindings& bindings, Viewport logicalViewport)
+{
+    auto execution = std::unique_ptr<RuntimeExecution>(
+        new RuntimeExecution(scene, initialInput, logicalViewport));
     auto scripts = ScriptEngine::Create(scene, assets, execution->m_Input, bindings);
     if (!scripts)
         return Result<std::unique_ptr<RuntimeExecution>>::Failure(scripts.GetError());
@@ -37,25 +42,46 @@ Result<void> RuntimeExecution::Start()
 }
 
 Result<void> RuntimeExecution::Advance(TimeStep timeStep, const InputState& input,
-                                       ScriptReloadPolicy reload)
+                                       ScriptReloadPolicy reload, bool dispatchUI)
 {
     if (!std::isfinite(timeStep.GetSeconds()))
         return Result<void>::Failure(ErrorCode::InvalidArgument, "Invalid runtime timestep.");
     if (!IsRunning())
         return Result<void>::Failure(ErrorCode::InvalidState,
                                      "Runtime execution must be started before Advance.");
-    m_Input = input;
+    std::vector<UUID> clicks;
+    if (dispatchUI)
+    {
+        auto layout = UILayout::Build(m_Scene, m_LogicalViewport);
+        if (!layout)
+            return Result<void>::Failure(layout.GetError());
+        auto routed = m_UI.Process(m_Scene, layout.Value(), input);
+        m_Input = std::move(routed.gameplay);
+        clicks = std::move(routed.clicks);
+    }
+    else
+    {
+        m_UI.Cancel();
+        m_Input = input;
+    }
     if (reload == ScriptReloadPolicy::CheckForChanges)
     {
         auto reloaded = m_ScriptEngine->ReloadChangedScripts();
         if (!reloaded)
             return reloaded;
     }
+    for (const auto id : clicks)
+    {
+        auto dispatched = m_ScriptEngine->DispatchButtonClick(id);
+        if (!dispatched)
+            return dispatched;
+    }
     return m_ScriptEngine->Update(timeStep);
 }
 
 Result<void> RuntimeExecution::Stop()
 {
+    m_UI.Cancel();
     return m_ScriptEngine ? m_ScriptEngine->Stop() : Result<void>::Success();
 }
 

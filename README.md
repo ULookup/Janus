@@ -36,7 +36,7 @@ ctest --preset windows-msvc-debug-tests
 
 ## v0.10 Stage A：Project Settings + Action Input
 
-10-03 共享 Runtime 已通过 PR #83 合入 main（`c71ad50`），[验收记录](docs/verification/2026-09-07-v0.10-shared-runtime.md)。10-04a UI 布局的 PR #84 已合入其 shared-runtime 父分支，尚未进入该 main 基线，[验收记录](docs/verification/2026-09-07-v0.10-ui-layout.md)。10-04b Text/离线字体图集、Lua 文本更新、Inspector 多行编辑、Font 赋值和 MCP `assets.search` 已在 `codex/v0.10-ui-text` 本地实现；试用与验证见[Text 验收记录](docs/verification/2026-09-07-v0.10-ui-text.md)。下一包为 10-05a Button/事件/输入消费。
+10-03 共享 Runtime 已通过 PR #83 合入 main（`c71ad50`），[验收记录](docs/verification/2026-09-07-v0.10-shared-runtime.md)。10-04a UI 布局的 PR #84 已合入其 shared-runtime 父分支，尚未进入该 main 基线，[验收记录](docs/verification/2026-09-07-v0.10-ui-layout.md)。10-04b Text/离线字体图集、Lua 文本更新、Inspector 多行编辑、Font 赋值和 MCP `assets.search` 已在 `codex/v0.10-ui-text` 本地实现；试用与验证见[Text 验收记录](docs/verification/2026-09-07-v0.10-ui-text.md)。10-05a Button/事件/输入消费和计数菜单已本地实现，下一包为 10-05b 战斗/结构化快照。
 
 当前开发切片增加 `project.json` 和 Editor 底部的 **Project Settings** 标签，可配置默认 Scene、资源路径、游戏分辨率、VSync、Target FPS 和多个按键到 Action 的映射。没有 manifest 的旧项目仍使用原路径；非法配置明确报错。SandboxProject 已提供示例配置。
 
@@ -292,3 +292,9 @@ Janus/
 - 行为变更必须配套自动测试和可复现验证。
 
 项目尚未选择开源 License。在明确 License 前，请不要假设代码可被重新分发或用于其他项目。
+
+## 10-05a Button 计数菜单（本地实现）
+
+`SandboxProject/Scenes/ButtonShowcase.scene` 演示两个计数按钮、禁用状态与 Lua `OnClick(self)`。在项目副本的 `project.json` 中将 `defaultScene` 设为 `Scenes/ButtonShowcase.scene`，用 `JanusSandbox.exe <项目副本路径>` 或 `JanusEditor.exe --project <项目副本路径>` 打开。Editor 在 Game View 中 Play 后点击；Up/Down 选按钮，Enter/Space 确认，拖出取消，Stop 恢复作者态计数。Button 的启用状态和四种颜色可在 Inspector 编辑并撤销；相同字段也支持 MCP 场景工具。
+
+这完成 10-05a 点击计数切片；10-05b 战斗、胜负/重开与结构化游戏快照仍为下一包。见[设计](docs/superpowers/specs/2026-09-07-v0.10-ui-button-design.md)与[验收](docs/verification/2026-09-07-v0.10-ui-button.md)。

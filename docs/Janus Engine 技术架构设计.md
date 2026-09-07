@@ -1784,3 +1784,7 @@ Engine/UI 持有可反射的 Canvas/UIRect/Panel/Image 作者态定义，UILayou
 ## v0.10 / 10-04b Text 实现补充
 
 Asset 增加 Font v1 离线图集/Unicode 字形度量，CPU 缓存复用 AssetCache，atlas 纹理由既有 AssetService/Renderer2D 管理。TextLayout 负责有界 UTF-8、换行、按行对齐和矩形/UV 裁剪，SceneRenderer 在稳定 UI 顺序中提交字形。Text 贯通 Reflection/Scene v1/Clone/Command/Inspector/MCP；Lua get_text/set_text 通过既有共享 RuntimeExecution 修改运行 Scene。AssetRegistry::Search 与 ProjectRead 分类的 MCP assets.search 提供稳定、有界的只读资产发现。详见[专项设计](superpowers/specs/2026-09-07-v0.10-ui-text-design.md)及[本地验收](verification/2026-09-07-v0.10-ui-text.md)。不新增运行时字体依赖；Button、事件消费和单局玩法仍属于 10-05。
+
+## v0.10 / 10-05a Button 实现补充
+
+RuntimeExecution 拥有 UIInteraction 的临时焦点/捕获状态，布局收集 UUID 事件后先消费输入，再通过 ScriptEngine 调用同实体固定 OnClick，随后执行 OnUpdate。Button 作者态仍通过 active Reflection、Scene v1、Clone、共享 Command、Inspector/MCP；Renderer 只读交互状态生成按钮颜色，Core 仅提供有界事件记录及通用输入过滤。Start/Resume 不重放旧输入，Paused Step 不派发 UI。详见[设计](superpowers/specs/2026-09-07-v0.10-ui-button-design.md)和[验收](verification/2026-09-07-v0.10-ui-button.md)。10-05b 玩法与结构化快照尚未实现。

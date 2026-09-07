@@ -1058,6 +1058,27 @@ Result<void> ScriptEngine::Update(TimeStep timeStep)
     return m_Impl->UpdateInstances(timeStep);
 }
 
+Result<void> ScriptEngine::DispatchButtonClick(UUID entityId)
+{
+    if (!m_Impl->running)
+        return Result<void>::Failure(ErrorCode::InvalidState,
+                                     "Button dispatch requires running scripts.");
+    auto reconciled = m_Impl->Reconcile();
+    if (!reconciled)
+        return reconciled;
+    const auto entity = m_Impl->scene.FindEntity(entityId);
+    if (!entity.IsValid())
+        return Result<void>::Success();
+    const auto* button = m_Impl->scene.GetComponent<ButtonComponent>(entity);
+    const auto* script = m_Impl->scene.GetComponent<LuaScriptComponent>(entity);
+    if (!button || !button->enabled || !button->interactable || !script || !script->enabled)
+        return Result<void>::Success();
+    auto instance = m_Impl->instances.find(entityId);
+    if (instance == m_Impl->instances.end())
+        return Result<void>::Success();
+    return m_Impl->CallCallback(instance->second, "OnClick");
+}
+
 Result<void> ScriptEngine::Stop()
 {
     if (!m_Impl->running)

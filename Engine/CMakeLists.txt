@@ -58,6 +58,7 @@ target_sources(
         Runtime/RuntimeExecution.cpp
         Asset/Loader/FontLoader.cpp
         Asset/Loader/FontLoader.h
+        UI/UIInteraction.cpp
         UI/TextLayout.cpp
         UI/UILayout.cpp
         UI/UIReflection.cpp
@@ -147,6 +148,7 @@ target_sources(
         Runtime/RuntimeSession.h
         Runtime/RuntimeExecution.h
         Asset/FontAsset.h
+        UI/UIInteraction.h
         UI/TextLayout.h
         UI/UIComponents.h
         UI/UILayout.h

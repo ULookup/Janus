@@ -136,6 +136,11 @@ Result<void*> GetMutableComponent(
         if (auto* value = scene.GetComponent<TextComponent>(entity); value != nullptr)
             return Result<void*>::Success(value);
     }
+    else if (component == Button)
+    {
+        if (auto* value = scene.GetComponent<ButtonComponent>(entity); value != nullptr)
+            return Result<void*>::Success(value);
+    }
     else
     {
         return Result<void*>::Failure(
@@ -184,6 +189,8 @@ Result<bool> HasBoundComponent(
         return Result<bool>::Success(scene.HasComponent<ImageComponent>(entity));
     if (component == Text)
         return Result<bool>::Success(scene.HasComponent<TextComponent>(entity));
+    if (component == Button)
+        return Result<bool>::Success(scene.HasComponent<ButtonComponent>(entity));
 
     return Result<bool>::Failure(
         ErrorCode::InvalidArgument,
@@ -255,6 +262,11 @@ Result<const void*> GetConstComponent(
     else if (component == Text)
     {
         if (const auto* value = scene.GetComponent<TextComponent>(entity); value != nullptr)
+            return Result<const void*>::Success(value);
+    }
+    else if (component == Button)
+    {
+        if (const auto* value = scene.GetComponent<ButtonComponent>(entity); value != nullptr)
             return Result<const void*>::Success(value);
     }
     else
@@ -998,6 +1010,10 @@ Result<void> SceneReflection::AddComponent(
     {
         added = scene.AddComponent<TextComponent>(entity.Value(), TextComponent{});
     }
+    else if (component == Button)
+    {
+        added = scene.AddComponent<ButtonComponent>(entity.Value(), ButtonComponent{});
+    }
     else
     {
         return Result<void>::Failure(
@@ -1076,6 +1092,10 @@ Result<void> SceneReflection::RemoveComponent(
     else if (component == Text)
     {
         removed = scene.RemoveComponent<TextComponent>(entity.Value());
+    }
+    else if (component == Button)
+    {
+        removed = scene.RemoveComponent<ButtonComponent>(entity.Value());
     }
     else
     {

@@ -4,6 +4,7 @@
 #include "Core/Input/InputActions.h"
 #include "Core/Time/TimeStep.h"
 #include "Core/Types.h"
+#include "Core/UUID/UUID.h"
 
 #include <memory>
 
@@ -31,6 +32,7 @@ public:
   [[nodiscard]] Result<void> Start();
   [[nodiscard]] Result<void> ReloadChangedScripts();
   [[nodiscard]] Result<void> Update(TimeStep timeStep);
+  [[nodiscard]] Result<void> DispatchButtonClick(UUID entity);
   [[nodiscard]] Result<void> Stop();
 
   [[nodiscard]] bool IsRunning() const noexcept;

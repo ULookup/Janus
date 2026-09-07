@@ -18,6 +18,7 @@ struct UIBounds
 
 enum class UIDrawKind
 {
+    Button,
     Panel,
     Image,
     Text
@@ -32,8 +33,9 @@ struct UILayoutItem
 
 struct UILayoutResult
 {
-    // Preorder, then Panel, Image, then Text on the same entity. Never texture-sort.
+    // Preorder, then Button, Panel, Image, then Text on the same entity. Never texture-sort.
     std::vector<UILayoutItem> items;
+    UIBounds screen;
     [[nodiscard]] UUID HitTest(Vector2 point) const noexcept;
 };
 

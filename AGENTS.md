@@ -2,7 +2,7 @@
 
 ## Mission
 
-Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.10 Game Systems**. Stage A is integrated; 10-03 Shared Runtime is integrated in main at `c71ad50` (PR #83). 10-04a UI layout/images (PR #84) is merged into its shared-runtime parent branch but is not in that main baseline. Work package 10-04b Text/font assets is implemented locally on `codex/v0.10-ui-text`, which includes latest main and 10-04a. The next work package is 10-05a: Button/events and input consumption. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
+Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.10 Game Systems**. Stage A is integrated; 10-03 Shared Runtime is integrated in main at `c71ad50` (PR #83). 10-04a UI layout/images (PR #84) is merged into its shared-runtime parent branch but is not in that main baseline. Work package 10-04b Text/font assets is implemented locally on `codex/v0.10-ui-text`, which includes latest main and 10-04a. Text/font assets are submitted as PR #85 targeting main. Work package 10-05a Button/events and input consumption is implemented on `codex/v0.10-ui-buttons`, stacked above the Text branch. The next work package is 10-05b: playable combat and structured game snapshots. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
 
 This file applies to the entire repository. A more deeply nested `AGENTS.md` may add stricter rules for its subtree.
 
@@ -56,7 +56,7 @@ v0.8 MCP Agent Foundation is complete and is the capability baseline for v0.9.
 - UILayoutResult defines paint and reverse geometric hit order. UI batching combines only adjacent compatible sprites; world texture sorting must never reorder UI. CPU clipping adjusts both rectangles and UVs.
 - Renderer2D owns its lazy solid-color texture; overlay projection must be committed through UseShader before drawing. World and UI share one clear, target lifetime and cumulative statistics.
 - Reparent preserves local fields and restores parent UUID/sibling order on Undo. Human EditorActions and scene.reparent_entity use ReparentEntityCommand and ProjectSession guards. Root order remains UUID order.
-- UI preview is in Game View. Text and offline font assets are implemented by 10-04b; Button/events and the playable sample remain subsequent work. See docs/superpowers/specs/2026-09-07-v0.10-ui-layout-design.md and docs/superpowers/specs/2026-09-07-v0.10-ui-text-design.md.
+- UI preview is in Game View. Text and offline font assets are implemented by 10-04b; Button/events are implemented by 10-05a; the playable combat sample remains 10-05b. See docs/superpowers/specs/2026-09-07-v0.10-ui-layout-design.md and docs/superpowers/specs/2026-09-07-v0.10-ui-text-design.md.
 
 ## v0.10 Text constraints
 
@@ -149,3 +149,10 @@ A change is complete only when:
 - `git diff --check` reports no whitespace errors;
 - generated files remain ignored;
 - the final report names verification commands and any known limitations.
+
+## v0.10 Button constraints
+
+- UIInteraction is owned by RuntimeExecution; hover/focus/capture are transient and never serialized. Button uses shared Reflection/Command authoring and fixed same-entity Lua OnClick.
+- Consume UI input before Lua Update, dispatch UUID events on the owner thread, and preserve game release continuity. Do not replace ordered input with final-frame pointer hit testing.
+- Captures cancel on drag-out, invalid targets, focus loss and Pause/Stop; consumed gestures remain quarantined until release. Prime Start/Resume so paused input is not replayed. Neutral Step never dispatches UI.
+- See docs/superpowers/specs/2026-09-07-v0.10-ui-button-design.md. ButtonShowcase is a click-counter demonstration; combat rules and snapshots remain 10-05b.
