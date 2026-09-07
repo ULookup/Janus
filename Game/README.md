@@ -1,5 +1,7 @@
 # Janus Robot Card Arena / v0.10 integrated sample
 
+Status (2026-09-07): integrated into main `7ecdfb8` through PR #92; post-merge Windows CI passed 412/412. v0.10 is not released. Current implementation gaps and release gates are tracked in the [project status](../docs/project-status.md). This is a fixed-battle systems sample, not the completed v0.11 Roguelike.
+
 This disk-backed game uses the existing shared Runtime, Canvas, Text and Button APIs.
 All combat rules are in [Combat.lua](Scripts/Combat.lua); Engine contains no card or HP rules.
 
@@ -54,7 +56,7 @@ $env:SDL_AUDIO_DRIVER = 'dummy'
 
 The benchmark warms 180 frames and measures 720 frames at 1/60 s. Its fake backend measures
 CPU simulation/render submission, not GPU/present latency. See the [integrated verification](../docs/verification/2026-09-07-v0.10-integrated-acceptance.md)
-for results and local merge/release status. Editor's Profiler and `engine://profiler/latest-frame`
+for the original measurements; use project status for current merge/release information. Editor's Profiler and `engine://profiler/latest-frame`
 expose shared Runtime stages. Application's `GetProfiler()` returns completed CPU frame copies via `Latest()`.
 
 ## Audio
@@ -104,8 +106,12 @@ Pause freezes playback; Step advances 1/60 second; Stop restores authoring state
 The sample publishes `playing`, `animationFrame` and `elapsed` in the existing snapshot
 resource during Lua Update, before that frame's animation advance.
 
-`Animations/*.clip.json` are version 1 `animation-clip` assets. Animator is editable through
-Inspector or the same MCP component commands: add it disabled, assign a clip, then enable.
+`Animations/*.clip.json` are version 1 `animation-clip` assets. Animator enabled/playOnStart/speed
+are editable in Inspector. This branch adds a typed clip picker and an AnimationClip filter/assignment
+action in Asset Browser. To configure a new clip through the shared MCP commands, add Animator disabled, find a clip
+with `assets.search`, set component `Animator`, property `clip` to that asset UUID through
+`scene.set_component_property`, then set `enabled` to true. These commands remain Human-undoable.
+Inspector also provides a typed Image.texture picker. See the editor UI verification record for branch validation and remaining release gaps.
 `assets.search` accepts `type="animation-clip"`. Lua provides `play_animation([clip UUID])`,
 `stop_animation()` and `animation_state()` returning playing, zero-based frame and elapsed seconds.
 See the [animation design](../docs/superpowers/specs/2026-09-07-v0.10-animation-design.md).
@@ -162,20 +168,23 @@ The FakeRenderDevice host is test-only. No production headless or MCP input inje
 Font files are copies of the existing project-authored [demo font](Fonts/README.md).
 After regenerating the Sandbox font, copy its JSON and PNG into Game/Fonts as well.
 No new dependencies, downloaded artwork, or licensing changes are involved.
-Integrated v0.10 acceptance and a full Roguelike remain later work packages.
+Integrated v0.10 acceptance is merged. A full Roguelike, save data, multiple-scene gameplay
+and networking remain future product work.
 
 
 ## Physics showcase (10-08)
 
-Open `Scenes/PhysicsShowcase.scene` in the Editor and Play. The left robot falls
+To use `Scenes/PhysicsShowcase.scene`, copy Game, set the copy's `project.json.defaultScene`
+to that path, reopen the copied project in Editor and Play. The current Editor has no general
+scene-file switching UI. The left robot falls
 through a checkpoint onto the floor; the right robot is removed when it touches
 the collector. The left platform moves kinematically. Space applies an upward
 impulse, Enter teleports the player back to its initial pose and clears velocity.
 The physical boxes match the sprite rectangles, in metres at 64 pixels/metre.
 
 For an independent application, set a copied project's `defaultScene` to this
-scene or supply `ProjectRuntimeConfig.startupScenePath`; the default combat scene
-is preserved. Paused Step runs one neutral 1/60-second physics tick.
+scene or supply `ProjectRuntimeConfig.startupScenePath`; the original project's default
+Integrated scene is preserved. Paused Step runs one neutral 1/60-second physics tick.
 
 The existing `engine://runtime/snapshot` reports tick, droppedSeconds, bodies,
 x/y, vx/vy, collisions, triggerEnters/Exits and rayFloor. Update publishes the prior
@@ -195,7 +204,8 @@ explicitly. Lua runtime methods and full limits are specified in the physics des
 
 ## Prefab showcase (10-09)
 
-Open `Scenes/PrefabShowcase.scene` and Play to see two independent robot subtrees.
+In a Game copy, set `project.json.defaultScene` to `Scenes/PrefabShowcase.scene`, reopen
+that project and Play to see two independent robot subtrees.
 Each root owns SpriteRenderer, LuaScript and Animator; its Badge child retains local placement.
 Select `Prefabs/Robot.prefab` in Assets and click **Instantiate Prefab** to add another robot.
 Move the new root with Inspector to separate overlapping instances. **Undo** removes the whole

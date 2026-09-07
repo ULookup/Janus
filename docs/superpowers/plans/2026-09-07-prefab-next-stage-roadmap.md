@@ -1,5 +1,7 @@
 # v0.10 main 同步、Prefab 与下一阶段路线
 
+> 集成状态更新（2026-09-07，#92 合并后）：本文涉及的 v0.10 计划切片及综合示例均已进入 main `7ecdfb8`，合并后 CI 412/412 通过，尚未发布。以下分支、测试数量及“下一包/未提交/未合并”保留原记录时点；当前实现缺口与发布待办统一见[项目进度总表](../../project-status.md)。
+
 日期：2026-09-07。开始时在 main，工作区干净。执行 `git fetch origin` 和
 `git merge --ff-only origin/main`，本地/远端一致为 `b9b990b`，输出 Already up to date。
 随后创建 `codex/v0.10-prefab`，保留 main 作为集成基线。

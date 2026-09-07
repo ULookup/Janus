@@ -2,7 +2,7 @@
 
 ## Mission
 
-Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.10 Game Systems**. The integration baseline is origin/main `b9b990b` (fetched 2026-09-07), including UI/Button, Combat/Animation (#91 dependency chain), Audio (#89), and Physics (#90). **10-09 Prefab Foundation** and **10-10 integrated acceptance** are implemented in the `codex/v0.10-acceptance` integration branch, based on that main. See docs/superpowers/plans/2026-09-07-v0.10-integrated-acceptance.md and docs/verification/2026-09-07-v0.10-integrated-acceptance.md for current evidence. Earlier main/dependency-branch and next-stage descriptions are historical. Next is focused review/integration and release preparation, not a new unfinished subsystem. The integration review is recorded in docs/verification/2026-09-07-v0.10-integration-review.md; use Git/PR state for merge status. v0.10 is not released. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
+Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.10 Game Systems release preparation**. As verified on 2026-09-07, main / origin/main is `7ecdfb8`: PR #92 merged Prefab Foundation and integrated acceptance after the UI/Button, Combat/Animation, Audio and Physics dependency chain. Post-merge Windows CI passed 412/412 tests. **v0.10 is not released; v0.11 Production Demo is not complete.** Read [docs/project-status.md](docs/project-status.md) for the current implementation matrix, PRD gaps and release gates; dated plans/verification retain their original baselines. This branch adds the editor workspace upgrade, typed asset assignment and 40 vector icons; see docs/verification/2026-09-07-editor-icons.md. Remaining work includes unsaved-close protection, Release/target-device verification and release preparation, not an unimplemented Physics/Prefab subsystem. Do not silently change PRD scope or automatically begin v0.11. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
 
 This file applies to the entire repository. A more deeply nested `AGENTS.md` may add stricter rules for its subtree.
 
@@ -39,14 +39,14 @@ v0.8 MCP Agent Foundation is complete and is the capability baseline for v0.9.
 - ScriptEngine owns a snapshot of input bindings supplied by the host. Core input defines no game-specific action names and does not depend on JSON, Scene or Editor.
 - Action state aggregates bound keys across frame boundaries. Paused Step remains neutral input at 1/60 second. Native keyboard APIs remain compatible.
 - Editor gameplay input is limited to the displayed Game View; pointer coordinates use the project's logical resolution. Tool panels and letterboxing must not send gameplay input.
-- See docs/superpowers/specs/2026-09-06-v0.10-project-input-design.md for settings apply timing and scope. Stage A does not complete v0.10; shared execution is covered below, while fixed-tick scheduling and UI/game systems remain subsequent work.
+- See docs/superpowers/specs/2026-09-06-v0.10-project-input-design.md for settings apply timing and scope. Stage A alone does not complete v0.10; shared execution, fixed-tick Physics and UI/game systems are now integrated and specified below.
 
 ## v0.10 shared Runtime constraints
 
 - Managed Application and RuntimeSession use Engine/Runtime/RuntimeExecution for script startup, input snapshots, optional reload, update and shutdown. Do not add a second host-specific simulation path for new systems.
 - RuntimeExecution owns its stable InputState and ScriptEngine; the host owns Scene and AssetService and must keep them alive until execution teardown. It does not clone Scene or implement a host state machine.
 - Application preserves client.OnUpdate before simulation and client.OnShutdown before script shutdown. RuntimeSession preserves Clone, Faulted retention and RuntimeStatus; do not force the independent application to retain an Editor-style faulted world.
-- Paused Step passes neutral input, fixed 1/60 second and ScriptReloadPolicy::Skip. Invalid/stopped Advance must not overwrite the initial input snapshot or run scripts. Future fixed-tick scheduling remains a separate Physics design task.
+- Paused Step passes neutral input, fixed 1/60 second and ScriptReloadPolicy::Skip. Invalid/stopped Advance must not overwrite the initial input snapshot or run scripts. Fixed-tick scheduling is implemented by the separate Physics stage described below; it does not change neutral Step semantics.
 - See docs/superpowers/specs/2026-09-07-v0.10-shared-runtime-design.md and docs/verification/2026-09-07-v0.10-shared-runtime.md for the 10-03 boundary and validation. UI and the remaining v0.10 game systems are not implemented by this refactor.
 
 ## v0.10 UI layout constraints
@@ -56,7 +56,7 @@ v0.8 MCP Agent Foundation is complete and is the capability baseline for v0.9.
 - UILayoutResult defines paint and reverse geometric hit order. UI batching combines only adjacent compatible sprites; world texture sorting must never reorder UI. CPU clipping adjusts both rectangles and UVs.
 - Renderer2D owns its lazy solid-color texture; overlay projection must be committed through UseShader before drawing. World and UI share one clear, target lifetime and cumulative statistics.
 - Reparent preserves local fields and restores parent UUID/sibling order on Undo. Human EditorActions and scene.reparent_entity use ReparentEntityCommand and ProjectSession guards. Root order remains UUID order.
-- UI preview is in Game View. Text and offline font assets are implemented by 10-04b; Button/events are implemented by 10-05a; the playable combat sample remains 10-05b. See docs/superpowers/specs/2026-09-07-v0.10-ui-layout-design.md and docs/superpowers/specs/2026-09-07-v0.10-ui-text-design.md.
+- UI preview is in Game View. Text and offline font assets are implemented by 10-04b; Button/events are implemented by 10-05a; the integrated playable combat sample is described under 10-05b below. See docs/superpowers/specs/2026-09-07-v0.10-ui-layout-design.md and docs/superpowers/specs/2026-09-07-v0.10-ui-text-design.md.
 
 ## v0.10 Text constraints
 
@@ -194,7 +194,7 @@ A change is complete only when:
 - Native poses update RuntimeScene Transform only. Explicit Lua set_position teleports physical entities; velocities/impulses, accumulator, contacts and world ids never serialize or dirty authoring state.
 - Copy Box2D events after each solver step into sorted UUID pairs. Lua OnCollisionEnter/Exit and OnTriggerEnter/Exit run on the owner thread. Entity:destroy queues deletion; skip pending Update/physics callbacks, invoke OnDestroy while entities still exist, then remove Scene subtrees and native bodies even if a callback fails. OnDestroy may queue another batch for the next safe boundary.
 - Limits: 1024 bodies/pending requests, 4096 raw events per tick, finite bounded geometry/controls. Destroyed contacts cancel without synthetic exits. Raycasts use start/end, exclude triggers by default, and ignore initial overlaps per Box2D.
-- See docs/superpowers/specs/2026-09-07-v0.10-physics-design.md and docs/verification/2026-09-07-v0.10-physics.md. PhysicsShowcase is independent of combat. Prefab and integrated v0.10 acceptance remain outstanding.
+- See docs/superpowers/specs/2026-09-07-v0.10-physics-design.md and docs/verification/2026-09-07-v0.10-physics.md. PhysicsShowcase is independent of combat. Prefab and integrated v0.10 acceptance are merged in the current baseline; see the sections below.
 
 
 ## v0.10 Prefab constraints
@@ -205,7 +205,7 @@ A change is complete only when:
 - InstantiatePrefabCommand is one shared authoring command with bounded undo reservation. Redo restores the original immutable snapshot and UUIDs without disk reload. Reject multiple primary cameras and unsupported Canvas structures without changing existing entities.
 - ProjectSession exports a fresh UUID file then atomically saves registry metadata and publishes the in-memory registry. Failed registry save removes the fresh file; a process crash between writes may leave an unregistered orphan. Export is outside scene dirty/history and forbidden during Runtime/transactions/recovery.
 - Human EditorActions and MCP share ProjectSession guards. scene.export_prefab is SceneSave; scene.instantiate_prefab is SceneWrite through existing owner-thread dispatch. Game/Prefabs/Robot.prefab and PrefabShowcase demonstrate Sprite, Lua, Animator and child hierarchy.
-- See docs/superpowers/specs/2026-09-07-v0.10-prefab-design.md and docs/verification/2026-09-07-v0.10-prefab.md. Integrated v0.10 gameplay/device/performance acceptance remains 10-10.
+- See docs/superpowers/specs/2026-09-07-v0.10-prefab-design.md and docs/verification/2026-09-07-v0.10-prefab.md. Integrated v0.10 local gameplay/device/CPU acceptance is recorded under 10-10; Release/target-device performance validation remains pending.
 
 
 ## v0.10 integrated acceptance constraints
@@ -214,4 +214,5 @@ A change is complete only when:
 - IntegratedVerification.scene calls the same Game action entry on a deterministic schedule. Production scenes never synthesize gameplay input; MCP Step remains neutral.
 - RuntimeExecution borrows an optional host-owned CpuProfiler. UI, Reload, Lua, Physics, Animation and Audio scopes are CPU timings, including callback work within its owning stage. The recorder must outlive execution. Application profiling excludes event polling, client update, Present and pacing.
 - Game rendering uses logical project resolution for both world projection and UI, independently of render-target pixel dimensions. Scene View keeps its target-sized editor camera. Renderer2D accepts optional projectionViewport; zero dimensions fall back to target size.
-- 10-10 evidence is local acceptance, not a merge/release declaration. See the integrated verification record for CPU baseline limits and actual native observations.
+- 10-10 implementation is merged through #92; its historical local evidence is not a release declaration. See the integrated verification record for CPU baseline limits and actual native observations, and docs/project-status.md for post-merge CI and release gaps.
+- Reflection/Command support does not imply complete Human UI coverage: Inspector displays AssetReference UUIDs, and Asset Browser currently lacks Image.texture / Animator.clip assignment. Record these gaps explicitly; do not claim end-to-end Human authoring until implemented and validated.

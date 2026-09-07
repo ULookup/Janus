@@ -1,6 +1,6 @@
 # Janus Engine 版本路线图
 
-当前执行状态（2026-09-07）：本轮集成基线为 main / origin/main `b9b990b`，包含 UI/Button、战斗/动画、Audio 和 Physics。10-09 Prefab Foundation 与 10-10 综合验收在 `codex/v0.10-acceptance` 本地完成，见[综合验收计划](superpowers/plans/2026-09-07-v0.10-integrated-acceptance.md)与[验证记录](verification/2026-09-07-v0.10-integrated-acceptance.md)。本轮继续推进代码评审与 main 集成，见[集成复审](verification/2026-09-07-v0.10-integration-review.md)；提交/合并状态以 Git 和 PR 为准，v0.10 未发布。后文分阶段的 main、依赖分支与“下一包”描述是历史记录，以本段为当前状态。
+当前执行状态（2026-09-07）：main / origin/main 为 `7ecdfb8`，10-01～10-10 的计划切片与综合示例均已集成；[PR #92](https://github.com/ULookup/Janus/pull/92) 已合并，合并后 Windows CI 412/412 通过。**v0.10 处于发布准备阶段，尚未发布；v0.11 Production Demo 尚未完成。** 当前实现证据、Human 制作入口缺口、PRD 对账及发布门槛统一见[项目进度总表](project-status.md)。详细版本范围仍由本文定义；日期化计划、验收及文末执行摘录保留历史语境，不作为当前 main 状态。
 
 ## 1. 路线图目标
 
@@ -999,9 +999,16 @@ A/B/C 是中间交付门槛，不能代替 v0.9 的完整范围。D 收尾时必
 
 # 12. v0.10 — Game Systems
 
-状态：开发中，首个 Project Settings + Action Input 切片已通过 PR #82 合入 main（`c8a7c06`），见 [Stage A 记录](verification/2026-09-07-v0.10-project-input.md)。整体实施顺序见 [main 进度调研与开发路线](superpowers/plans/2026-09-06-next-development-roadmap.md)；最新进度与下一阶段 10-03～10-05 的提案见 [共享 Runtime → 可玩 UI](superpowers/plans/2026-09-07-next-stage-runtime-ui-roadmap.md)。按项目/输入、可玩 UI、动画/音频、物理、Prefab 和综合验收分阶段推进；以下完整版本范围不变，Stage A 不代表整个 v0.10 完成。
+状态：**计划切片及综合示例已合入 main，发布准备中**。项目/输入、共享 Runtime、
+UI/Text/Button、战斗/快照、动画、音频、物理、Prefab 和综合验收均在 `7ecdfb8` 中。
+[综合验收](verification/2026-09-07-v0.10-integrated-acceptance.md)与
+[集成复审](verification/2026-09-07-v0.10-integration-review.md)记录实现和测试；
+[项目进度总表](project-status.md)列出各工作包的代码证据及剩余产品入口。
 
-10-03 已通过 PR #83 合入 main（`c71ad50`），见[10-03 记录](verification/2026-09-07-v0.10-shared-runtime.md)。10-04a UI 布局与图片的 PR #84 已合入 shared-runtime 父分支，但尚未进入该 main 基线，见[10-04a 记录](verification/2026-09-07-v0.10-ui-layout.md)。10-04b Text/字体资产已在 `codex/v0.10-ui-text` 本地实现，包含 UTF-8 字形排版、Lua 更新、Human/Agent 作者态与有界资产发现，见[设计](superpowers/specs/2026-09-07-v0.10-ui-text-design.md)和[验收记录](verification/2026-09-07-v0.10-ui-text.md)。10-05a Button/事件/输入消费和计数菜单已本地实现，下一包为 10-05b 战斗/结构化快照；整个 v0.10 仍未完成或发布。
+剩余发布工作：核对 Image/Animator 的 Human 资源赋值缺口，完成 Release 配置与目标设备
+验证，更新 CMake/MCP 版本及发布说明。当前 CMake 为 0.9.0，无 Tag/Release；现有 Debug
+CPU/FakeRenderDevice 基线不能替代 GPU/Present 或发布性能保证。本次状态更新不扩大或
+缩减下方 v0.10 范围，也不将全部 PRD 欠账并入此版本。
 
 ## 目标
 
@@ -1092,6 +1099,8 @@ UI
 ---
 
 # 13. v0.11 — Production Demo
+
+状态：尚未完成，待 v0.10 发布准备后立项。现有 Game/ 是固定单局与系统集成示例，不能代替本版本完整游戏。存档、多场景、内容规模、A–D Agent 成功率/失败模式基准，以及最小联网是否为发布硬门槛，需要在立项时明确；本次不删除下方联网目标。
 
 ## 目标
 
@@ -1188,6 +1197,8 @@ Game/
 ---
 
 # 14. v1.0 — Janus Engine
+
+状态：产品闭环尚未完成。项目创建、普通场景新建/切换、Duplicate、资产制作流程、正式 Agent 测试入口、生产 Headless 与权限/Dry Run 等需逐项决策并验收，见[PRD 对账](project-status.md)。已有测试 fixture、Command API 或示例内容不能自动代表产品入口已交付。
 
 ## 定义
 
@@ -1704,16 +1715,20 @@ Janus v1.0 的真正完成标志不是某一个技术模块。
 
 > **一个 Agent 可以通过 Janus 的原生接口理解、修改、运行、调试和验证这个游戏。**
 
-## 10-05a 本地执行更新
+## 历史执行摘录（10-05a～10-06）
+
+以下保持当时基线与下一包判断，相关代码现已合入 `7ecdfb8`；不用于判断当前待办或发布状态。
+
+### 10-05a 本地执行更新
 
 Button/焦点/OnClick/输入消费及可运行计数菜单已完成本地实现，见[验收记录](verification/2026-09-07-v0.10-ui-button.md)。本段覆盖历史表中的 Button 未实现状态；Text 已提交 PR #85，Button 以其为基线单独评审；尚未合并，下一包为 10-05b 固定战斗与结构化快照，不改变 v0.10 尚未整体完成的状态。
 
 
-## 10-05b 执行状态更新（2026-09-07）
+### 10-05b 执行状态更新（2026-09-07）
 
 main 已更新至 `fbb1dc5`（#85），Text/布局已进入 main。基于 Button `973659d` 的 `codex/v0.10-playable-combat` 已本地实现菜单、选牌出牌、确定性胜负/重开及 Agent 结构化快照。Game/ 拥有规则，Engine 只提供有界标量诊断。见[设计](superpowers/specs/2026-09-07-v0.10-playable-combat-design.md)和[验收](verification/2026-09-07-v0.10-playable-combat.md)。本段覆盖旧的“下一包战斗/Text 未合并”状态，下一包为 10-06 AnimationClip/Animator，然后是 Audio、Physics、Prefab、综合验收。v0.10 尚未整体完成或发布。
 
 
-## 10-06 执行状态更新（2026-09-07）
+### 10-06 执行状态更新（2026-09-07）
 
 `codex/v0.10-animation` 保留未提交的 10-05b，并已本地实现 AnimationClip/Animator：有界 JSON 帧资产、Play/Stop/Switch、循环/单次结束、暂停/单步、Sprite/Image 运行时帧覆盖和 Lua 控制。战斗成功出牌播放边框反馈，独立 AnimationShowcase 展示世界 Sprite。见[设计](superpowers/specs/2026-09-07-v0.10-animation-design.md)与[验收](verification/2026-09-07-v0.10-animation.md)。本段覆盖上方“下一包 10-06”的历史状态；下一包为 **10-07 Audio**，之后 Physics、Prefab、综合验收。本包未提交、未合并，v0.10 未整体完成或发布。
