@@ -26,6 +26,11 @@
       "handle": "fa100000-0000-4000-8000-000000000003",
       "type": "lua-script",
       "path": "Scripts/TextShowcase.lua"
+    },
+    {
+      "handle": "fb100000-0000-4000-8000-000000000001",
+      "type": "lua-script",
+      "path": "Scripts/ButtonCounter.lua"
     }
   ]
 }

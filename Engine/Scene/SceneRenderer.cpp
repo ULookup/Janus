@@ -8,6 +8,7 @@
 #include "Scene/Scene.h"
 #include "UI/TextLayout.h"
 #include "UI/UIComponents.h"
+#include "UI/UIInteraction.h"
 #include "UI/UILayout.h"
 
 #include <optional>
@@ -19,14 +20,15 @@ namespace Janus
 {
 
 Result<void> SceneRenderer::Render(Scene& scene, AssetService& assets, Renderer2D& renderer,
-                                   Viewport viewport, Viewport logicalViewport)
+                                   Viewport viewport, Viewport logicalViewport,
+                                   const UIInteractionState* uiState)
 {
     const auto camera = ResolvePrimaryCamera(scene);
     if (!camera)
         return Result<void>::Failure(camera.GetError());
 
-    return RenderPrepared(
-        SceneRenderRequest{scene, assets, renderer, camera.Value(), viewport, {}, logicalViewport});
+    return RenderPrepared(SceneRenderRequest{
+        scene, assets, renderer, camera.Value(), viewport, {}, logicalViewport, true, uiState});
 }
 
 Result<void> SceneRenderer::Render(
@@ -152,7 +154,22 @@ Result<void> SceneRenderer::RenderPrepared(
             }
             Sprite sprite;
             ColorValue color;
-            if (item.kind == UIDrawKind::Panel)
+            if (item.kind == UIDrawKind::Button)
+            {
+                const auto& button = *request.scene.GetComponent<ButtonComponent>(entity);
+                color = button.color;
+                if (!button.interactable)
+                    color = button.disabledColor;
+                else if (request.uiState)
+                {
+                    if (request.uiState->pressed == item.entity)
+                        color = button.pressedColor;
+                    else if (request.uiState->focused == item.entity ||
+                             request.uiState->hovered == item.entity)
+                        color = button.focusedColor;
+                }
+            }
+            else if (item.kind == UIDrawKind::Panel)
                 color = request.scene.GetComponent<PanelComponent>(entity)->color;
             else
             {

@@ -19,6 +19,7 @@ inline constexpr ComponentTypeId Canvas = MakeComponentTypeId("Canvas");
 inline constexpr ComponentTypeId UIRect = MakeComponentTypeId("UIRect");
 inline constexpr ComponentTypeId Panel = MakeComponentTypeId("Panel");
 inline constexpr ComponentTypeId Image = MakeComponentTypeId("Image");
+inline constexpr ComponentTypeId Button = MakeComponentTypeId("Button");
 inline constexpr ComponentTypeId Text = MakeComponentTypeId("Text");
 
 inline constexpr ComponentTypeId Transform =

@@ -776,14 +776,16 @@ return {
         Janus::Editor::ProjectSession::Open(Janus::ProjectRuntimeConfig{temp.Path()}, *renderer);
     REQUIRE(opened);
     auto project = std::move(opened).Value();
-    Janus::InputState input;
+    Janus::InputState input, physical;
     REQUIRE(project->StartRuntime(input));
     const auto runtimeId = project->GetRuntimeStatus().runtimeId;
     for (Janus::usize i = 0; i < state.frameEvents.size(); ++i)
     {
-        input.BeginFrame();
+        physical.BeginFrame();
         for (const auto& event : state.frameEvents[i])
-            input.Apply(event);
+            physical.Apply(event);
+        // The fake window is 800 x 600; both hosts must supply project logical coordinates.
+        input = physical.MapToViewport({0, 0}, {800, 600}, {1280, 720});
         REQUIRE(project->UpdateRuntime(client.steps[i]));
         const auto position = ScriptedPosition(project->GetRuntimeSession()->GetScene());
         REQUIRE(position.x == Catch::Approx(client.presented[i].x));
@@ -793,10 +795,10 @@ return {
         if (i + 1 < client.beforeUpdate.size())
             REQUIRE(client.beforeUpdate[i + 1].x == client.presented[i].x);
     }
-    REQUIRE(client.presented[0].x == 1023);
-    REQUIRE(client.presented[1].x == 2026);
-    REQUIRE(client.presented[2].x == 3029);
-    REQUIRE(client.presented[3].x == 3129);
+    REQUIRE(client.presented[0].x == Catch::Approx(1024.2));
+    REQUIRE(client.presented[1].x == Catch::Approx(2028.4));
+    REQUIRE(client.presented[2].x == Catch::Approx(3032.6));
+    REQUIRE(client.presented[3].x == Catch::Approx(3132.6));
     REQUIRE(ScriptedPosition(project->GetEditorScene()).x == 0);
     REQUIRE(project->StopRuntime());
     REQUIRE(ScriptedPosition(project->GetEditorScene()).x == 0);

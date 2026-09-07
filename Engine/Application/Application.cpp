@@ -279,7 +279,8 @@ Result<void> Application::Run(ApplicationClient& client)
     if (managedRuntime)
     {
         auto executionResult =
-            RuntimeExecution::Create(*m_Scene, *m_AssetService, m_Input, settings.inputBindings);
+            RuntimeExecution::Create(*m_Scene, *m_AssetService, m_Input, settings.inputBindings,
+                                     {settings.width, settings.height});
         if (!executionResult)
         {
             Error error = std::move(executionResult.GetError());
@@ -325,7 +326,15 @@ Result<void> Application::Run(ApplicationClient& client)
 
         if (managedRuntime)
         {
-            const auto advanceResult = m_Execution->Advance(timeStep, m_Input);
+            // Independent windows and Editor Game View both feed logical screen coordinates.
+            auto runtimeInput = m_Input;
+            if (m_Input.GetPointerPosition())
+                runtimeInput = m_Input.MapToViewport(
+                    {0, 0},
+                    {static_cast<f32>(m_Window->GetWidth()),
+                     static_cast<f32>(m_Window->GetHeight())},
+                    {static_cast<f32>(settings.width), static_cast<f32>(settings.height)});
+            const auto advanceResult = m_Execution->Advance(timeStep, runtimeInput);
             if (!advanceResult)
             {
                 Error error = advanceResult.GetError();
@@ -344,9 +353,9 @@ Result<void> Application::Run(ApplicationClient& client)
                 m_Window->GetWidth(),
                 m_Window->GetHeight()};
 
-            const auto renderResult =
-                m_SceneRenderer->Render(*m_Scene, *m_AssetService, *m_Renderer2D, viewport,
-                                        Viewport{settings.width, settings.height});
+            const auto renderResult = m_SceneRenderer->Render(
+                *m_Scene, *m_AssetService, *m_Renderer2D, viewport,
+                Viewport{settings.width, settings.height}, &m_Execution->GetUIState());
 
             if (!renderResult)
             {

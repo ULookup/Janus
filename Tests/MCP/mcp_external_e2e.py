@@ -372,13 +372,16 @@ def verify_debug(client: JanusStdioClient, project: Path, modern: bool) -> None:
     call("scene.add_component", {"entity": created, "component": "Text", "transaction": token})
     call("scene.set_component_property", {"entity": created, "component": "Text", "property": "font", "value": font, "transaction": token})
     call("scene.set_component_property", {"entity": created, "component": "Text", "property": "content", "value": "HP 12\nREADY", "transaction": token})
+    call("scene.add_component", {"entity": created, "component": "Button", "transaction": token})
+    call("scene.set_component_property", {"entity": created, "component": "Button", "property": "interactable", "value": False, "transaction": token})
     ui_entity = read("engine://entity/" + created)
+    require(ui_entity["components"]["Button"]["interactable"] is False, "Button mutation missing")
     require(ui_entity["components"]["Text"]["content"] == "HP 12\nREADY", "Text mutation missing")
     require(ui_entity["parent"] == ui_parent, "Reparent did not reach shared authoring Scene")
     require(ui_entity["components"]["UIRect"]["offset"] == {"x": 24.0, "y": 48.0}, "UI reflection mutation missing")
     call("transaction.rollback", {"transaction": token})
     ui_entity = read("engine://entity/" + created)
-    require(ui_entity["parent"] is None and "UIRect" not in ui_entity["components"] and "Text" not in ui_entity["components"], "UI transaction rollback did not restore root and components")
+    require(ui_entity["parent"] is None and "UIRect" not in ui_entity["components"] and "Text" not in ui_entity["components"] and "Button" not in ui_entity["components"], "UI transaction rollback did not restore root and components")
     player = "44444444-4444-4444-8444-444444444444"
     call("scene.set_component_property", dict(entity=player, component="Transform", property="position", value={"x": 10.0, "y": 0.0}))
     script = project / "Scripts" / "PlayerController.lua"

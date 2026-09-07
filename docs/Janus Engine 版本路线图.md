@@ -999,7 +999,7 @@ A/B/C 是中间交付门槛，不能代替 v0.9 的完整范围。D 收尾时必
 
 状态：开发中，首个 Project Settings + Action Input 切片已通过 PR #82 合入 main（`c8a7c06`），见 [Stage A 记录](verification/2026-09-07-v0.10-project-input.md)。整体实施顺序见 [main 进度调研与开发路线](superpowers/plans/2026-09-06-next-development-roadmap.md)；最新进度与下一阶段 10-03～10-05 的提案见 [共享 Runtime → 可玩 UI](superpowers/plans/2026-09-07-next-stage-runtime-ui-roadmap.md)。按项目/输入、可玩 UI、动画/音频、物理、Prefab 和综合验收分阶段推进；以下完整版本范围不变，Stage A 不代表整个 v0.10 完成。
 
-10-03 已通过 PR #83 合入 main（`c71ad50`），见[10-03 记录](verification/2026-09-07-v0.10-shared-runtime.md)。10-04a UI 布局与图片的 PR #84 已合入 shared-runtime 父分支，但尚未进入该 main 基线，见[10-04a 记录](verification/2026-09-07-v0.10-ui-layout.md)。10-04b Text/字体资产已在 `codex/v0.10-ui-text` 本地实现，包含 UTF-8 字形排版、Lua 更新、Human/Agent 作者态与有界资产发现，见[设计](superpowers/specs/2026-09-07-v0.10-ui-text-design.md)和[验收记录](verification/2026-09-07-v0.10-ui-text.md)。下一包为 10-05a Button/事件/输入消费；整个 v0.10 仍未完成或发布。
+10-03 已通过 PR #83 合入 main（`c71ad50`），见[10-03 记录](verification/2026-09-07-v0.10-shared-runtime.md)。10-04a UI 布局与图片的 PR #84 已合入 shared-runtime 父分支，但尚未进入该 main 基线，见[10-04a 记录](verification/2026-09-07-v0.10-ui-layout.md)。10-04b Text/字体资产已在 `codex/v0.10-ui-text` 本地实现，包含 UTF-8 字形排版、Lua 更新、Human/Agent 作者态与有界资产发现，见[设计](superpowers/specs/2026-09-07-v0.10-ui-text-design.md)和[验收记录](verification/2026-09-07-v0.10-ui-text.md)。10-05a Button/事件/输入消费和计数菜单已本地实现，下一包为 10-05b 战斗/结构化快照；整个 v0.10 仍未完成或发布。
 
 ## 目标
 
@@ -1701,3 +1701,7 @@ Janus v1.0 的真正完成标志不是某一个技术模块。
 以及：
 
 > **一个 Agent 可以通过 Janus 的原生接口理解、修改、运行、调试和验证这个游戏。**
+
+## 10-05a 本地执行更新
+
+Button/焦点/OnClick/输入消费及可运行计数菜单已完成本地实现，见[验收记录](verification/2026-09-07-v0.10-ui-button.md)。本段覆盖历史表中的 Button 未实现状态；Text 已提交 PR #85，Button 以其为基线单独评审；尚未合并，下一包为 10-05b 固定战斗与结构化快照，不改变 v0.10 尚未整体完成的状态。

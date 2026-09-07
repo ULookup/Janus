@@ -4,6 +4,7 @@
 #include "Core/Input/InputState.h"
 #include "Core/Time/TimeStep.h"
 #include "Core/UUID/UUID.h"
+#include "UI/UIInteraction.h"
 #include <memory>
 #include <optional>
 #include <string_view>
@@ -40,7 +41,8 @@ class RuntimeSession final
   public:
     [[nodiscard]] static Result<std::unique_ptr<RuntimeSession>>
     Start(const Scene& editorScene, const ReflectionRegistry& reflection, AssetService& assets,
-          const InputState& input, bool startPaused = false, const InputBindings& bindings = {});
+          const InputState& input, bool startPaused = false, const InputBindings& bindings = {},
+          Viewport logicalViewport = {1280, 720});
     ~RuntimeSession();
     RuntimeSession(const RuntimeSession&) = delete;
     RuntimeSession& operator=(const RuntimeSession&) = delete;
@@ -54,6 +56,7 @@ class RuntimeSession final
     {
         return m_Status.state;
     }
+    [[nodiscard]] const UIInteractionState& GetUIState() const noexcept;
     [[nodiscard]] RuntimeStatus GetStatus() const;
     [[nodiscard]] Scene& GetScene() noexcept;
     [[nodiscard]] const Scene& GetScene() const noexcept;

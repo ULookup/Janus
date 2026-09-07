@@ -64,6 +64,9 @@ Result<UILayoutResult> UILayout::Build(const Scene& scene, Viewport logicalViewp
         canvas = entity;
     }
     UILayoutResult result;
+    result.screen = {
+        {0, 0},
+        {static_cast<f32>(logicalViewport.width), static_cast<f32>(logicalViewport.height)}};
     if (!canvas.IsValid() || !scene.GetComponent<CanvasComponent>(canvas)->enabled)
         return Output::Success(std::move(result));
 
@@ -103,6 +106,9 @@ Result<UILayoutResult> UILayout::Build(const Scene& scene, Viewport logicalViewp
             visible.min.y < visible.max.y)
         {
             const auto id = scene.GetComponent<EntityIdentityComponent>(entity)->id;
+            const auto* button = scene.GetComponent<ButtonComponent>(entity);
+            if (button && button->enabled)
+                result.items.push_back({id, UIDrawKind::Button, bounds, visible});
             const auto* panel = scene.GetComponent<PanelComponent>(entity);
             if (panel && panel->enabled)
                 result.items.push_back({id, UIDrawKind::Panel, bounds, visible});

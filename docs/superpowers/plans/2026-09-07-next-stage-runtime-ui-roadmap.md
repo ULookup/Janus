@@ -8,6 +8,8 @@
 
 最新执行更新（2026-09-07，10-04b）：fetch 后 main 为 `c71ad50`（#83）；#84 已合入 shared-runtime 父分支但未进入该 main。10-04b 已在包含 main 与 UI 布局的 `codex/v0.10-ui-text` 本地实现，见[Text/字体设计](../specs/2026-09-07-v0.10-ui-text-design.md)和[验收记录](../../verification/2026-09-07-v0.10-ui-text.md)。本段覆盖上方旧的“尚未合并/下一包 Text”状态，下方调研表保留历史基线；当前下一包为 10-05a。
 
+最新执行更新（10-05a）：Button、焦点遍历、固定 OnClick、共享输入消费和 ButtonShowcase 点击计数菜单已在同一本地工作树实现。见[设计](../specs/2026-09-07-v0.10-ui-button-design.md)及[验收](../../verification/2026-09-07-v0.10-ui-button.md)。当前下一包为 10-05b 固定战斗/结构化快照；Text 以 PR #85 面向 main 提交（携带 #84 布局依赖）；Button 在 `codex/v0.10-ui-buttons` 上基于 Text 分支单独评审。
+
 
 ## 1. 建议决策
 
