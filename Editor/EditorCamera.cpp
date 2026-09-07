@@ -9,7 +9,7 @@ namespace Janus::Editor
 namespace
 {
 
-constexpr f32 MinZoom = 0.05f;
+constexpr f32 MinZoom = 0.001f;
 constexpr f32 MaxZoom = 20.0f;
 constexpr f32 WheelZoomBase = 0.9f;
 
@@ -30,6 +30,19 @@ void EditorCamera::Zoom(f32 wheelDelta) noexcept
 
     m_Zoom *= std::pow(WheelZoomBase, wheelDelta);
     m_Zoom = std::clamp(m_Zoom, MinZoom, MaxZoom);
+}
+
+void EditorCamera::Frame(Vector2 center, Vector2 size, Viewport viewport) noexcept
+{
+    if (!std::isfinite(center.x) || !std::isfinite(center.y) || !std::isfinite(size.x) ||
+        !std::isfinite(size.y) || viewport.width == 0 || viewport.height == 0 || size.x < 0 ||
+        size.y < 0)
+        return;
+    m_Position = center;
+    m_Zoom = std::clamp(std::max(std::max(size.x, 0.1f) / viewport.width,
+                                 std::max(size.y, 0.1f) / viewport.height) *
+                            1.2f,
+                        MinZoom, MaxZoom);
 }
 
 Vector2 EditorCamera::ScreenToWorld(

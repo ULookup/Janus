@@ -2,6 +2,7 @@
 
 #include "Application/ApplicationClient.h"
 #include "Core/Input/InputState.h"
+#include "EditorWorkspaceLayout.h"
 #include "Renderer/RendererTypes.h"
 
 #include <filesystem>
@@ -49,6 +50,7 @@ public:
 private:
     void RecordError(const Error& error);
     void ShutdownImGui(Application& application) noexcept;
+    void FrameScene(bool selectedOnly);
 
     std::filesystem::path m_ProjectRoot;
     bool m_McpStdio = false;
@@ -77,6 +79,15 @@ private:
 
     bool m_SelectSceneViewTab = false;
     bool m_SelectGameViewTab = false;
+    bool m_ShowProjectSettings = false;
+    bool m_ShowAbout = false;
+    bool m_ShowGrid = true;
+    bool m_InitialFrame = true;
+    bool m_WasGameView = false;
+    bool m_ReturnToGameView = false;
+    float m_UiScale = 1.0f;
+    float m_UserScale = 1.0f;
+    EditorWorkspacePreferences m_WorkspacePreferences;
 
     bool m_ImGuiContextCreated = false;
     bool m_ImGuiPlatformInitialized = false;

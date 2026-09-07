@@ -9,6 +9,7 @@ namespace Janus
 {
 
 class Scene;
+class Renderer2D;
 
 namespace Editor
 {
@@ -35,6 +36,7 @@ private:
 struct EditorContext
 {
     ProjectSession* project = nullptr;
+    Renderer2D* renderer = nullptr;
     EditorSelection selection;
 };
 

@@ -3,6 +3,7 @@
 #include "Core/Error/Error.h"
 #include "ECS/Entity.h"
 
+#include <array>
 #include <optional>
 
 namespace Janus
@@ -32,6 +33,7 @@ private:
 
     EditorContext& m_Context;
     EditorActions& m_Actions;
+    std::array<char, 128> m_Search{};
 };
 
 } // namespace Editor

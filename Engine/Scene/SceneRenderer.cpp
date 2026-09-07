@@ -221,6 +221,7 @@ Result<void> SceneRenderer::RenderPrepared(
     frame.viewport = request.viewport;
     frame.projectionViewport = request.logicalViewport;
     frame.target = request.target;
+    frame.clearColor = request.clearColor;
 
     auto began = request.renderer.BeginFrame(frame);
     if (!began)

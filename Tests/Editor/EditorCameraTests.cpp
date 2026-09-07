@@ -2,6 +2,22 @@
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <limits>
+
+TEST_CASE("EditorCamera frames a bounded region and ignores invalid requests", "[editor][camera]")
+{
+    Janus::Editor::EditorCamera camera;
+    camera.Frame({3, 4}, {10, 6}, {1000, 600});
+    REQUIRE(camera.GetPosition().x == Catch::Approx(3));
+    REQUIRE(camera.GetPosition().y == Catch::Approx(4));
+    REQUIRE(camera.GetZoom() > 0);
+    REQUIRE(camera.GetZoom() < 0.05f);
+    const auto zoom = camera.GetZoom();
+    camera.Frame({0, 0}, {10, 10}, {0, 0});
+    camera.Frame({std::numeric_limits<float>::quiet_NaN(), 0}, {10, 10}, {100, 100});
+    REQUIRE(camera.GetZoom() == zoom);
+    REQUIRE(camera.GetPosition().x == Catch::Approx(3));
+}
 
 TEST_CASE(
     "EditorCamera maps viewport center to camera position",
@@ -64,7 +80,7 @@ TEST_CASE(
     REQUIRE(zoomedPoint.x < 100.0f);
 
     camera.Zoom(1000.0f);
-    REQUIRE(camera.GetZoom() == Catch::Approx(0.05f));
+    REQUIRE(camera.GetZoom() == Catch::Approx(0.001f));
 
     camera.Zoom(-1000.0f);
     REQUIRE(camera.GetZoom() == Catch::Approx(20.0f));

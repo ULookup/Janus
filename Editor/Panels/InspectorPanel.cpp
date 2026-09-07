@@ -2,6 +2,7 @@
 
 #include "EditorActions.h"
 #include "EditorContext.h"
+#include "EditorIcons.h"
 #include "ProjectSession.h"
 
 #include "Scene/Components.h"
@@ -58,12 +59,11 @@ InspectorPanel::InspectorPanel(
 
 std::optional<Error> InspectorPanel::Draw()
 {
-    const bool visible = ImGui::Begin(
-        "Inspector",
-        nullptr,
-        ImGuiWindowFlags_NoMove
-            | ImGuiWindowFlags_NoResize
-            | ImGuiWindowFlags_NoCollapse);
+    const bool visible = ImGui::Begin("      Inspector###Inspector", nullptr,
+                                      ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
+                                          ImGuiWindowFlags_NoCollapse);
+
+    DrawTitleIcon(Icon::Inspector);
 
     if (!visible)
     {
@@ -120,13 +120,11 @@ std::optional<Error> InspectorPanel::Draw()
         return error;
     }
 
-    const bool readOnly =
-        m_Context.project->IsPlaying();
+    const bool readOnly = m_Context.project->IsAuthoringReadOnly();
 
     if (readOnly)
     {
-        ImGui::TextDisabled(
-            "Authoring is read-only while Play Mode is active.");
+        ImGui::TextDisabled("Authoring is currently read-only.");
         ImGui::Separator();
     }
 
@@ -139,12 +137,9 @@ std::optional<Error> InspectorPanel::Draw()
 
     ImGui::BeginDisabled(readOnly);
 
-    const bool renameCommitted =
-        ImGui::InputText(
-            "Name",
-            m_NameBuffer.data(),
-            m_NameBuffer.size(),
-            ImGuiInputTextFlags_EnterReturnsTrue);
+    ImGui::SetNextItemWidth(-1);
+    const bool renameCommitted = ImGui::InputText(
+        "##Name", m_NameBuffer.data(), m_NameBuffer.size(), ImGuiInputTextFlags_EnterReturnsTrue);
 
     m_NameEditing = ImGui::IsItemActive();
 
@@ -162,6 +157,20 @@ std::optional<Error> InspectorPanel::Draw()
 
     ImGui::Separator();
 
+    std::stable_sort(model.Value().begin(), model.Value().end(),
+                     [](const auto& left, const auto& right)
+                     {
+                         const auto rank = [](const auto* descriptor)
+                         {
+                             if (descriptor && descriptor->name == "Transform")
+                                 return 0;
+                             if (descriptor && descriptor->name == "SpriteRenderer")
+                                 return 1;
+                             return 2;
+                         };
+                         return rank(left.descriptor) < rank(right.descriptor);
+                     });
+
     for (const InspectorComponentModel& componentModel :
          model.Value())
     {
@@ -176,36 +185,29 @@ std::optional<Error> InspectorPanel::Draw()
 
         if (!componentModel.present)
         {
-            if (component->removable
-                && ImGui::Button(
-                    ("Add " + component->name).c_str()))
-            {
-                const auto added =
-                    m_Actions.AddComponent(
-                        id,
-                        component->id);
-                if (!added)
-                {
-                    error = added.GetError();
-                }
-            }
-
             ImGui::PopID();
-
-            if (error.has_value())
-            {
-                break;
-            }
-
             continue;
         }
 
-        const bool open =
-            ImGui::CollapsingHeader(
-                component->name.c_str(),
-                ImGuiTreeNodeFlags_DefaultOpen);
+        ImGui::PushStyleColor(ImGuiCol_Header, ImVec4{0.16f, 0.19f, 0.23f, 1.0f});
+        const bool open = IconHeader(ComponentIcon(component->name), component->name.c_str(),
+                                     ImGuiTreeNodeFlags_DefaultOpen);
+        ImGui::PopStyleColor();
+        bool removedComponent = false;
+        if (component->removable && ImGui::BeginPopupContextItem("ComponentActions"))
+        {
+            if (ImGui::MenuItem("Remove Component"))
+            {
+                const auto removed = m_Actions.RemoveComponent(id, component->id);
+                if (!removed)
+                    error = removed.GetError();
+                else
+                    removedComponent = true;
+            }
+            ImGui::EndPopup();
+        }
 
-        if (open)
+        if (open && !removedComponent)
         {
             for (const InspectorPropertyModel& property :
                  componentModel.properties)
@@ -222,23 +224,6 @@ std::optional<Error> InspectorPanel::Draw()
                 }
             }
 
-            if (!error.has_value()
-                && component->removable)
-            {
-                ImGui::Separator();
-                if (ImGui::Button(
-                        ("Remove " + component->name).c_str()))
-                {
-                    const auto removed =
-                        m_Actions.RemoveComponent(
-                            id,
-                            component->id);
-                    if (!removed)
-                    {
-                        error = removed.GetError();
-                    }
-                }
-            }
         }
 
         ImGui::PopID();
@@ -247,6 +232,24 @@ std::optional<Error> InspectorPanel::Draw()
         {
             break;
         }
+    }
+
+    ImGui::Spacing();
+    if (IconButton(Icon::Add, "Add Component", ImVec2{-1, 0}))
+        ImGui::OpenPopup("AddComponent");
+    if (ImGui::BeginPopup("AddComponent"))
+    {
+        for (const auto& candidate : model.Value())
+        {
+            if (!candidate.present && candidate.descriptor && candidate.descriptor->removable &&
+                ImGui::Selectable(candidate.descriptor->name.c_str()))
+            {
+                const auto added = m_Actions.AddComponent(id, candidate.descriptor->id);
+                if (!added)
+                    error = added.GetError();
+            }
+        }
+        ImGui::EndPopup();
     }
 
     ImGui::EndDisabled();
@@ -273,6 +276,12 @@ std::optional<Error> InspectorPanel::DrawProperty(
 
     ImGui::PushID(descriptor->name.c_str());
     ImGui::BeginDisabled(!descriptor->editable);
+    const float labelX = ImGui::GetCursorPosX();
+    const float labelWidth = ImGui::GetContentRegionAvail().x * 0.36f;
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(descriptor->name.c_str());
+    ImGui::SameLine(labelX + labelWidth);
+    ImGui::SetNextItemWidth(-1);
 
     bool changed = false;
     bool commit = false;
@@ -301,11 +310,10 @@ std::optional<Error> InspectorPanel::DrawProperty(
         }
 
         if (descriptor->id == MakePropertyId("Text.content"))
-            changed =
-                ImGui::InputTextMultiline(descriptor->name.c_str(), buffer.data(), buffer.size(),
-                                          ImVec2(0, ImGui::GetTextLineHeight() * 5));
+            changed = ImGui::InputTextMultiline("##Value", buffer.data(), buffer.size(),
+                                                ImVec2(0, ImGui::GetTextLineHeight() * 5));
         else
-            changed = ImGui::InputText(descriptor->name.c_str(), buffer.data(), buffer.size());
+            changed = ImGui::InputText("##Value", buffer.data(), buffer.size());
 
         if (ImGui::IsItemActivated())
         {
@@ -340,23 +348,38 @@ std::optional<Error> InspectorPanel::DrawProperty(
             return TypeMismatch(*descriptor);
         }
 
-        const std::string value =
-            reference->id.IsValid()
-                ? reference->id.ToString()
-                : std::string{"<none>"};
-
-        ImGui::TextWrapped(
-            "%s: %s",
-            descriptor->name.c_str(),
-            value.c_str());
-
-        if (!descriptor->referenceConstraint.empty())
+        const auto& registry = m_Context.project->GetAssetRegistry();
+        const auto* current = registry.Find(AssetHandle{reference->id});
+        const std::string label = current ? current->relativePath.filename().string()
+                                          : (reference->id.IsValid() ? "Missing asset" : "None");
+        if (ImGui::BeginCombo("##Asset", label.c_str()))
         {
-            ImGui::SameLine();
-            ImGui::TextDisabled(
-                "(%s)",
-                descriptor->referenceConstraint.c_str());
+            if (ImGui::Selectable("None", !reference->id.IsValid()))
+            {
+                desired = AssetReferenceValue{};
+                commit = true;
+            }
+            for (const auto& asset : registry.GetAssets())
+            {
+                if (!descriptor->referenceConstraint.empty() &&
+                    AssetTypeName(asset.type) != descriptor->referenceConstraint)
+                    continue;
+                ImGui::PushID(asset.handle.ToString().c_str());
+                if (ImGui::Selectable(asset.relativePath.generic_string().c_str(),
+                                      asset.handle.id == reference->id))
+                {
+                    desired = AssetReferenceValue{asset.handle.id};
+                    commit = true;
+                }
+                ImGui::PopID();
+            }
+            ImGui::EndCombo();
         }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("%s\nUUID: %s",
+                              current ? current->relativePath.generic_string().c_str()
+                                      : "Select a registered asset",
+                              reference->id.ToString().c_str());
     }
     else
     {
@@ -388,10 +411,7 @@ std::optional<Error> InspectorPanel::DrawProperty(
                 return TypeMismatch(*descriptor);
             }
 
-            changed =
-                ImGui::Checkbox(
-                    descriptor->name.c_str(),
-                    value);
+            changed = ImGui::Checkbox("##Value", value);
             break;
         }
 
@@ -408,10 +428,7 @@ std::optional<Error> InspectorPanel::DrawProperty(
 
             int edited =
                 static_cast<int>(*value);
-            changed =
-                ImGui::InputInt(
-                    descriptor->name.c_str(),
-                    &edited);
+            changed = ImGui::InputInt("##Value", &edited);
             if (changed)
             {
                 *value =
@@ -431,11 +448,7 @@ std::optional<Error> InspectorPanel::DrawProperty(
                 return TypeMismatch(*descriptor);
             }
 
-            changed =
-                ImGui::DragFloat(
-                    descriptor->name.c_str(),
-                    value,
-                    0.05f);
+            changed = ImGui::DragFloat("##Value", value, 0.05f);
             break;
         }
 
@@ -454,11 +467,7 @@ std::optional<Error> InspectorPanel::DrawProperty(
                 value->x,
                 value->y};
 
-            changed =
-                ImGui::DragFloat2(
-                    descriptor->name.c_str(),
-                    edited,
-                    0.1f);
+            changed = ImGui::DragFloat2("##Value", edited, 0.1f);
             if (changed)
             {
                 *value =
@@ -486,10 +495,7 @@ std::optional<Error> InspectorPanel::DrawProperty(
                 value->b,
                 value->a};
 
-            changed =
-                ImGui::ColorEdit4(
-                    descriptor->name.c_str(),
-                    edited);
+            changed = ImGui::ColorEdit4("##Value", edited);
             if (changed)
             {
                 *value =

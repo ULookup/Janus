@@ -2,7 +2,9 @@
 
 #include "EditorActions.h"
 #include "EditorContext.h"
+#include "EditorIcons.h"
 #include "ProjectSession.h"
+#include "UI/UIComponents.h"
 
 #include "Scene/Components.h"
 #include "Scene/Hierarchy.h"
@@ -25,12 +27,11 @@ HierarchyPanel::HierarchyPanel(
 
 std::optional<Error> HierarchyPanel::Draw()
 {
-    const bool visible = ImGui::Begin(
-        "Hierarchy",
-        nullptr,
-        ImGuiWindowFlags_NoMove
-            | ImGuiWindowFlags_NoResize
-            | ImGuiWindowFlags_NoCollapse);
+    const bool visible = ImGui::Begin("      Hierarchy###Hierarchy", nullptr,
+                                      ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
+                                          ImGuiWindowFlags_NoCollapse);
+
+    DrawTitleIcon(Icon::Hierarchy);
 
     if (!visible)
     {
@@ -49,12 +50,11 @@ std::optional<Error> HierarchyPanel::Draw()
         m_Context.project->GetEditorScene();
     m_Context.selection.Validate(scene);
 
-    const bool playing =
-        m_Context.project->IsPlaying();
+    const bool playing = m_Context.project->IsAuthoringReadOnly();
 
     ImGui::BeginDisabled(playing);
 
-    if (ImGui::Button("+ Entity"))
+    if (IconButton(Icon::Add, "Entity"))
     {
         const auto created =
             m_Actions.CreateEntity("Entity");
@@ -73,8 +73,7 @@ std::optional<Error> HierarchyPanel::Draw()
         m_Context.selection.HasSelection();
 
     ImGui::BeginDisabled(!canDelete);
-    if (ImGui::Button("Delete")
-        && m_Context.selection.GetSelectedUUID().has_value())
+    if (IconButton(Icon::Delete, "Delete") && m_Context.selection.GetSelectedUUID().has_value())
     {
         const auto deleted =
             m_Actions.DeleteEntity(
@@ -95,11 +94,14 @@ std::optional<Error> HierarchyPanel::Draw()
     if (playing)
     {
         ImGui::SameLine();
-        ImGui::TextDisabled("Read-only in Play");
+        ImGui::TextDisabled("Read-only");
     }
 
+    ImGui::SetNextItemWidth(-1);
+    ImGui::InputTextWithHint("##Search", "Search entities...", m_Search.data(), m_Search.size());
     std::optional<Error> reparentError;
-    if (auto selected = m_Context.selection.GetSelectedUUID(); selected.has_value())
+    const bool organize = IconHeader(Icon::Hierarchy, "Organize / Prefab");
+    if (auto selected = m_Context.selection.GetSelectedUUID(); organize && selected.has_value())
     {
         const auto entity = scene.FindEntity(*selected);
         const auto& hierarchy = *scene.GetComponent<HierarchyComponent>(entity);
@@ -165,10 +167,10 @@ std::optional<Error> HierarchyPanel::Draw()
         ImGui::EndDisabled();
     }
 
-    if (auto selected = m_Context.selection.GetSelectedUUID(); selected.has_value())
+    if (auto selected = m_Context.selection.GetSelectedUUID(); organize && selected.has_value())
     {
         ImGui::BeginDisabled(m_Context.project->IsAuthoringReadOnly());
-        if (ImGui::Button("Export Prefab"))
+        if (IconButton(Icon::Prefab, "Export Prefab"))
         {
             auto exported = m_Actions.ExportPrefab(*selected);
             if (!exported)
@@ -182,8 +184,19 @@ std::optional<Error> HierarchyPanel::Draw()
 
     ImGui::Separator();
 
+    ImGui::TextDisabled("%s%s", scene.GetMetadata().name.c_str(),
+                        m_Context.project->IsDirty() ? " *" : "");
     for (const ECS::Entity entity : scene.GetEntities())
     {
+        if (m_Search[0] != '\0')
+        {
+            const auto* identity = scene.GetComponent<EntityIdentityComponent>(entity);
+            if (identity && identity->name.find(m_Search.data()) != std::string::npos &&
+                ImGui::Selectable((identity->name + "##" + identity->id.ToString()).c_str(),
+                                  m_Context.selection.GetSelectedUUID() == identity->id))
+                m_Context.selection.Select(identity->id);
+            continue;
+        }
         const auto* hierarchy =
             scene.GetComponent<HierarchyComponent>(entity);
 
@@ -235,12 +248,17 @@ void HierarchyPanel::DrawEntity(
     const std::string id = identity->id.ToString();
     ImGui::PushID(id.c_str());
 
-    const bool open =
-        ImGui::TreeNodeEx(
-            "##entity",
-            flags,
-            "%s",
-            identity->name.c_str());
+    const bool open = ImGui::TreeNodeEx("##entity", flags, "      %s", identity->name.c_str());
+    Icon icon = Icon::Entity;
+    if (scene.HasComponent<CameraComponent>(entity))
+        icon = Icon::Camera;
+    else if (scene.HasComponent<CanvasComponent>(entity) ||
+             scene.HasComponent<UIRectComponent>(entity))
+        icon = Icon::Canvas;
+    else if (scene.HasComponent<LuaScriptComponent>(entity) &&
+             !scene.HasComponent<SpriteRendererComponent>(entity))
+        icon = Icon::Script;
+    DrawItemIcon(icon, ImGui::GetFontSize() + ImGui::GetStyle().FramePadding.x);
 
     if (ImGui::IsItemClicked(ImGuiMouseButton_Left))
     {

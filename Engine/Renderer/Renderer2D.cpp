@@ -471,4 +471,10 @@ Renderer2D::GetRenderTargetPresentationHandle(
         texture.Value());
 }
 
+Result<TexturePresentationHandle>
+Renderer2D::GetTexturePresentationHandle(TextureHandle handle) const
+{
+    return m_Impl->devicePtr->GetTexturePresentationHandle(handle);
+}
+
 } // namespace Janus

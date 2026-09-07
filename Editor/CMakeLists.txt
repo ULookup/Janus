@@ -72,6 +72,7 @@ if(JANUS_BUILD_EDITOR)
 
         Main.cpp
         EditorApplication.cpp
+        EditorIcons.cpp
         Panels/AssetBrowserPanel.cpp
         Panels/ConsolePanel.cpp
         Panels/HierarchyPanel.cpp
