@@ -17,29 +17,36 @@ struct EditorContext;
 
 class InspectorPanel final
 {
-public:
-    InspectorPanel(
-        EditorContext& context,
-        EditorActions& actions) noexcept;
+  public:
+    InspectorPanel(EditorContext& context, EditorActions& actions) noexcept;
 
     [[nodiscard]] std::optional<Error> Draw();
     [[nodiscard]] Result<void> CommitPendingEdit();
     void DiscardPendingEdit();
+    [[nodiscard]] bool OwnsKeyboardInput() const noexcept
+    {
+        return m_OwnsKeyboardInput;
+    }
+    void ReleaseKeyboardOwnership() noexcept
+    {
+        m_OwnsKeyboardInput = false;
+    }
 
   private:
-    void SyncNameBuffer(
-        UUID id,
-        const char* name);
+    void SyncNameBuffer(UUID id, const char* name);
 
     void SyncPropertyBuffers(UUID id);
 
-    [[nodiscard]] std::optional<Error> DrawProperty(
-        UUID entity,
-        ComponentTypeId component,
-        const InspectorPropertyModel& property);
+    [[nodiscard]] std::optional<Error> DrawProperty(UUID entity, ComponentTypeId component,
+                                                    const InspectorPropertyModel& property);
 
     EditorContext& m_Context;
     EditorActions& m_Actions;
+    InspectorEditDraft m_NameDraft;
+    InspectorEditDraft m_PropertyDraft;
+    bool m_OwnsKeyboardInput = false;
+    // Explicit discard changes input identity so ImGui cannot replay its deactivated text buffer.
+    u64 m_InputGeneration = 0;
 
     UUID m_NameBufferEntity;
     std::array<char, 256> m_NameBuffer{};

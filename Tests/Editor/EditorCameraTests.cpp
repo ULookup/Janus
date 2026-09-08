@@ -4,6 +4,20 @@
 #include <catch2/catch_test_macros.hpp>
 #include <limits>
 
+TEST_CASE("Camera preferences restore exact view without applying device scale",
+          "[editor][preferences]")
+{
+    Janus::Editor::EditorCamera camera;
+    REQUIRE(camera.RestoreView({12, -4}, 0.025f));
+    CHECK(camera.GetPosition().x == 12);
+    CHECK(camera.GetPosition().y == -4);
+    CHECK(camera.GetZoom() == Catch::Approx(0.025f));
+    REQUIRE_FALSE(camera.RestoreView({0, 0}, 0));
+    REQUIRE_FALSE(camera.RestoreView({std::numeric_limits<float>::infinity(), 0}, 1));
+    CHECK(camera.GetPosition().x == 12);
+    CHECK(camera.GetZoom() == Catch::Approx(0.025f));
+}
+
 TEST_CASE("Move snapping uses the visible major grid at every zoom", "[editor][move]")
 {
     Janus::Editor::EditorCamera camera;

@@ -1,4 +1,5 @@
 #pragma once
+#include "EditorLocale.h"
 #include "Project/ProjectSettings.h"
 #include <array>
 
@@ -9,6 +10,10 @@ class ProjectSettingsPanel final
 {
   public:
     void Draw(ProjectSession& session);
+    void SetLanguage(EditorLanguage language) noexcept
+    {
+        m_Language = language;
+    }
     ProjectSettings GetDraft() const;
     bool HasUnsavedChanges(const ProjectSession& session) const;
     void AcceptSaved(const ProjectSettings& settings)
@@ -19,6 +24,7 @@ class ProjectSettingsPanel final
   private:
     void Reset(const ProjectSettings& settings);
     bool m_Initialized = false;
+    EditorLanguage m_Language = EditorLanguage::English;
     ProjectSettings m_Draft;
     std::array<char, 129> m_Name{};
     std::array<std::array<char, 1025>, 4> m_Paths{};

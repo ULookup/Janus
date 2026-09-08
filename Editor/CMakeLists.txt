@@ -7,6 +7,8 @@ add_library(
     EditorCamera.cpp
     EditorTransformDrag.cpp
     EditorConsole.cpp
+    EditorLocale.cpp
+    EditorPreferences.cpp
     EditorContext.cpp
     EditorLaunchOptions.cpp
     McpEditorHost.cpp
@@ -75,6 +77,7 @@ if(JANUS_BUILD_EDITOR)
         Main.cpp
         EditorApplication.cpp
         EditorSceneInteraction.cpp
+        EditorPreferencesHost.cpp
         EditorIcons.cpp
         Panels/AssetBrowserPanel.cpp
         Panels/ConsolePanel.cpp

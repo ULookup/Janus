@@ -228,6 +228,38 @@ Result<void> EditorActions::RenameEntity(
             std::move(name)));
 }
 
+Result<void> EditorActions::RenameEntityIfCurrent(UUID entity, std::string name, u64 revision,
+                                                  u64 generation)
+{
+    auto editable = GetEditableScene();
+    if (!editable)
+        return Result<void>::Failure(editable.GetError());
+    auto result = m_Context.project->ExecuteAuthoringIfCurrent(
+        std::make_unique<RenameEntityCommand>(*editable.Value(), entity, std::move(name)), revision,
+        generation);
+    if (result)
+        FinishSuccessfulMutation(*editable.Value());
+    return result;
+}
+
+Result<void> EditorActions::SetPropertyIfCurrent(UUID entity, ComponentTypeId component,
+                                                 PropertyId property, PropertyValue value,
+                                                 u64 revision, u64 generation)
+{
+    auto editable = GetEditableScene();
+    if (!editable)
+        return Result<void>::Failure(editable.GetError());
+    SceneReflection reflection(m_Context.project->GetReflectionRegistry(),
+                               &m_Context.project->GetAssetRegistry());
+    auto result = m_Context.project->ExecuteAuthoringIfCurrent(
+        std::make_unique<SetPropertyCommand>(*editable.Value(), reflection, entity, component,
+                                             property, std::move(value)),
+        revision, generation);
+    if (result)
+        FinishSuccessfulMutation(*editable.Value());
+    return result;
+}
+
 Result<void> EditorActions::SetProperty(
     UUID id,
     ComponentTypeId component,

@@ -12,7 +12,10 @@ namespace
 std::string SpacedLabel(const char* label)
 {
     // Stable IDs preserve existing tab/header state while making room for the icon.
-    return std::string("      ") + label + "###" + label;
+    return std::string("      ") + label +
+           (std::string_view(label).find("###") == std::string_view::npos
+                ? std::string("###") + label
+                : std::string{});
 }
 } // namespace
 
@@ -80,7 +83,8 @@ bool IconButton(Icon icon, const char* label, ImVec2 size)
 {
     const float iconSize = ImGui::GetFontSize();
     const float gap = ImGui::GetStyle().ItemInnerSpacing.x;
-    const ImVec2 textSize = ImGui::CalcTextSize(label);
+    const std::string visible = std::string(label).substr(0, std::string_view(label).find("##"));
+    const ImVec2 textSize = ImGui::CalcTextSize(visible.c_str());
     const float content = iconSize + gap + textSize.x;
     if (size.x == 0)
         size.x = content + ImGui::GetStyle().FramePadding.x * 2;
@@ -93,7 +97,7 @@ bool IconButton(Icon icon, const char* label, ImVec2 size)
     draw->PushClipRect(min, max, true);
     DrawIcon(icon, {x, y}, iconSize);
     draw->AddText({x + iconSize + gap, min.y + (max.y - min.y - textSize.y) * 0.5f},
-                  ImGui::GetColorU32(ImGuiCol_Text), label);
+                  ImGui::GetColorU32(ImGuiCol_Text), visible.c_str());
     draw->PopClipRect();
     return clicked;
 }
@@ -111,7 +115,8 @@ bool IconOnlyButton(Icon icon, const char* label)
     const bool clicked = ImGui::Button((std::string("###") + label).c_str(), {side, side});
     DrawItemIcon(icon, (side - ImGui::GetFontSize()) * 0.5f);
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-        ImGui::SetTooltip("%s", label);
+        ImGui::SetTooltip("%s",
+                          std::string(label).substr(0, std::string_view(label).find("##")).c_str());
     return clicked;
 }
 

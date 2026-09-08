@@ -1,5 +1,6 @@
 #include "Panels/AssetBrowserPanel.h"
 #include "Core/FileSystem/FileSystem.h"
+#include "EditorLocale.h"
 
 #include "EditorActions.h"
 #include "EditorContext.h"
@@ -35,9 +36,11 @@ AssetBrowserPanel::AssetBrowserPanel(
 
 std::optional<Error> AssetBrowserPanel::DrawContents()
 {
+    const auto text = [&](const char* key) { return EditorText(m_Context.language, key); };
+    const auto label = [&](const char* key) { return EditorLabel(m_Context.language, key); };
     if (m_Context.project == nullptr)
     {
-        ImGui::TextUnformatted("No project open.");
+        ImGui::TextUnformatted(text("No project open."));
         return std::nullopt;
     }
 
@@ -52,34 +55,37 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
     }
     const auto assets = m_Context.project->GetAssetRegistry().GetAssets();
     ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.48f);
-    ImGui::InputTextWithHint("##Search", "Search assets...", m_Search.data(), m_Search.size());
+    ImGui::InputTextWithHint("##Search", text("Search assets..."), m_Search.data(),
+                             m_Search.size());
     ImGui::SameLine();
     ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.64f);
-    ImGui::Combo(
-        "##Type", &m_TypeFilter,
-        "All types\0Texture\0LuaScript\0ShaderSource\0Font\0AudioClip\0Prefab\0AnimationClip\0");
+    const char* typeLabels[] = {text("All types"),    text("Texture"),      text("LuaScript"),
+                                text("ShaderSource"), text("Font"),         text("AudioClip"),
+                                text("Prefab"),       text("AnimationClip")};
+    ImGui::Combo("##Type", &m_TypeFilter, typeLabels, IM_ARRAYSIZE(typeLabels));
     ImGui::SameLine();
-    if (IconButton(m_Grid ? Icon::List : Icon::Grid, m_Grid ? "List" : "Grid"))
+    if (IconButton(m_Grid ? Icon::List : Icon::Grid, label(m_Grid ? "List" : "Grid").c_str()))
         m_Grid = !m_Grid;
     const float footer = ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().ItemSpacing.y * 3 + 1;
     const float height = std::max(60.0f, ImGui::GetContentRegionAvail().y - footer);
     if (ImGui::BeginChild("AssetFolders", ImVec2{ImGui::GetFontSize() * 9, height},
                           ImGuiChildFlags_Borders))
     {
-        if (IconSelectable(Icon::Folder, "All assets", m_Folder.empty()))
+        if (IconSelectable(Icon::Folder, label("All assets").c_str(), m_Folder.empty()))
             m_Folder.clear();
         std::set<std::string> folders;
         for (const auto& asset : assets)
             folders.insert(FileSystem::PathToUtf8(asset.relativePath.parent_path()));
         for (const auto& folder : folders)
-            if (IconSelectable(Icon::Folder, folder.empty() ? "(root)" : folder.c_str(),
+            if (IconSelectable(Icon::Folder,
+                               folder.empty() ? label("(root)").c_str() : folder.c_str(),
                                m_Folder == folder))
                 m_Folder = folder;
     }
     ImGui::EndChild();
     ImGui::SameLine();
     ImGui::BeginChild("AssetItems", ImVec2{0, height}, ImGuiChildFlags_Borders);
-    ImGui::TextDisabled("Assets / %s", m_Folder.empty() ? "All" : m_Folder.c_str());
+    ImGui::TextDisabled(text("Assets / %s"), m_Folder.empty() ? text("All") : m_Folder.c_str());
     const AssetType types[] = {
         AssetType::Texture,   AssetType::LuaScript, AssetType::ShaderSource, AssetType::Font,
         AssetType::AudioClip, AssetType::Prefab,    AssetType::AnimationClip};
@@ -178,7 +184,8 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
                           ImGui::GetColorU32(selectedCard ? ImGuiCol_CheckMark : ImGuiCol_Border),
                           4, 0, selectedCard ? 1.5f : 1.0f);
             if (hovered)
-                ImGui::SetTooltip("%s\nType: %s", path.c_str(), AssetTypeName(asset.type).data());
+                ImGui::SetTooltip(text("%s\nType: %s"), path.c_str(),
+                                  text(AssetTypeName(asset.type).data()));
             ++column;
         }
         else if (IconSelectable(AssetIcon(AssetTypeName(asset.type)), path.c_str(),
@@ -201,7 +208,7 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
 
     if (!m_SelectedAsset.IsValid())
     {
-        ImGui::TextDisabled("Select an asset to inspect or assign.");
+        ImGui::TextDisabled(text("Select an asset to inspect or assign."));
         return std::nullopt;
     }
 
@@ -212,7 +219,7 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
     if (selected == nullptr)
     {
         m_SelectedAsset = {};
-        ImGui::TextDisabled("Selected asset is no longer registered.");
+        ImGui::TextDisabled(text("Selected asset is no longer registered."));
         return std::nullopt;
     }
 
@@ -234,7 +241,7 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
     {
         std::optional<Error> error;
         ImGui::BeginDisabled(m_Context.project->IsAuthoringReadOnly());
-        if (IconButton(Icon::Prefab, "Instantiate Prefab"))
+        if (IconButton(Icon::Prefab, label("Instantiate Prefab").c_str()))
         {
             auto created = m_Actions.InstantiatePrefab(selected->handle);
             if (!created)
@@ -242,7 +249,8 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
         }
         ImGui::EndDisabled();
         if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-            ImGui::SetTooltip("Creates an independent subtree. Undo removes the whole instance.");
+            ImGui::SetTooltip(
+                text("Creates an independent subtree. Undo removes the whole instance."));
         return error;
     }
 
@@ -255,8 +263,7 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
     if (!target.IsValid()
         || !m_Context.selection.GetSelectedUUID().has_value())
     {
-        ImGui::TextDisabled(
-            "Select an entity to assign this asset.");
+        ImGui::TextDisabled(text("Select an entity to assign this asset."));
         return std::nullopt;
     }
 
@@ -272,7 +279,7 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
     {
         if (scene.HasComponent<SpriteRendererComponent>(target))
         {
-            if (ImGui::Button("Assign to SpriteRenderer"))
+            if (ImGui::Button(label("Assign to SpriteRenderer").c_str()))
             {
                 const auto assigned =
                     m_Actions.SetSpriteTexture(
@@ -286,13 +293,13 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
         }
         else
         {
-            ImGui::TextDisabled(
-                "Selected entity has no SpriteRenderer.");
+            ImGui::TextDisabled(text("Selected entity has no SpriteRenderer."));
         }
     }
     else if (selected->type == AssetType::AnimationClip)
     {
-        if (scene.HasComponent<AnimatorComponent>(target) && ImGui::Button("Assign to Animator"))
+        if (scene.HasComponent<AnimatorComponent>(target) &&
+            ImGui::Button(label("Assign to Animator").c_str()))
         {
             auto assigned = m_Actions.SetProperty(entityId, MakeComponentTypeId("Animator"),
                                                   MakePropertyId("Animator.clip"),
@@ -305,7 +312,7 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
     {
         if (scene.HasComponent<TextComponent>(target))
         {
-            if (ImGui::Button("Assign to Text"))
+            if (ImGui::Button(label("Assign to Text").c_str()))
             {
                 auto assigned = m_Actions.SetProperty(entityId, MakeComponentTypeId("Text"),
                                                       MakePropertyId("Text.font"),
@@ -315,13 +322,13 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
             }
         }
         else
-            ImGui::TextDisabled("Selected entity has no Text.");
+            ImGui::TextDisabled(text("Selected entity has no Text."));
     }
     else if (selected->type == AssetType::AudioClip)
     {
         if (scene.HasComponent<AudioSourceComponent>(target))
         {
-            if (ImGui::Button("Assign to AudioSource"))
+            if (ImGui::Button(label("Assign to AudioSource").c_str()))
             {
                 auto assigned = m_Actions.SetProperty(entityId, MakeComponentTypeId("AudioSource"),
                                                       MakePropertyId("AudioSource.clip"),
@@ -331,13 +338,13 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
             }
         }
         else
-            ImGui::TextDisabled("Selected entity has no AudioSource.");
+            ImGui::TextDisabled(text("Selected entity has no AudioSource."));
     }
     else if (selected->type == AssetType::LuaScript)
     {
         if (scene.HasComponent<LuaScriptComponent>(target))
         {
-            if (ImGui::Button("Assign to LuaScript"))
+            if (ImGui::Button(label("Assign to LuaScript").c_str()))
             {
                 const auto assigned =
                     m_Actions.SetLuaScriptAsset(
@@ -351,13 +358,12 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
         }
         else
         {
-            ImGui::TextDisabled(
-                "Selected entity has no LuaScript.");
+            ImGui::TextDisabled(text("Selected entity has no LuaScript."));
         }
     }
     else
     {
-        ImGui::TextDisabled("This asset type has no component assignment.");
+        ImGui::TextDisabled(text("This asset type has no component assignment."));
     }
 
     ImGui::EndDisabled();

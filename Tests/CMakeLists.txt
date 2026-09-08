@@ -43,6 +43,8 @@ add_executable(
     Editor/EditorViewSourceTests.cpp
     Editor/EditorWorkflowTests.cpp
     Editor/EditorWorkspaceLayoutTests.cpp
+    Editor/EditorPreferencesTests.cpp
+    Editor/EditorLocaleTests.cpp
     Editor/ScenePickerTests.cpp
     Editor/ProjectSessionTests.cpp
     Editor/RuntimeSessionTests.cpp

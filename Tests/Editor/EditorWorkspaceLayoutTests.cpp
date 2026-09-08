@@ -2,6 +2,8 @@
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <cmath>
+#include <limits>
 
 namespace
 {
@@ -17,6 +19,59 @@ bool Overlaps(
 }
 
 } // namespace
+
+TEST_CASE("Editor workspace presets distinguish standard focus and debug without overlaps",
+          "[editor][workspace][preferences]")
+{
+    using namespace Janus::Editor;
+    const auto standard = BuildEditorWorkspaceLayout(
+        1440, 900, GetDefaultWorkspacePreferences(EditorLayoutMode::Standard));
+    const auto focus = BuildEditorWorkspaceLayout(
+        1440, 900, GetDefaultWorkspacePreferences(EditorLayoutMode::Focus));
+    const auto debug = BuildEditorWorkspaceLayout(
+        1440, 900, GetDefaultWorkspacePreferences(EditorLayoutMode::Debug));
+    CHECK(focus.viewport.width > standard.viewport.width);
+    CHECK(focus.viewport.height > standard.viewport.height);
+    CHECK(focus.hierarchy.width == 0);
+    CHECK(focus.inspector.width == 0);
+    CHECK(focus.assets.width == 0);
+    CHECK(focus.diagnostics.width == 0);
+    CHECK(debug.diagnostics.width > debug.assets.width);
+    CHECK(debug.utility.height > standard.utility.height);
+    for (const auto mode :
+         {EditorLayoutMode::Standard, EditorLayoutMode::Focus, EditorLayoutMode::Debug})
+        for (const auto width : {0.0f, 320.0f, 720.0f, 1440.0f})
+        {
+            const auto layout =
+                BuildEditorWorkspaceLayout(width, 480, GetDefaultWorkspacePreferences(mode));
+            for (const auto panel :
+                 {layout.toolbar, layout.hierarchy, layout.viewport, layout.inspector,
+                  layout.assets, layout.diagnostics, layout.status})
+            {
+                CHECK(panel.x >= 0);
+                CHECK(panel.y >= 0);
+                CHECK(panel.x + panel.width <= width + 0.01f);
+                CHECK(panel.y + panel.height <= 480.01f);
+            }
+        }
+}
+
+TEST_CASE("Editor workspace rejects nonfinite dimensions through bounded fallback",
+          "[editor][workspace][preferences]")
+{
+    Janus::Editor::EditorWorkspacePreferences preferences;
+    preferences.leftWidth = std::numeric_limits<float>::quiet_NaN();
+    preferences.rightWidth = std::numeric_limits<float>::infinity();
+    preferences.utilityHeight = -std::numeric_limits<float>::infinity();
+    const auto layout = Janus::Editor::BuildEditorWorkspaceLayout(1440, 900, preferences);
+    for (const auto panel : {layout.hierarchy, layout.viewport, layout.inspector, layout.utility})
+    {
+        CHECK(std::isfinite(panel.x));
+        CHECK(std::isfinite(panel.y));
+        CHECK(std::isfinite(panel.width));
+        CHECK(std::isfinite(panel.height));
+    }
+}
 
 TEST_CASE(
     "Editor workspace prioritizes one central viewport",
