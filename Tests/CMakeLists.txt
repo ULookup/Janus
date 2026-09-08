@@ -32,6 +32,7 @@ add_executable(
     Application/ApplicationTests.cpp
     Application/ProjectRuntimeTests.cpp
     Editor/EditorActionsTests.cpp
+    Editor/EditorCloseTests.cpp
     Editor/EditorCameraTests.cpp
     Editor/EditorLaunchOptionsTests.cpp
     Editor/EditorConsoleTests.cpp

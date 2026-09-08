@@ -3,6 +3,7 @@ add_library(
     STATIC
 
     EditorActions.cpp
+    EditorCloseController.cpp
     EditorCamera.cpp
     EditorConsole.cpp
     EditorContext.cpp

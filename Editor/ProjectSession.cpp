@@ -89,7 +89,7 @@ ProjectSession::~ProjectSession() = default;
 
 Result<AssetHandle> ProjectSession::ExportPrefab(UUID root)
 {
-    if (HasRuntime() || m_CommandBus.HasTransaction() || m_CommandBus.RecoveryRequired())
+    if (IsAuthoringReadOnly())
         return Result<AssetHandle>::Failure(
             ErrorCode::InvalidState,
             "Stop runtime and finish transaction/recovery before exporting a Prefab.");
@@ -136,6 +136,14 @@ Result<AssetHandle> ProjectSession::ExportPrefab(UUID root)
 }
 
 Result<void> ProjectSession::SaveProjectSettings(const ProjectSettings& settings)
+{
+    if (m_ClosePending)
+        return Result<void>::Failure(ErrorCode::InvalidState,
+                                     "Editor close confirmation is active.");
+    return SaveProjectSettingsImpl(settings);
+}
+
+Result<void> ProjectSession::SaveProjectSettingsImpl(const ProjectSettings& settings)
 {
     if (HasRuntime() || m_CommandBus.HasTransaction() || m_CommandBus.RecoveryRequired())
         return Result<void>::Failure(
@@ -200,6 +208,9 @@ const Scene& ProjectSession::GetEditorScene() const noexcept
 
 Result<void> ProjectSession::StartRuntime(const InputState& input, bool startPaused)
 {
+    if (m_ClosePending)
+        return Result<void>::Failure(ErrorCode::InvalidState,
+                                     "Editor close confirmation is active.");
     if (m_RuntimeSession != nullptr)
     {
         return Result<void>::Failure(
@@ -250,6 +261,14 @@ Result<void> ProjectSession::UpdateRuntime(TimeStep timeStep)
 
 Result<void> ProjectSession::StopRuntime()
 {
+    if (m_ClosePending)
+        return Result<void>::Failure(ErrorCode::InvalidState,
+                                     "Editor close confirmation is active.");
+    return StopRuntimeImpl();
+}
+
+Result<void> ProjectSession::StopRuntimeImpl()
+{
     if (m_RuntimeSession == nullptr)
     {
         return Result<void>::Success();
@@ -294,18 +313,27 @@ Result<void> ProjectSession::PlayRuntime(bool startPaused)
 
 Result<void> ProjectSession::PauseRuntime()
 {
+    if (m_ClosePending)
+        return Result<void>::Failure(ErrorCode::InvalidState,
+                                     "Editor close confirmation is active.");
     return m_RuntimeSession
                ? m_RuntimeSession->Pause()
                : Result<void>::Failure(ErrorCode::InvalidState, "No runtime to pause.");
 }
 Result<void> ProjectSession::ResumeRuntime()
 {
+    if (m_ClosePending)
+        return Result<void>::Failure(ErrorCode::InvalidState,
+                                     "Editor close confirmation is active.");
     return m_RuntimeSession
                ? m_RuntimeSession->Resume()
                : Result<void>::Failure(ErrorCode::InvalidState, "No runtime to resume.");
 }
 Result<void> ProjectSession::StepRuntime()
 {
+    if (m_ClosePending)
+        return Result<void>::Failure(ErrorCode::InvalidState,
+                                     "Editor close confirmation is active.");
     const bool ownFrame = BeginDiagnosticsFrame();
     auto result = m_RuntimeSession
                       ? [&]
@@ -378,7 +406,15 @@ void ProjectSession::MarkDirty() noexcept
 
 Result<void> ProjectSession::SaveCurrentScene()
 {
-    if (IsAuthoringReadOnly())
+    if (m_ClosePending)
+        return Result<void>::Failure(ErrorCode::InvalidState,
+                                     "Editor close confirmation is active.");
+    return SaveCurrentSceneImpl();
+}
+
+Result<void> ProjectSession::SaveCurrentSceneImpl()
+{
+    if (HasRuntime() || m_CommandBus.HasTransaction() || m_CommandBus.RecoveryRequired())
     {
         return Result<void>::Failure(
             ErrorCode::InvalidState,
@@ -414,13 +450,14 @@ const RuntimeSession* ProjectSession::GetRuntimeSession() const noexcept
 
 bool ProjectSession::IsAuthoringReadOnly() const noexcept
 {
-    return HasRuntime() || m_CommandBus.HasTransaction() || m_CommandBus.RecoveryRequired();
+    return m_ClosePending || HasRuntime() || m_CommandBus.HasTransaction() ||
+           m_CommandBus.RecoveryRequired();
 }
 Result<void> ProjectSession::ExecuteAuthoring(std::unique_ptr<ICommand> command, CommandActor actor,
                                               UUID token, UUID owner)
 {
     ExpireAuthoringTransaction();
-    if (HasRuntime() || m_CommandBus.RecoveryRequired())
+    if (m_ClosePending || HasRuntime() || m_CommandBus.RecoveryRequired())
         return Result<void>::Failure(ErrorCode::InvalidState, "Authoring is read-only.");
     if (m_CommandBus.HasTransaction() && (owner != m_TransactionOwner || !owner.IsValid()))
         return Result<void>::Failure(ErrorCode::InvalidState,
@@ -501,6 +538,9 @@ void ProjectSession::ExpireAuthoringTransaction(std::chrono::steady_clock::time_
 }
 Result<void> ProjectSession::DiscardUnsavedAndReload()
 {
+    if (m_ClosePending)
+        return Result<void>::Failure(ErrorCode::InvalidState,
+                                     "Cancel close confirmation before recovery.");
     if (HasRuntime())
         return Result<void>::Failure(ErrorCode::InvalidState,
                                      "Stop runtime before discard/reload.");

@@ -316,11 +316,16 @@ Result<void> Application::Run(ApplicationClient& client)
 
                 if (std::holds_alternative<WindowCloseEvent>(event))
                 {
-                    RequestExit();
+                    if (!m_ExitRequested && client.OnCloseRequested(*this) == CloseDecision::Accept)
+                        RequestExit();
                 }
 
                 client.OnEvent(event, *this);
             });
+
+        // A confirmed native close must not run another client frame or dispatch authoring work.
+        if (m_ExitRequested || m_Window->ShouldClose())
+            break;
 
         const auto timeStep =
             m_FrameClock.Tick(m_Dependencies.now())

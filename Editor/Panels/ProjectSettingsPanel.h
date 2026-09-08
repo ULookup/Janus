@@ -9,6 +9,12 @@ class ProjectSettingsPanel final
 {
   public:
     void Draw(ProjectSession& session);
+    ProjectSettings GetDraft() const;
+    bool HasUnsavedChanges(const ProjectSession& session) const;
+    void AcceptSaved(const ProjectSettings& settings)
+    {
+        Reset(settings);
+    }
 
   private:
     void Reset(const ProjectSettings& settings);

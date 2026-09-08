@@ -162,17 +162,17 @@ std::optional<Error> InspectorPanel::Draw()
         "##Name", m_NameBuffer.data(), m_NameBuffer.size(), ImGuiInputTextFlags_EnterReturnsTrue);
 
     m_NameEditing = ImGui::IsItemActive();
+    m_NameEdited = m_NameEdited || ImGui::IsItemEdited();
 
-    if (renameCommitted)
+    if (!readOnly && (renameCommitted || ImGui::IsItemDeactivatedAfterEdit()))
     {
-        const auto renamed =
-            m_Actions.RenameEntity(
-                id,
-                std::string{m_NameBuffer.data()});
+        const auto renamed = m_Actions.RenameEntity(id, std::string{m_NameBuffer.data()});
         if (!renamed)
         {
             error = renamed.GetError();
         }
+        else
+            m_NameEdited = false;
     }
 
     ImGui::Separator();
@@ -359,14 +359,13 @@ std::optional<Error> InspectorPanel::DrawProperty(
         if (ImGui::IsItemActivated())
         {
             m_ActiveProperty = key;
+            m_ActiveComponent = component;
         }
 
         commit =
             ImGui::IsItemDeactivatedAfterEdit();
 
-        if (ImGui::IsItemDeactivated()
-            && !commit
-            && m_ActiveProperty == key)
+        if (ImGui::IsItemDeactivated() && !commit && m_ActiveProperty == key && !m_PropertyEdited)
         {
             m_ActiveProperty.reset();
             m_StringBuffers.erase(key);
@@ -579,6 +578,7 @@ std::optional<Error> InspectorPanel::DrawProperty(
         if (ImGui::IsItemActivated())
         {
             m_ActiveProperty = key;
+            m_ActiveComponent = component;
         }
 
         commit =
@@ -591,9 +591,7 @@ std::optional<Error> InspectorPanel::DrawProperty(
             commit = true;
         }
 
-        if (ImGui::IsItemDeactivated()
-            && !commit
-            && m_ActiveProperty == key)
+        if (ImGui::IsItemDeactivated() && !commit && m_ActiveProperty == key && !m_PropertyEdited)
         {
             m_ActiveProperty.reset();
             m_PropertyBuffers.erase(key);
@@ -604,8 +602,14 @@ std::optional<Error> InspectorPanel::DrawProperty(
 
     ImGui::EndDisabled();
 
-    if (descriptor->editable
-        && commit)
+    if (changed)
+    {
+        m_ActiveProperty = key;
+        m_ActiveComponent = component;
+        m_PropertyEdited = true;
+    }
+
+    if (descriptor->editable && commit && !m_Context.project->IsAuthoringReadOnly())
     {
         const auto updated =
             m_Actions.SetProperty(
@@ -614,15 +618,15 @@ std::optional<Error> InspectorPanel::DrawProperty(
                 descriptor->id,
                 std::move(desired));
 
-        m_ActiveProperty.reset();
-        m_PropertyBuffers.erase(key);
-        m_StringBuffers.erase(key);
-
         if (!updated)
         {
             ImGui::PopID();
             return updated.GetError();
         }
+        m_ActiveProperty.reset();
+        m_PropertyEdited = false;
+        m_PropertyBuffers.erase(key);
+        m_StringBuffers.erase(key);
     }
 
     ImGui::PopID();
@@ -633,8 +637,7 @@ void InspectorPanel::SyncNameBuffer(
     UUID id,
     const char* name)
 {
-    if (m_NameBufferEntity == id
-        && m_NameEditing)
+    if (m_NameBufferEntity == id && (m_NameEditing || m_NameEdited))
     {
         return;
     }
@@ -649,6 +652,7 @@ void InspectorPanel::SyncNameBuffer(
     }
 
     m_NameBufferEntity = id;
+    m_NameEdited = false;
 }
 
 void InspectorPanel::SyncPropertyBuffers(UUID id)
@@ -659,6 +663,46 @@ void InspectorPanel::SyncPropertyBuffers(UUID id)
     }
 
     m_PropertyBufferEntity = id;
+    m_ActiveProperty.reset();
+    m_PropertyEdited = false;
+    m_PropertyBuffers.clear();
+    m_StringBuffers.clear();
+}
+
+Result<void> InspectorPanel::CommitPendingEdit()
+{
+    if (m_NameEdited)
+    {
+        auto result = m_Actions.RenameEntity(m_NameBufferEntity, m_NameBuffer.data());
+        if (!result)
+            return result;
+        m_NameEdited = false;
+    }
+    if (m_PropertyEdited && m_ActiveProperty)
+    {
+        const auto key = *m_ActiveProperty;
+        PropertyValue value;
+        if (auto text = m_StringBuffers.find(key); text != m_StringBuffers.end())
+            value = std::string{text->second.data()};
+        else if (auto property = m_PropertyBuffers.find(key); property != m_PropertyBuffers.end())
+            value = property->second;
+        else
+            return Result<void>::Failure(ErrorCode::InvalidState,
+                                         "Pending Inspector value is unavailable.");
+        auto result = m_Actions.SetProperty(m_PropertyBufferEntity, m_ActiveComponent,
+                                            PropertyId{key}, std::move(value));
+        if (!result)
+            return result;
+        DiscardPendingEdit();
+    }
+    return Result<void>::Success();
+}
+
+void InspectorPanel::DiscardPendingEdit()
+{
+    m_NameEdited = false;
+    m_NameEditing = false;
+    m_PropertyEdited = false;
     m_ActiveProperty.reset();
     m_PropertyBuffers.clear();
     m_StringBuffers.clear();

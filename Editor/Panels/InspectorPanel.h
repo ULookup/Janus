@@ -23,8 +23,10 @@ public:
         EditorActions& actions) noexcept;
 
     [[nodiscard]] std::optional<Error> Draw();
+    [[nodiscard]] Result<void> CommitPendingEdit();
+    void DiscardPendingEdit();
 
-private:
+  private:
     void SyncNameBuffer(
         UUID id,
         const char* name);
@@ -42,9 +44,12 @@ private:
     UUID m_NameBufferEntity;
     std::array<char, 256> m_NameBuffer{};
     bool m_NameEditing = false;
+    bool m_NameEdited = false;
 
     UUID m_PropertyBufferEntity;
     std::optional<u64> m_ActiveProperty;
+    ComponentTypeId m_ActiveComponent;
+    bool m_PropertyEdited = false;
     std::unordered_map<u64, PropertyValue> m_PropertyBuffers;
     std::unordered_map<u64, std::array<char, 4097>> m_StringBuffers;
 };

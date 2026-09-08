@@ -30,6 +30,7 @@ namespace
 struct TestState
 {
     std::vector<std::string> order;
+    bool emitCloseEvents = false;
     bool failPlatformInitialize = false;
     bool failWindowCreate = false;
     bool failContextCreate = false;
@@ -56,6 +57,11 @@ public:
     {
         m_State.order.emplace_back("window.poll");
         callback(Janus::WindowResizeEvent{800, 600});
+        if (m_State.emitCloseEvents)
+        {
+            callback(Janus::WindowCloseEvent{});
+            callback(Janus::WindowCloseEvent{});
+        }
     }
 
     void SetTitle(std::string_view) override
@@ -318,6 +324,64 @@ TEST_CASE("Application runs and cleans up in lifecycle order", "[application]")
         "context.destroy",
         "window.destroy",
         "platform.shutdown"});
+}
+
+TEST_CASE("Application lets a client defer native close requests until explicit confirmation",
+          "[application][close]")
+{
+    struct Client final : Janus::ApplicationClient
+    {
+        int requests = 0, updates = 0, shutdowns = 0;
+        Janus::CloseDecision OnCloseRequested(Janus::Application&) override
+        {
+            ++requests;
+            return Janus::CloseDecision::Defer;
+        }
+        void OnUpdate(Janus::TimeStep, Janus::Application& app) override
+        {
+            if (++updates == 3)
+                app.RequestExit();
+        }
+        void OnShutdown(Janus::Application&) noexcept override
+        {
+            ++shutdowns;
+        }
+    } client;
+    TestState state;
+    state.emitCloseEvents = true;
+    Janus::ApplicationConfig config;
+    config.executionMode = Janus::ApplicationExecutionMode::ClientDriven;
+    auto app = Janus::Detail::ApplicationTestAccess::Create(config, MakeDependencies(state));
+    REQUIRE(app->Run(client));
+    CHECK(client.requests == 6);
+    CHECK(client.updates == 3);
+    CHECK(client.shutdowns == 1);
+}
+
+TEST_CASE("Application accepts native close by default without another client update",
+          "[application][close]")
+{
+    struct Client final : Janus::ApplicationClient
+    {
+        int updates = 0, shutdowns = 0;
+        void OnUpdate(Janus::TimeStep, Janus::Application& app) override
+        {
+            ++updates;
+            app.RequestExit();
+        }
+        void OnShutdown(Janus::Application&) noexcept override
+        {
+            ++shutdowns;
+        }
+    } client;
+    TestState state;
+    state.emitCloseEvents = true;
+    Janus::ApplicationConfig config;
+    config.executionMode = Janus::ApplicationExecutionMode::ClientDriven;
+    auto app = Janus::Detail::ApplicationTestAccess::Create(config, MakeDependencies(state));
+    REQUIRE(app->Run(client));
+    CHECK(client.updates == 0);
+    CHECK(client.shutdowns == 1);
 }
 
 TEST_CASE("Application cleans initialized resources when client initialization fails",

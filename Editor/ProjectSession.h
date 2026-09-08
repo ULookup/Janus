@@ -32,6 +32,10 @@ using RuntimeSession = Janus::RuntimeSession;
 class ProjectSession final
 {
 public:
+  [[nodiscard]] bool IsClosePending() const noexcept
+  {
+      return m_ClosePending;
+  }
   [[nodiscard]] static Result<std::unique_ptr<ProjectSession>>
   Open(const ProjectRuntimeConfig& config, Renderer2D& renderer,
        std::shared_ptr<LogStore> logs = {});
@@ -116,6 +120,11 @@ public:
     [[nodiscard]] const RuntimeSession* GetRuntimeSession() const noexcept;
 
 private:
+  friend class EditorCloseController;
+  bool m_ClosePending = false;
+  Result<void> SaveCurrentSceneImpl();
+  Result<void> SaveProjectSettingsImpl(const ProjectSettings& settings);
+  Result<void> StopRuntimeImpl();
   ProjectSession(std::filesystem::path projectRoot, std::filesystem::path currentScenePath,
                  ReflectionRegistry reflectionRegistry, AssetRegistry assetRegistry,
                  std::unique_ptr<Scene> editorScene, Renderer2D& renderer,

@@ -185,7 +185,7 @@ namespace Janus
             {
             case SDL_EVENT_QUIT:
             {
-                RequestClose();
+                // This is a request; Application lets its client negotiate unsaved work.
                 callback(WindowCloseEvent{});
                 break;
             }
@@ -197,7 +197,6 @@ namespace Janus
 
                 if (eventWindow == m_Window)
                 {
-                    RequestClose();
                     callback(WindowCloseEvent{});
                 }
 
