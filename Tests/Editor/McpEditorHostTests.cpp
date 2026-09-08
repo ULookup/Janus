@@ -5,6 +5,7 @@
 #include "Core/Log/LogStore.h"
 #include "EditorActions.h"
 #include "EditorContext.h"
+#include "EditorTransformDrag.h"
 #include "ProjectSession.h"
 #include "RuntimeSession.h"
 #include "Scene/Command/EntityCommands.h"
@@ -174,6 +175,88 @@ private:
 };
 
 } // namespace
+
+TEST_CASE("Live MCP reads exclude Move previews and Agent edits invalidate pending Human moves",
+          "[editor][mcp][host][move][authoring-generation]")
+{
+    using namespace Janus;
+    ProjectFixture fixture;
+    auto& project = *fixture.project;
+    Editor::EditorContext context;
+    context.project = &project;
+    Editor::EditorActions human(context);
+    const auto target = human.CreateEntity("Human move target");
+    const auto other = human.CreateEntity("Agent rotation target");
+    REQUIRE(target);
+    REQUIRE(other);
+    REQUIRE(human.SetTransform(target.Value(), {3, 7}, 0, {1, 1}));
+    const auto history = project.GetCommandBus().GetHistorySize();
+    const auto generation = project.GetAuthoringGeneration();
+    Editor::TransformDragView view{Editor::EditorCamera{}, {800, 600}, {100, 50}, {400, 300}, 2};
+    Editor::EditorTransformDrag drag;
+    REQUIRE(drag.Begin(project, target.Value(), Editor::TransformDragAxis::XY, {300, 200}, view));
+    REQUIRE(drag.Update(project, {315, 190}, view));
+    REQUIRE(drag.GetPreview());
+    REQUIRE(drag.GetPreview()->position.x != 3);
+    REQUIRE(drag.GetPreview()->position.y != 7);
+    CHECK(project.GetAuthoringGeneration() == generation);
+    CHECK(project.GetCommandBus().GetHistorySize() == history);
+
+    const auto targetUri = "engine://entity/" + target.Value().ToString();
+    // Changing a different entity exercises session generation, independently of the drag's
+    // target/parent-chain validation. All requests still pass through the live owner-thread pump.
+    std::istringstream input(
+        EncodeRequest(1, "resources/read", {{"uri", targetUri}}) +
+        EncodeRequest(2, "tools/call",
+                      {{"name", "scene.set_component_property"},
+                       {"arguments",
+                        {{"entity", other.Value().ToString()},
+                         {"component", "Transform"},
+                         {"property", "rotation"},
+                         {"value", 0.5}}}}) +
+        EncodeRequest(3, "resources/read", {{"uri", targetUri}}) +
+        EncodeRequest(4, "resources/read",
+                      {{"uri", "engine://entity/" + other.Value().ToString()}}));
+    std::ostringstream output;
+    MCP::AllowAllMcpPermissionPolicy policy;
+    auto host = Editor::McpEditorHost::Create(project, input, output, policy);
+    REQUIRE(host);
+    REQUIRE(host.Value()->Start());
+    REQUIRE(PumpUntilWorkerStops(*host.Value()));
+    const auto responses = ParseResponses(output.str());
+    REQUIRE(responses.size() == 4);
+    for (const usize index : {usize{0}, usize{2}})
+    {
+        REQUIRE(responses[index].contains("result"));
+        const auto entity = MCP::Json::parse(
+            responses[index].at("result").at("contents").at(0).at("text").get<std::string>());
+        CHECK(entity.at("components").at("Transform").at("position").at("x") == 3);
+        CHECK(entity.at("components").at("Transform").at("position").at("y") == 7);
+    }
+    REQUIRE(responses[1].at("result").at("structuredContent").at("ok") == true);
+    const auto agentEntity = MCP::Json::parse(
+        responses[3].at("result").at("contents").at(0).at("text").get<std::string>());
+    CHECK(agentEntity.at("components").at("Transform").at("rotation") == 0.5);
+    CHECK(project.GetAuthoringGeneration() > generation);
+    REQUIRE_FALSE(drag.Commit(project));
+    CHECK_FALSE(drag.IsActive());
+    CHECK_FALSE(drag.GetPreview());
+    CHECK(project.GetCommandBus().GetHistorySize() == history + 1);
+    auto& scene = project.GetEditorScene();
+    const auto* transform =
+        scene.GetComponent<TransformComponent>(scene.FindEntity(target.Value()));
+    const auto* agentTransform =
+        scene.GetComponent<TransformComponent>(scene.FindEntity(other.Value()));
+    REQUIRE(transform);
+    REQUIRE(agentTransform);
+    CHECK(transform->position.x == 3);
+    CHECK(transform->position.y == 7);
+    CHECK(agentTransform->rotationRadians == 0.5f);
+    REQUIRE(human.Undo());
+    CHECK(agentTransform->rotationRadians == 0);
+    CHECK(transform->position.x == 3);
+    CHECK(transform->position.y == 7);
+}
 
 TEST_CASE("Published snapshot permission executes on the owner thread before resource handling",
           "[snapshot][mcp][permission]")

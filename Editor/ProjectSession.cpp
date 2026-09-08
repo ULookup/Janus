@@ -283,6 +283,9 @@ Result<void> ProjectSession::StartRuntime(const InputState& input, bool startPau
     }
 
     m_RuntimeSession = std::move(runtime).Value();
+    // Invalidate authoring previews even when Play and Stop run in one dispatcher pump. Runtime
+    // owns a clone; this generation change does not dirty the authoring Scene or its history.
+    ++m_AuthoringGeneration;
     m_Logs->Append(LogLevel::Info, "Runtime", "Runtime started.",
                    {m_RuntimeSession->GetStatus().runtimeId});
     return Result<void>::Success();
@@ -452,6 +455,7 @@ bool ProjectSession::IsDirty() const noexcept
 void ProjectSession::MarkDirty() noexcept
 {
     m_Dirty = true;
+    ++m_AuthoringGeneration;
 }
 
 Result<void> ProjectSession::SaveCurrentScene()
@@ -513,12 +517,32 @@ Result<void> ProjectSession::ExecuteAuthoring(std::unique_ptr<ICommand> command,
         return Result<void>::Failure(ErrorCode::InvalidState,
                                      "Authoring transaction belongs to another writer.");
     const bool pending = m_CommandBus.HasTransaction();
+    const usize pendingCount = m_CommandBus.GetPendingCount();
     auto result = m_CommandBus.Execute(std::move(command), actor, token, owner);
     if (result)
         m_Dirty = true;
+    // Failed Agent commands can still roll back earlier edits or poison compensation.
+    if (result || m_CommandBus.RecoveryRequired() ||
+        (pendingCount > 0 && !m_CommandBus.HasTransaction()))
+        ++m_AuthoringGeneration;
     if (pending && !m_CommandBus.HasTransaction() && !m_CommandBus.RecoveryRequired())
         m_Dirty = m_DirtyBeforeTransaction;
     return result;
+}
+Result<void> ProjectSession::ExecuteAuthoringIfCurrent(std::unique_ptr<ICommand> command,
+                                                       u64 expectedRevision, u64 expectedGeneration)
+{
+    if (std::this_thread::get_id() != m_OwnerThread)
+        return Result<void>::Failure(ErrorCode::InvalidState,
+                                     "Conditional authoring requires the session owner thread.");
+    // Reject before ExecuteAuthoring: stale Human previews must never expire or abort an Agent
+    // transaction. Once these checks pass no pending transaction can change during execution.
+    if (IsAuthoringReadOnly())
+        return Result<void>::Failure(ErrorCode::InvalidState, "Authoring is read-only.");
+    if (m_SceneRevision != expectedRevision || m_AuthoringGeneration != expectedGeneration)
+        return Result<void>::Failure(ErrorCode::InvalidState,
+                                     "Authoring changed while the edit was previewed.");
+    return ExecuteAuthoring(std::move(command));
 }
 Result<void> ProjectSession::UndoAuthoring()
 {
@@ -527,6 +551,8 @@ Result<void> ProjectSession::UndoAuthoring()
     auto result = m_CommandBus.Undo();
     if (result)
         m_Dirty = true;
+    if (result || m_CommandBus.RecoveryRequired())
+        ++m_AuthoringGeneration;
     return result;
 }
 Result<void> ProjectSession::RedoAuthoring()
@@ -536,6 +562,8 @@ Result<void> ProjectSession::RedoAuthoring()
     auto result = m_CommandBus.Redo();
     if (result)
         m_Dirty = true;
+    if (result || m_CommandBus.RecoveryRequired())
+        ++m_AuthoringGeneration;
     return result;
 }
 Result<UUID> ProjectSession::BeginAuthoringTransaction(UUID owner, std::string label)
@@ -564,17 +592,26 @@ Result<void> ProjectSession::FinishAuthoringTransaction(UUID token, UUID owner, 
     if (!known)
         return Result<void>::Failure(ErrorCode::InvalidState, "Unknown transaction owner/token.");
     const bool active = m_CommandBus.HasTransaction() && m_CommandBus.GetTransactionId() == token;
+    const usize pendingCount = m_CommandBus.GetPendingCount();
+    const bool recovery = m_CommandBus.RecoveryRequired();
     auto result = commit ? m_CommandBus.CommitTransaction(token)
                          : m_CommandBus.RollbackTransaction(token, CommandActor::Agent);
     if (active && result && !commit)
         m_Dirty = m_DirtyBeforeTransaction;
+    if (active && !commit &&
+        ((result && pendingCount > 0) || (!recovery && m_CommandBus.RecoveryRequired())))
+        ++m_AuthoringGeneration;
     return result;
 }
 void ProjectSession::CancelAuthoringTransaction(UUID owner, CommandActor actor)
 {
     if (!m_CommandBus.HasTransaction() || owner != m_TransactionOwner)
         return;
+    const usize pendingCount = m_CommandBus.GetPendingCount();
+    const bool recovery = m_CommandBus.RecoveryRequired();
     auto result = m_CommandBus.RollbackTransaction(m_CommandBus.GetTransactionId(), actor);
+    if ((result && pendingCount > 0) || (!recovery && m_CommandBus.RecoveryRequired()))
+        ++m_AuthoringGeneration;
     if (result)
         m_Dirty = m_DirtyBeforeTransaction;
     else
@@ -604,6 +641,7 @@ Result<void> ProjectSession::DiscardUnsavedAndReload()
     m_TransactionOwner = {};
     m_TransactionOwners.clear();
     ++m_SceneRevision;
+    ++m_AuthoringGeneration;
     m_CommandBus.RecordOperation(CommandActor::Human, "Discard unsaved changes and reload",
                                  Result<void>::Success());
     return Result<void>::Success();

@@ -4,6 +4,18 @@
 #include <catch2/catch_test_macros.hpp>
 #include <limits>
 
+TEST_CASE("Move snapping uses the visible major grid at every zoom", "[editor][move]")
+{
+    Janus::Editor::EditorCamera camera;
+    for (int i = 0; i < 140; ++i)
+    {
+        const auto spacing = camera.GetGridSpacing();
+        CHECK(spacing / camera.GetZoom() >= 24);
+        CHECK(spacing / camera.GetZoom() <= 160);
+        camera.Zoom(1);
+    }
+}
+
 TEST_CASE("EditorCamera frames a bounded region and ignores invalid requests", "[editor][camera]")
 {
     Janus::Editor::EditorCamera camera;

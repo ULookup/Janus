@@ -79,4 +79,14 @@ f32 EditorCamera::GetZoom() const noexcept
     return m_Zoom;
 }
 
+f32 EditorCamera::GetGridSpacing() const noexcept
+{
+    f32 spacing = 64.0f;
+    while (spacing / m_Zoom < 24.0f)
+        spacing *= 2.0f;
+    while (spacing / m_Zoom > 160.0f && spacing > 0.001f)
+        spacing *= 0.5f;
+    return spacing;
+}
+
 } // namespace Janus::Editor

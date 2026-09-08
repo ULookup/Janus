@@ -22,8 +22,9 @@ public:
 
     [[nodiscard]] Vector2 GetPosition() const noexcept;
     [[nodiscard]] f32 GetZoom() const noexcept;
+    [[nodiscard]] f32 GetGridSpacing() const noexcept;
 
-private:
+  private:
     Vector2 m_Position{0.0f, 0.0f};
     f32 m_Zoom = 1.0f;
 };

@@ -22,11 +22,13 @@ namespace Editor
 
 struct EditorContext;
 struct EditorAssetPayload;
+class EditorTransformDrag;
 
 class EditorActions final
 {
 public:
     explicit EditorActions(EditorContext& context) noexcept;
+    [[nodiscard]] Result<void> CommitTransformDrag(EditorTransformDrag& drag);
 
     [[nodiscard]] Result<UUID> CreateEntity(std::string name);
     [[nodiscard]] Result<AssetHandle> ExportPrefab(UUID root,

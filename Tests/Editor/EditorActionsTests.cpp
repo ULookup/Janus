@@ -1,5 +1,6 @@
 #include "EditorActions.h"
 #include "EditorContext.h"
+#include "EditorTransformDrag.h"
 #include "ProjectSession.h"
 
 #include "Application/ApplicationConfig.h"
@@ -109,6 +110,35 @@ std::unique_ptr<Janus::Editor::ProjectSession> OpenTempProject(
 }
 
 } // namespace
+
+TEST_CASE("Move drag uses Human actions and one reversible command", "[editor][move]")
+{
+    using namespace Janus;
+    using namespace Janus::Editor;
+    Test::FakeRenderDevice device;
+    auto renderer = Detail::Renderer2DTestAccess::Create(device);
+    auto project = OpenProject(*renderer);
+    EditorContext context;
+    context.project = project.get();
+    EditorActions actions(context);
+    auto id = actions.CreateEntity("Move target");
+    REQUIRE(id);
+    TransformDragView view;
+    view.viewport = {640, 360};
+    view.displaySize = {640, 360};
+    EditorTransformDrag drag;
+    REQUIRE(drag.Begin(*project, id.Value(), TransformDragAxis::X, {320, 180}, view));
+    REQUIRE(drag.Update(*project, {360, 200}, view));
+    const auto entity = project->GetEditorScene().FindEntity(id.Value());
+    CHECK(project->GetEditorScene().GetComponent<TransformComponent>(entity)->position.x == 0);
+    REQUIRE(actions.CommitTransformDrag(drag));
+    CHECK_FALSE(drag.IsActive());
+    CHECK(project->GetEditorScene().GetComponent<TransformComponent>(entity)->position.x == 40);
+    REQUIRE(actions.Undo());
+    CHECK(project->GetEditorScene().GetComponent<TransformComponent>(entity)->position.x == 0);
+    REQUIRE(actions.Redo());
+    CHECK(project->GetEditorScene().GetComponent<TransformComponent>(entity)->position.x == 40);
+}
 
 TEST_CASE("Editor reparent shares command history and Runtime guard", "[ui][editor]")
 {

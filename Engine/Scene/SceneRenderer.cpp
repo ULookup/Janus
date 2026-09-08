@@ -15,6 +15,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <unordered_map>
 #include <vector>
 
 namespace Janus
@@ -41,10 +42,10 @@ Result<void> SceneRenderer::Render(Scene& scene, AssetService& assets, Renderer2
                                              animations});
 }
 
-Result<void> SceneRenderer::Render(
-    const SceneRenderRequest& request)
+Result<void> SceneRenderer::Render(const SceneRenderRequest& request)
 {
-    UpdateTransforms(request.scene);
+    if (!request.positionOverride)
+        UpdateTransforms(request.scene);
     return RenderPrepared(request);
 }
 
@@ -71,6 +72,25 @@ Result<void> SceneRenderer::RenderPrepared(
 {
     std::vector<Sprite> sprites;
     std::optional<Error> extractionError;
+    std::unordered_map<UUID, SceneWorldPose, UUIDHash> previewPoses;
+    if (request.positionOverride)
+    {
+        // Scratch poses never publish preview coordinates to Scene or other viewports.
+        const auto target = ScenePose::Resolve(request.scene, request.positionOverride->entity,
+                                              request.positionOverride);
+        if (!target)
+            return Result<void>::Failure(target.GetError());
+        for (const auto entity : request.scene.GetEntities())
+        {
+            if (!request.scene.HasComponent<TransformComponent>(entity))
+                continue;
+            const auto id = request.scene.GetComponent<EntityIdentityComponent>(entity)->id;
+            const auto world = ScenePose::Resolve(request.scene, id, request.positionOverride);
+            if (!world)
+                return Result<void>::Failure(world.GetError());
+            previewPoses.emplace(id, world.Value());
+        }
+    }
 
     request.scene.View<TransformComponent, SpriteRendererComponent>()
         .ForEach(
@@ -105,11 +125,19 @@ Result<void> SceneRenderer::RenderPrepared(
 
                 Sprite sprite;
                 sprite.texture = textureResult.Value();
-                sprite.position = transform.worldPosition;
+                const auto preview = previewPoses.find(id);
+                const auto worldPosition = preview != previewPoses.end() ? preview->second.position
+                                                                        : transform.worldPosition;
+                const auto worldScale = preview != previewPoses.end() ? preview->second.scale
+                                                                     : transform.worldScale;
+                const auto worldRotation = preview != previewPoses.end()
+                                               ? preview->second.rotationRadians
+                                               : transform.worldRotationRadians;
+                sprite.position = worldPosition;
                 sprite.size = Vector2{
-                    spriteComponent.size.x * transform.worldScale.x,
-                    spriteComponent.size.y * transform.worldScale.y};
-                sprite.rotationRadians = transform.worldRotationRadians;
+                    spriteComponent.size.x * worldScale.x,
+                    spriteComponent.size.y * worldScale.y};
+                sprite.rotationRadians = worldRotation;
                 sprite.color = spriteComponent.color;
                 sprite.layer = spriteComponent.layer;
                 sprite.uv = spriteComponent.uv;

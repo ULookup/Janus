@@ -1,6 +1,7 @@
 #include "EditorActions.h"
 
 #include "EditorContext.h"
+#include "EditorTransformDrag.h"
 #include "ProjectSession.h"
 
 #include "Core/Command/ICommand.h"
@@ -15,6 +16,16 @@
 
 namespace Janus::Editor
 {
+
+Result<void> EditorActions::CommitTransformDrag(EditorTransformDrag& drag)
+{
+    if (!m_Context.project)
+    {
+        drag.Cancel();
+        return Result<void>::Failure(ErrorCode::InvalidState, "Move requires an open project.");
+    }
+    return drag.Commit(*m_Context.project);
+}
 
 EditorActions::EditorActions(
     EditorContext& context) noexcept
