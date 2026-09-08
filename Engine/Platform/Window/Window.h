@@ -63,6 +63,7 @@ namespace Janus
         [[nodiscard]]
         virtual bool ShouldClose() const noexcept = 0;
 
+        // Final host confirmation. Native close events alone must not set ShouldClose.
         virtual void RequestClose() noexcept = 0;
 
         // --------------------------------------------------------

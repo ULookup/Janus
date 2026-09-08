@@ -1,5 +1,19 @@
 # Janus 项目进度与产品需求对账
 
+2026-09-08 设计补充：最新远端 main 已到 `df00a14`，#93 的工作区/资源赋值/图标与
+#94 的视觉优化均已合入。下文 `7ecdfb8` 表格保留 09-07 核对时点，不能将其中的
+“本分支待集成”、Image/Animator 无入口或未见选中轮廓当作最新代码事实。
+最新 main 的[合并后 CI](https://github.com/ULookup/Janus/actions/runs/34202589819)已通过：
+417/417、50.43 秒，测试于北京时间 09-08 16:12:11 完成；v0.10 仍未发布。
+新增[发布准备实现设计](superpowers/specs/2026-09-08-v0.10-release-readiness-design.md)与
+[增量实施计划](superpowers/plans/2026-09-08-v0.10-release-readiness-plan.md)，细化关闭保护、
+Duplicate/Move、资源与偏好、文件生命周期及 Release；逐包执行状态见下，不代表整个方案通过发布验收。
+
+2026-09-08 A 包执行补充：`codex/editor-safe-close` 已本地实现关闭协商、保存/放弃/取消、
+设置草稿与 Runtime/事务保护；Debug CTest 427/427 和两种生产 stdio 集成回归通过。
+尚未提交/合并；X/Alt+F4/弹窗焦点布局的原生 PM 验收仍待完成，因此 PM-01 尚不标为关闭。
+详见[安全关闭验证](verification/2026-09-08-editor-safe-close.md)。
+
 核对日期：2026-09-07（北京时间）；代码基线：main / origin/main `7ecdfb8`。
 本文是当前实现、集成、验证及待办的统一入口。PRD 定义产品目标，版本路线图定义版本范围，
 专项设计定义实现契约，日期化计划与验收记录保留当时证据；这些文档不再各自推断最新 Git 状态。

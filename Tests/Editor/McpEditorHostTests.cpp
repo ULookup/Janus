@@ -1,3 +1,4 @@
+#include "EditorCloseController.h"
 #include "McpEditorHost.h"
 
 #include "Core/Input/InputState.h"
@@ -810,4 +811,53 @@ TEST_CASE("Unclassified MCP denials are visible in Activity without executing", 
     REQUIRE(activity.size() == 1);
     REQUIRE(activity.back().outcome == Janus::CommandOutcome::Failed);
     REQUIRE_FALSE(fixture.project->IsDirty());
+}
+
+TEST_CASE("Close busy rejects MCP writes without aborting the requesting owners transaction",
+          "[mcp-debug][close]")
+{
+    using namespace Janus;
+    ProjectFixture fixture;
+    auto& project = *fixture.project;
+    Editor::EditorCloseController close(project);
+    std::istringstream input(EncodeRequest(
+        1, "tools/call", {{"name", "transaction.begin"}, {"arguments", MCP::Json::object()}}));
+    std::ostringstream output;
+    MCP::AllowAllMcpPermissionPolicy policy;
+    auto host = Editor::McpEditorHost::Create(project, input, output, policy);
+    REQUIRE(host);
+    bool injected = false;
+    project.GetCommandBus().SetObserver(
+        [&](const CommandReceipt& receipt)
+        {
+            if (injected || receipt.description != "transaction.begin")
+                return;
+            injected = true;
+            close.Request();
+            const auto token = project.GetCommandBus().GetTransactionId().ToString();
+            // The IO worker is blocked on this owner's dispatch. Replace the remaining stream
+            // before fulfilling that request; it cannot read again until the dispatch
+            // synchronization returns.
+            input.str(EncodeRequest(
+                          2, "tools/call",
+                          {{"name", "scene.create_entity"},
+                           {"arguments", {{"name", "Must not exist"}, {"transaction", token}}}}) +
+                      EncodeRequest(3, "resources/read", {{"uri", "engine://transaction/status"}}) +
+                      EncodeRequest(4, "tools/call",
+                                    {{"name", "transaction.rollback"},
+                                     {"arguments", {{"transaction", token}}}}));
+        });
+    REQUIRE(host.Value()->Start());
+    REQUIRE(PumpUntilWorkerStops(*host.Value()));
+    project.GetCommandBus().SetObserver({});
+    REQUIRE(injected);
+    const auto responses = ParseResponses(output.str());
+    REQUIRE(responses.size() == 4);
+    REQUIRE(responses[1].contains("error"));
+    const auto status =
+        MCP::Json::parse(responses[2]["result"]["contents"][0]["text"].get<std::string>());
+    CHECK(status["state"] == "Active");
+    CHECK(responses[3].contains("result"));
+    CHECK_FALSE(project.GetCommandBus().HasTransaction());
+    CHECK_FALSE(project.IsDirty());
 }

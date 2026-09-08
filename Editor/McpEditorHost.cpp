@@ -373,6 +373,24 @@ MCP::McpDispatchResult McpEditorHost::DispatchRequest(
                         authorized.GetError())};
             }
 
+            // Busy is a host lifecycle rejection, not a failed transaction command. In particular
+            // it must not invoke AbortOwnedRequest and compensate an unrelated pending operation.
+            const bool beginTransaction =
+                method == "tools/call" && params["name"] == "transaction.begin";
+            if (m_Project.IsClosePending() &&
+                (operation == MCP::McpOperation::SceneWrite ||
+                 operation == MCP::McpOperation::SceneSave ||
+                 operation == MCP::McpOperation::RuntimeControl || beginTransaction))
+            {
+                const auto busy = Result<void>::Failure(
+                    ErrorCode::InvalidState,
+                    "Editor close confirmation is active; retry after cancellation.");
+                m_Project.GetCommandBus().RecordOperation(CommandActor::Agent, target, busy,
+                                                          m_Owner);
+                return MCP::McpDispatchResult{MCP::McpDispatchError{
+                    MCP::McpPermissionDenied, busy.GetError().message, nullptr}};
+            }
+
             const auto before = m_Project.GetCommandBus().GetNextActivitySequence();
             auto response = m_Router.HandleRequest(method, params, era);
             auto* value = std::get_if<MCP::Json>(&response);

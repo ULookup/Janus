@@ -31,6 +31,20 @@ void ProjectSettingsPanel::Reset(const ProjectSettings& settings)
     }
     m_Initialized = true;
 }
+ProjectSettings ProjectSettingsPanel::GetDraft() const
+{
+    auto draft = m_Draft;
+    draft.name = m_Name.data();
+    draft.defaultScene = FromUtf8(m_Paths[0].data());
+    draft.assetRegistry = FromUtf8(m_Paths[1].data());
+    draft.assetRoot = FromUtf8(m_Paths[2].data());
+    draft.scriptRoot = FromUtf8(m_Paths[3].data());
+    return draft;
+}
+bool ProjectSettingsPanel::HasUnsavedChanges(const ProjectSession& session) const
+{
+    return m_Initialized && GetDraft() != session.GetProjectSettings();
+}
 void ProjectSettingsPanel::Draw(ProjectSession& session)
 {
     if (!m_Initialized)
@@ -40,8 +54,7 @@ void ProjectSettingsPanel::Draw(ProjectSession& session)
         "Input applies on next Play. Scene and paths apply after reopening the project. "
         "Display timing applies after restarting. Saving settings does not save or change the "
         "Scene.");
-    const bool blocked = session.HasRuntime() || session.GetCommandBus().HasTransaction() ||
-                         session.GetCommandBus().RecoveryRequired();
+    const bool blocked = session.IsAuthoringReadOnly();
     if (blocked)
         ImGui::TextDisabled("Stop runtime and finish transaction/recovery to save settings.");
     ImGui::BeginDisabled(blocked);
@@ -121,12 +134,9 @@ void ProjectSettingsPanel::Draw(ProjectSession& session)
     }
     if (ImGui::Button("Save project settings"))
     {
-        m_Draft.name = m_Name.data();
-        m_Draft.defaultScene = FromUtf8(m_Paths[0].data());
-        m_Draft.assetRegistry = FromUtf8(m_Paths[1].data());
-        m_Draft.assetRoot = FromUtf8(m_Paths[2].data());
-        m_Draft.scriptRoot = FromUtf8(m_Paths[3].data());
-        const auto result = session.SaveProjectSettings(m_Draft);
+        const auto result = session.SaveProjectSettings(GetDraft());
+        if (result)
+            Reset(session.GetProjectSettings());
         m_Message = result ? "Project settings saved." : result.GetError().message;
     }
     ImGui::SameLine();

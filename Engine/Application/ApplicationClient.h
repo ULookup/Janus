@@ -9,6 +9,12 @@ namespace Janus
 
 class Application;
 
+enum class CloseDecision
+{
+    Accept,
+    Defer
+};
+
 class ApplicationClient
 {
 public:
@@ -22,6 +28,12 @@ public:
 
     virtual void OnEvent(const Event&, Application&)
     {
+    }
+
+    // Interactive clients may defer a native close and later call RequestExit after confirmation.
+    virtual CloseDecision OnCloseRequested(Application&)
+    {
+        return CloseDecision::Accept;
     }
 
     virtual void OnUpdate(TimeStep timeStep, Application& application) = 0;

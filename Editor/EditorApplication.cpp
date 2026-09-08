@@ -3,6 +3,7 @@
 
 #include "EditorActions.h"
 #include "EditorCamera.h"
+#include "EditorCloseController.h"
 #include "EditorConsole.h"
 #include "EditorContext.h"
 #include "EditorIcons.h"
@@ -485,6 +486,12 @@ void EditorApplication::OnEvent(const Event&, Application&)
 {
 }
 
+CloseDecision EditorApplication::OnCloseRequested(Application&)
+{
+    m_CloseRequested = true;
+    return CloseDecision::Defer;
+}
+
 void EditorApplication::OnUpdate(
     TimeStep timeStep,
     Application& application)
@@ -493,7 +500,9 @@ void EditorApplication::OnUpdate(
     auto& renderer = application.GetRenderer2D();
     const bool profileFrame = m_ProjectSession && m_ProjectSession->BeginDiagnosticsFrame();
 
-    if (m_McpHost != nullptr)
+    // Settle the final frame of Inspector input before acquiring the close guard. Do not pump
+    // Agent work between the native close request and that owner-thread boundary.
+    if (m_McpHost != nullptr && !m_CloseRequested)
     {
         const auto pumped =
             m_McpHost->Pump();
@@ -619,6 +628,8 @@ void EditorApplication::OnUpdate(
                     save();
                 if (ImGui::MenuItem("Project Settings..."))
                     m_ShowProjectSettings = true;
+                if (ImGui::MenuItem("Exit", "Alt+F4"))
+                    m_CloseRequested = true;
                 ImGui::EndMenu();
             }
             if (ImGui::BeginMenu("Edit"))
@@ -1264,6 +1275,22 @@ void EditorApplication::OnUpdate(
         ImGui::End();
     }
 
+    DrawCloseConfirmation(application);
+    if (m_CloseRequested || (m_CloseController && m_CloseController->IsPending()))
+        m_SuppressGameUntilReleased = true;
+    if (m_SuppressGameUntilReleased)
+    {
+        acceptGameInput = false;
+        bool held = false;
+        for (usize key = 0; key < static_cast<usize>(KeyCode::Count); ++key)
+            held = held || application.GetInput().IsKeyDown(static_cast<KeyCode>(key));
+        for (usize button = 0; button < static_cast<usize>(PointerButton::Count); ++button)
+            held = held ||
+                   application.GetInput().IsPointerButtonDown(static_cast<PointerButton>(button));
+        if (!held && !m_CloseRequested && !(m_CloseController && m_CloseController->IsPending()))
+            m_SuppressGameUntilReleased = false;
+    }
+
     if (acceptGameInput)
         m_GameInput = gameInput;
     else if (m_GameInputActive)
@@ -1276,7 +1303,9 @@ void EditorApplication::OnUpdate(
         m_GameInput = {};
     m_GameInputActive = acceptGameInput;
 
-    if (m_ProjectSession != nullptr && m_ProjectSession->GetRuntimeState() == RuntimeState::Playing)
+    if (m_ProjectSession != nullptr &&
+        m_ProjectSession->GetRuntimeState() == RuntimeState::Playing &&
+        !(m_CloseController && m_CloseController->IsAccepted()))
     {
         const auto updated =
             m_ProjectSession->UpdateRuntime(timeStep);
@@ -1442,6 +1471,171 @@ void EditorApplication::FrameScene(bool selectedOnly)
     }
 }
 
+void EditorApplication::DrawCloseConfirmation(Application& application)
+{
+    if (!m_ProjectSession)
+    {
+        if (m_CloseRequested)
+            application.RequestExit();
+        return;
+    }
+    if (m_CloseRequested && m_CloseController && m_CloseController->IsPending())
+        m_CloseRequested = false; // Repeated native requests must not reset the user's choices.
+    if (m_CloseRequested && !m_CloseNeedsDraftDecision)
+    {
+        const auto settled = m_InspectorPanel->CommitPendingEdit();
+        if (!settled)
+        {
+            RecordError(settled.GetError());
+            m_CloseNeedsDraftDecision = true;
+            ImGui::OpenPopup("Uncommitted Inspector edit");
+        }
+        else
+        {
+            if (!m_CloseController)
+                m_CloseController = std::make_unique<EditorCloseController>(*m_ProjectSession);
+            m_CloseController->Request();
+            m_CloseRequested = false;
+            m_CloseStopRuntime = false;
+            m_CloseSaveSettings = true;
+            m_CloseDiscardSettings = false;
+            const auto& commands = m_ProjectSession->GetCommandBus();
+            if (!m_ProjectSession->IsDirty() && !m_ProjectSession->HasRuntime() &&
+                !commands.HasTransaction() && !commands.RecoveryRequired() &&
+                !m_ProjectSettingsPanel->HasUnsavedChanges(*m_ProjectSession))
+            {
+                if (m_CloseController->Confirm(false, false, nullptr))
+                    application.RequestExit();
+            }
+            else
+                ImGui::OpenPopup("Close Janus Editor");
+        }
+    }
+    auto fitModal = []
+    {
+        const auto* viewport = ImGui::GetMainViewport();
+        ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Appearing, {0.5f, 0.5f});
+        ImGui::SetNextWindowSizeConstraints({std::min(420.0f, viewport->WorkSize.x - 24), 0},
+                                            {std::max(200.0f, viewport->WorkSize.x - 24),
+                                             std::max(160.0f, viewport->WorkSize.y - 24)});
+    };
+    fitModal();
+    if (ImGui::BeginPopupModal("Uncommitted Inspector edit", nullptr,
+                               ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        ImGui::TextWrapped("The current field could not be committed. Cancel to correct it, or "
+                           "explicitly discard this field draft.");
+        ImGui::TextWrapped("%s", m_LastError.c_str());
+        if (ImGui::Button("Cancel close", {-1, 0}) || ImGui::IsKeyPressed(ImGuiKey_Escape))
+        {
+            m_CloseRequested = false;
+            m_CloseNeedsDraftDecision = false;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SetItemDefaultFocus();
+        if (ImGui::Button("Discard field draft and review close", {-1, 0}))
+        {
+            m_InspectorPanel->DiscardPendingEdit();
+            m_CloseNeedsDraftDecision = false;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+    fitModal();
+    if (ImGui::BeginPopupModal("Close Janus Editor", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        auto& commands = m_ProjectSession->GetCommandBus();
+        const bool recovery = commands.RecoveryRequired();
+        const bool transaction = commands.HasTransaction() && !recovery;
+        const bool settingsDirty = m_ProjectSettingsPanel->HasUnsavedChanges(*m_ProjectSession);
+        ImGui::TextWrapped("Scene: %s",
+                           m_ProjectSession->GetCurrentScenePath().generic_string().c_str());
+        ImGui::TextUnformatted(m_ProjectSession->IsDirty() ? "Scene has unsaved changes."
+                                                           : "Scene is saved.");
+        if (m_ProjectSession->HasRuntime())
+        {
+            ImGui::TextWrapped("Runtime is %s. Simulation continues with gameplay input blocked "
+                               "until you confirm Stop.",
+                               RuntimeStateName(m_ProjectSession->GetRuntimeState()).data());
+            ImGui::Checkbox("Stop runtime before exit", &m_CloseStopRuntime);
+        }
+        if (recovery)
+        {
+            ImGui::TextWrapped("Authoring recovery required. Saving is blocked. Discard exits "
+                               "without writing this authoring state.");
+            m_CloseSaveSettings = false;
+        }
+        if (transaction)
+        {
+            ImGui::TextWrapped("An Agent transaction is active. Wait for its owner, cancel close, "
+                               "or explicitly roll it back.");
+            if (ImGui::Button("Roll back Agent transaction", {-1, 0}))
+            {
+                const auto rolled = m_CloseController->RollbackTransaction();
+                if (!rolled)
+                    RecordError(rolled.GetError());
+            }
+        }
+        if (settingsDirty)
+        {
+            ImGui::Separator();
+            ImGui::TextUnformatted("Project settings also have an unsaved draft.");
+            ImGui::BeginDisabled(recovery);
+            if (ImGui::Checkbox("Save project settings before exit", &m_CloseSaveSettings) &&
+                m_CloseSaveSettings)
+                m_CloseDiscardSettings = false;
+            ImGui::EndDisabled();
+            if (ImGui::Checkbox("Discard project settings draft", &m_CloseDiscardSettings) &&
+                m_CloseDiscardSettings)
+                m_CloseSaveSettings = false;
+        }
+        if (m_CloseController->GetError())
+        {
+            ImGui::Separator();
+            ImGui::TextWrapped("%s", m_CloseController->GetError()->message.c_str());
+            ImGui::TextWrapped("You can retry or cancel. A completed Stop or successful settings "
+                               "save is retained.");
+        }
+        ImGui::Separator();
+        if (ImGui::Button("Cancel", {-1, 0}) || ImGui::IsKeyPressed(ImGuiKey_Escape))
+        {
+            m_CloseController->Cancel();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SetItemDefaultFocus();
+        const bool ready = !transaction &&
+                           (!m_ProjectSession->HasRuntime() || m_CloseStopRuntime) &&
+                           (!settingsDirty || m_CloseSaveSettings || m_CloseDiscardSettings);
+        auto confirm = [&](bool saveScene)
+        {
+            const auto draft = m_ProjectSettingsPanel->GetDraft();
+            const auto closed =
+                m_CloseController->Confirm(saveScene, m_CloseStopRuntime,
+                                           settingsDirty && m_CloseSaveSettings ? &draft : nullptr);
+            // A settings write may have succeeded even when a later Scene save failed.
+            if (settingsDirty && m_CloseSaveSettings &&
+                draft == m_ProjectSession->GetProjectSettings())
+                m_ProjectSettingsPanel->AcceptSaved(draft);
+            if (closed)
+            {
+                application.RequestExit();
+                ImGui::CloseCurrentPopup();
+            }
+            else
+                RecordError(closed.GetError());
+        };
+        ImGui::BeginDisabled(!ready || recovery);
+        if (ImGui::Button("Save Scene and Exit", {-1, 0}))
+            confirm(true);
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!ready);
+        if (ImGui::Button("Discard Scene changes and Exit", {-1, 0}))
+            confirm(false);
+        ImGui::EndDisabled();
+        ImGui::EndPopup();
+    }
+}
+
 void EditorApplication::OnShutdown(Application& application) noexcept
 {
     auto& renderer = application.GetRenderer2D();
@@ -1452,9 +1646,10 @@ void EditorApplication::OnShutdown(Application& application) noexcept
         m_McpHost.reset();
     }
     m_McpPermissionPolicy.reset();
+    // Release the guard only after the protocol worker has stopped, before destroying its session.
+    m_CloseController.reset();
 
-    if (m_ProjectSession != nullptr
-        && m_ProjectSession->IsPlaying())
+    if (m_ProjectSession != nullptr && m_ProjectSession->HasRuntime())
     {
         const auto stopped =
             m_ProjectSession->StopRuntime();
@@ -1499,6 +1694,7 @@ void EditorApplication::OnShutdown(Application& application) noexcept
     m_EditorConsole.reset();
     m_EditorActions.reset();
     m_EditorContext.reset();
+    m_ProjectSettingsPanel.reset();
 
     // AssetService owns renderer-backed resources, so the project session must
     // disappear while Application still owns a live Renderer2D.

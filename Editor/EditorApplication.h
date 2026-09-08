@@ -25,6 +25,7 @@ namespace Editor
 class AssetBrowserPanel;
 class ConsolePanel;
 class EditorActions;
+class EditorCloseController;
 class EditorCamera;
 class EditorConsole;
 struct EditorContext;
@@ -44,6 +45,7 @@ public:
 
     [[nodiscard]] Result<void> OnInitialize(Application& application) override;
     void OnEvent(const Event& event, Application& application) override;
+    CloseDecision OnCloseRequested(Application& application) override;
     void OnUpdate(TimeStep timeStep, Application& application) override;
     void OnShutdown(Application& application) noexcept override;
 
@@ -51,10 +53,18 @@ private:
     void RecordError(const Error& error);
     void ShutdownImGui(Application& application) noexcept;
     void FrameScene(bool selectedOnly);
+    void DrawCloseConfirmation(Application& application);
 
     std::filesystem::path m_ProjectRoot;
     bool m_McpStdio = false;
     std::unique_ptr<ProjectSession> m_ProjectSession;
+    std::unique_ptr<EditorCloseController> m_CloseController;
+    bool m_CloseRequested = false;
+    bool m_CloseNeedsDraftDecision = false;
+    bool m_CloseStopRuntime = false;
+    bool m_CloseSaveSettings = true;
+    bool m_CloseDiscardSettings = false;
+    bool m_SuppressGameUntilReleased = false;
     std::unique_ptr<ProjectSettingsPanel> m_ProjectSettingsPanel;
     InputState m_GameInput;
     bool m_GameInputActive = false;
