@@ -114,12 +114,12 @@ void RemoveBestEffort(const std::filesystem::path& path) noexcept
     std::filesystem::remove(path, error);
 }
 
-Result<void> ReplaceAtomically(
-    const std::filesystem::path& temporary,
-    const std::filesystem::path& target)
+Result<void> ReplaceAtomically(const std::filesystem::path& temporary,
+                               const std::filesystem::path& target, AtomicWriteMode mode)
 {
 #if defined(_WIN32)
-    const DWORD flags = MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH;
+    const DWORD flags =
+        MOVEFILE_WRITE_THROUGH | (mode == AtomicWriteMode::Replace ? MOVEFILE_REPLACE_EXISTING : 0);
     if (::MoveFileExW(temporary.c_str(), target.c_str(), flags) == 0)
     {
         const DWORD error = ::GetLastError();
@@ -131,7 +131,15 @@ Result<void> ReplaceAtomically(
     }
 #else
     std::error_code error;
-    std::filesystem::rename(temporary, target, error);
+    if (mode == AtomicWriteMode::CreateNew)
+    {
+        // A same-directory hard link publishes the complete file without a clobber race.
+        std::filesystem::create_hard_link(temporary, target, error);
+        if (!error)
+            RemoveBestEffort(temporary);
+    }
+    else
+        std::filesystem::rename(temporary, target, error);
     if (error)
     {
         return Result<void>::Failure(
@@ -223,9 +231,8 @@ Result<void> WriteText(
             reinterpret_cast<const u8*>(contents.data()), contents.size()));
 }
 
-Result<void> WriteBinaryAtomic(
-    const std::filesystem::path& path,
-    std::span<const u8> contents)
+Result<void> WriteBinaryAtomic(const std::filesystem::path& path, std::span<const u8> contents,
+                               AtomicWriteMode mode)
 {
     const std::filesystem::path temporary = MakeAtomicTemporaryPath(path);
 
@@ -236,7 +243,7 @@ Result<void> WriteBinaryAtomic(
         return Result<void>::Failure(write.GetError());
     }
 
-    auto replace = ReplaceAtomically(temporary, path);
+    auto replace = ReplaceAtomically(temporary, path, mode);
     if (!replace)
     {
         RemoveBestEffort(temporary);
@@ -246,14 +253,12 @@ Result<void> WriteBinaryAtomic(
     return Result<void>::Success();
 }
 
-Result<void> WriteTextAtomic(
-    const std::filesystem::path& path,
-    std::string_view contents)
+Result<void> WriteTextAtomic(const std::filesystem::path& path, std::string_view contents,
+                             AtomicWriteMode mode)
 {
     return WriteBinaryAtomic(
-        path,
-        std::span<const u8>(
-            reinterpret_cast<const u8*>(contents.data()), contents.size()));
+        path, std::span<const u8>(reinterpret_cast<const u8*>(contents.data()), contents.size()),
+        mode);
 }
 
 } // namespace Janus::FileSystem

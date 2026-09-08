@@ -38,10 +38,14 @@ Result<AssetSearchResult> AssetRegistry::Search(std::string_view name,
     std::vector<AssetMetadata> matches;
     for (const auto& [handle, asset] : m_Metadata)
         if ((!type || asset.type == *type) &&
-            asset.relativePath.generic_string().find(name) != std::string::npos)
+            FileSystem::PathToUtf8(asset.relativePath).find(name) != std::string::npos)
             matches.push_back(asset);
-    std::sort(matches.begin(), matches.end(), [](const auto& a, const auto& b)
-              { return a.relativePath.generic_string() < b.relativePath.generic_string(); });
+    std::sort(matches.begin(), matches.end(),
+              [](const auto& a, const auto& b)
+              {
+                  return FileSystem::PathToUtf8(a.relativePath) <
+                         FileSystem::PathToUtf8(b.relativePath);
+              });
     AssetSearchResult result;
     result.total = matches.size();
     const auto begin = std::min(offset, matches.size());
@@ -49,7 +53,7 @@ Result<AssetSearchResult> AssetRegistry::Search(std::string_view name,
     usize bytes = 256;
     for (auto i = begin; i < end; ++i)
     {
-        const auto pathBytes = matches[i].relativePath.generic_string().size();
+        const auto pathBytes = FileSystem::PathToUtf8(matches[i].relativePath).size();
         // Bound worst-case JSON escaping as well as row count for MCP consumers.
         if (bytes > 65536 - 256 || pathBytes > (65536 - bytes - 256) / 6)
             return Result<AssetSearchResult>::Failure(
@@ -159,23 +163,19 @@ std::vector<AssetMetadata> AssetRegistry::GetAssets() const
         assets.push_back(metadata);
     }
 
-    std::sort(
-        assets.begin(),
-        assets.end(),
-        [](const AssetMetadata& left, const AssetMetadata& right)
-        {
-            const std::string leftPath =
-                left.relativePath.generic_string();
-            const std::string rightPath =
-                right.relativePath.generic_string();
+    std::sort(assets.begin(), assets.end(),
+              [](const AssetMetadata& left, const AssetMetadata& right)
+              {
+                  const std::string leftPath = FileSystem::PathToUtf8(left.relativePath);
+                  const std::string rightPath = FileSystem::PathToUtf8(right.relativePath);
 
-            if (leftPath != rightPath)
-            {
-                return leftPath < rightPath;
-            }
+                  if (leftPath != rightPath)
+                  {
+                      return leftPath < rightPath;
+                  }
 
-            return left.handle < right.handle;
-        });
+                  return left.handle < right.handle;
+              });
 
     return assets;
 }
@@ -195,21 +195,18 @@ Result<void> AssetRegistry::Save(const std::filesystem::path& registryPath) cons
         assets.push_back(&metadata);
     }
 
-    std::sort(
-        assets.begin(),
-        assets.end(),
-        [](const AssetMetadata* left, const AssetMetadata* right)
-        {
-            return left->relativePath.generic_string()
-                < right->relativePath.generic_string();
-        });
+    std::sort(assets.begin(), assets.end(),
+              [](const AssetMetadata* left, const AssetMetadata* right)
+              {
+                  return FileSystem::PathToUtf8(left->relativePath) <
+                         FileSystem::PathToUtf8(right->relativePath);
+              });
 
     for (const AssetMetadata* metadata : assets)
     {
-        document["assets"].push_back({
-            {"handle", metadata->handle.ToString()},
-            {"type", std::string(AssetTypeName(metadata->type))},
-            {"path", metadata->relativePath.generic_string()}});
+        document["assets"].push_back({{"handle", metadata->handle.ToString()},
+                                      {"type", std::string(AssetTypeName(metadata->type))},
+                                      {"path", FileSystem::PathToUtf8(metadata->relativePath)}});
     }
 
     return FileSystem::WriteTextAtomic(
@@ -282,10 +279,10 @@ Result<AssetRegistry> AssetRegistry::Load(
                 return Result<AssetRegistry>::Failure(type.GetError());
             }
 
+            const auto pathText = entry["path"].get<std::string>();
             AssetMetadata metadata{
-                std::move(handle).Value(),
-                std::move(type).Value(),
-                std::filesystem::path(entry["path"].get<std::string>())};
+                std::move(handle).Value(), std::move(type).Value(),
+                std::filesystem::path(std::u8string(pathText.begin(), pathText.end()))};
 
             auto registered = registry.Register(std::move(metadata));
             if (!registered)
@@ -342,7 +339,7 @@ Result<std::filesystem::path> AssetRegistry::NormalizeRelativePath(
 std::string AssetRegistry::PathKey(
     const std::filesystem::path& normalizedPath)
 {
-    return normalizedPath.generic_string();
+    return FileSystem::PathToUtf8(normalizedPath);
 }
 
 } // namespace Janus

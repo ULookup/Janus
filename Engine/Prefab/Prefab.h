@@ -12,8 +12,8 @@ class Prefab final
 {
   public:
     static constexpr usize MaxBytes = 1024 * 1024;
-    static constexpr usize MaxEntities = 1024;
-    static constexpr usize MaxDepth = 64;
+    static constexpr usize MaxEntities = MaxAuthoringSubtreeEntities;
+    static constexpr usize MaxDepth = MaxAuthoringSubtreeDepth;
 
     [[nodiscard]] static Result<std::string> Capture(Scene& scene, UUID root,
                                                      const ReflectionRegistry& reflection);

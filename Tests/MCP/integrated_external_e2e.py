@@ -49,7 +49,13 @@ def run(host, source, modern, native_editor=False):
             template = assets[0]["handle"]
             # A failed command must roll back both the instance and pending history.
             token = call("transaction.begin")["transaction"]
-            call("scene.instantiate_prefab", asset=template, transaction=token)
+            probe = call("scene.instantiate_prefab", asset=template, transaction=token)["entity"]
+            duplicate = call("scene.duplicate_entity", entity=probe, transaction=token)["entity"]
+            require(duplicate != probe, "Duplicate reused root UUID")
+            source_entity = read("engine://entity/" + probe)
+            copy_entity = read("engine://entity/" + duplicate)
+            require(copy_entity["name"] == source_entity["name"] + " Copy", "Duplicate root name")
+            require(copy_entity["components"] == source_entity["components"], "Duplicate changed component or asset values")
             call("scene.delete_entity", success=False,
                  entity="99999999-9999-4999-8999-999999999999", transaction=token)
             require(read("engine://transaction/status")["state"] == "Idle", "Failure did not abort")
@@ -62,13 +68,22 @@ def run(host, source, modern, native_editor=False):
                  property="position", value={"x": 6.0, "y": 2.0}, transaction=token)
             call("transaction.commit", transaction=token)
             call("scene.save")
+            call("scene.export_prefab", success=False, entity=actor, name="../invalid")
+            exported = call("scene.export_prefab", entity=actor, name="Named Spectator")["asset"]
+            found = call("assets.search", name="Named Spectator-", type="prefab")["assets"]
+            require(len(found) == 1 and found[0]["handle"] == exported, "Named Prefab not discoverable")
+            require(found[0]["path"] == "Prefabs/Named Spectator-" + exported + ".prefab", "Named Prefab path")
+            require(not read("engine://project/info")["authoring"]["dirty"], "Export dirtied scene")
             saved = scene_path.read_bytes()
             client.stop()
             client = JanusStdioClient(host, project, native_editor=native_editor)
             initialize()
             require(read("engine://entity/" + actor)["components"]["Transform"]["position"]["y"] == 2,
                     "Configured instance did not survive reopen")
+            require(call("assets.search", name="Named Spectator-", type="prefab")["assets"][0]["handle"] == exported,
+                    "Named Prefab registry did not survive reopen")
             call("runtime.play", startPaused=True)
+            call("scene.duplicate_entity", success=False, entity=actor)
             call("scene.instantiate_prefab", success=False, asset=template)
             for frame in range(1, 481):
                 call("runtime.step")

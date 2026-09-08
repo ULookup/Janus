@@ -648,6 +648,14 @@ void EditorApplication::OnUpdate(
                     if (!created)
                         RecordError(created.GetError());
                 }
+                if (ImGui::MenuItem("Duplicate", "Ctrl+D", false,
+                                    !readOnly && m_EditorContext->selection.HasSelection()))
+                {
+                    auto copied = m_EditorActions->DuplicateEntity(
+                        *m_EditorContext->selection.GetSelectedUUID());
+                    if (!copied)
+                        RecordError(copied.GetError());
+                }
                 ImGui::EndMenu();
             }
             if (ImGui::BeginMenu("View"))
@@ -761,6 +769,14 @@ void EditorApplication::OnUpdate(
         // Text fields own editing shortcuts; Game focus keeps gameplay keys isolated.
         if (!ImGui::GetIO().WantTextInput && !m_GameInputActive)
         {
+            if (!readOnly && m_EditorContext->selection.HasSelection() &&
+                ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_D, ImGuiInputFlags_RouteGlobal))
+            {
+                auto copied =
+                    m_EditorActions->DuplicateEntity(*m_EditorContext->selection.GetSelectedUUID());
+                if (!copied)
+                    RecordError(copied.GetError());
+            }
             if (canSave && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S, ImGuiInputFlags_RouteGlobal))
                 save();
             if (m_EditorActions->CanUndo() &&
@@ -863,7 +879,8 @@ void EditorApplication::OnUpdate(
         }
         if (ImGui::BeginTabBar("UtilityTabs"))
         {
-            if (!split && IconTab(Icon::Folder, "Project"))
+            if (!split && IconTab(Icon::Folder, "Project",
+                                  m_EditorContext->locateAsset ? ImGuiTabItemFlags_SetSelected : 0))
             {
                 const auto error = m_AssetBrowserPanel->DrawContents();
                 if (error)
