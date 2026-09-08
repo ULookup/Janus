@@ -13,8 +13,10 @@ PR yet. See docs/verification/2026-09-08-editor-move-gizmo.md. The dated Mission
 acceptance notes above/below retain their original baselines. The `codex/editor-preferences` workspace
 now preserves C and adds D1 local preferences, core bilingual labels and guarded Inspector drafts.
 Debug CTest passed 482/482; native preference/reopen/input checks are recorded in
-docs/verification/2026-09-08-editor-preferences.md. C/D1 are uncommitted; D2/E/F and release gates
-remain pending.
+docs/verification/2026-09-08-editor-preferences.md. C/D1 are submitted as PR #97
+(target main, carrying B) and PR #98 (target C). Merge #97 first, then retarget #98 to main.
+Implementation commits are `3bf2273` / `036f7e4`; earlier uncommitted descriptions are historical.
+D2/E/F and release gates remain pending.
 
 ## v0.8 capability baseline
 

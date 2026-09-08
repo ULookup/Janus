@@ -1,5 +1,9 @@
 # D1：本地偏好、双语与 Inspector 草稿验证
 
+PR 交付更新：实现提交 `036f7e4`，已创建 [#98](https://github.com/ULookup/Janus/pull/98)，
+依赖 [C 包 #97](https://github.com/ULookup/Janus/pull/97)，当前目标 C 分支。
+C 合入后将本 PR 目标改为 main。以下“未提交”保留本地验证时点，PR CI 另行记录。
+
 日期：2026-09-08。分支 `codex/editor-preferences`；HEAD 基线
 `59387eb0a03507207a9808610e9e8cfd8da152a8`，本轮实现位于未提交工作区。
 保留 C 包全部改动；此记录的结果覆盖 A/B/C 集成后的 D1，不能套用为 main 或 PR CI。
