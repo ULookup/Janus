@@ -29,6 +29,11 @@ class EditorActions final
 public:
     explicit EditorActions(EditorContext& context) noexcept;
     [[nodiscard]] Result<void> CommitTransformDrag(EditorTransformDrag& drag);
+    [[nodiscard]] Result<void> RenameEntityIfCurrent(UUID entity, std::string name, u64 revision,
+                                                     u64 generation);
+    [[nodiscard]] Result<void> SetPropertyIfCurrent(UUID entity, ComponentTypeId component,
+                                                    PropertyId property, PropertyValue value,
+                                                    u64 revision, u64 generation);
 
     [[nodiscard]] Result<UUID> CreateEntity(std::string name);
     [[nodiscard]] Result<AssetHandle> ExportPrefab(UUID root,

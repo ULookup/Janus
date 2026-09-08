@@ -1,4 +1,5 @@
 #include "Panels/ConsolePanel.h"
+#include "EditorLocale.h"
 
 #include "EditorConsole.h"
 #include "EditorIcons.h"
@@ -16,19 +17,20 @@ ConsolePanel::ConsolePanel(
 
 void ConsolePanel::DrawContents()
 {
-    if (IconOnlyButton(Icon::Delete, "Clear console"))
+    const auto text = [&](const char* key) { return EditorText(m_Language, key); };
+    const auto label = [&](const char* key) { return EditorLabel(m_Language, key); };
+    if (IconOnlyButton(Icon::Delete, label("Clear console").c_str()))
     {
         m_Console.Clear();
     }
 
     ImGui::SameLine();
-    ImGui::Checkbox(
-        "Auto-scroll",
-        &m_AutoScroll);
+    ImGui::Checkbox(label("Auto-scroll").c_str(), &m_AutoScroll);
 
     ImGui::SameLine();
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * 6);
-    if (ImGui::Combo("##Level", &m_LevelFilter, "All levels\0Info\0Warning\0Error\0"))
+    const char* levels[]{text("All levels"), text("Info"), text("Warning"), text("Error")};
+    if (ImGui::Combo("##Level", &m_LevelFilter, levels, IM_ARRAYSIZE(levels)))
         m_Console.SetLevelFilter(m_LevelFilter == 0
                                      ? std::nullopt
                                      : std::optional<EditorConsoleLevel>(
@@ -45,7 +47,7 @@ void ConsolePanel::DrawContents()
         m_Console.GetEntries();
 
     if (entries.empty())
-        ImGui::TextDisabled("No messages at this level.");
+        ImGui::TextDisabled(text("No messages at this level."));
 
     int row = 0;
     for (const EditorConsoleEntry& entry : entries)

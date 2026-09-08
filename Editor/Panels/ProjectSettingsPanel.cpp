@@ -1,4 +1,5 @@
 #include "Panels/ProjectSettingsPanel.h"
+#include "EditorLocale.h"
 #include "ProjectSession.h"
 #include <algorithm>
 #include <imgui.h>
@@ -47,45 +48,47 @@ bool ProjectSettingsPanel::HasUnsavedChanges(const ProjectSession& session) cons
 }
 void ProjectSettingsPanel::Draw(ProjectSession& session)
 {
+    const auto text = [&](const char* key) { return EditorText(m_Language, key); };
+    const auto label = [&](const char* key) { return EditorLabel(m_Language, key); };
     if (!m_Initialized)
         Reset(session.GetProjectSettings());
     ImGui::BeginChild("ProjectSettingsForm");
     ImGui::TextWrapped(
-        "Input applies on next Play. Scene and paths apply after reopening the project. "
-        "Display timing applies after restarting. Saving settings does not save or change the "
-        "Scene.");
+        text("Input applies on next Play. Scene and paths apply after reopening the project. "
+             "Display timing applies after restarting. Saving settings does not save or change the "
+             "Scene."));
     const bool blocked = session.IsAuthoringReadOnly();
     if (blocked)
-        ImGui::TextDisabled("Stop runtime and finish transaction/recovery to save settings.");
+        ImGui::TextDisabled(text("Stop runtime and finish transaction/recovery to save settings."));
     ImGui::BeginDisabled(blocked);
     ImGui::SetNextItemWidth(320);
-    ImGui::InputText("Project name", m_Name.data(), m_Name.size());
+    ImGui::InputText(label("Project name").c_str(), m_Name.data(), m_Name.size());
     const char* labels[]{"Default Scene", "Asset registry", "Asset root", "Script root"};
     for (usize i = 0; i < 4; ++i)
     {
         ImGui::SetNextItemWidth(320);
-        ImGui::InputText(labels[i], m_Paths[i].data(), m_Paths[i].size());
+        ImGui::InputText(label(labels[i]).c_str(), m_Paths[i].data(), m_Paths[i].size());
     }
     int resolution[]{static_cast<int>(m_Draft.width), static_cast<int>(m_Draft.height)};
     ImGui::SetNextItemWidth(230);
-    if (ImGui::InputInt2("Game resolution", resolution))
+    if (ImGui::InputInt2(label("Game resolution").c_str(), resolution))
     {
         m_Draft.width = static_cast<u32>(std::max(0, resolution[0]));
         m_Draft.height = static_cast<u32>(std::max(0, resolution[1]));
     }
-    ImGui::Checkbox("VSync", &m_Draft.vsync);
+    ImGui::Checkbox(label("VSync").c_str(), &m_Draft.vsync);
     int fps = static_cast<int>(m_Draft.targetFps);
     ImGui::SetNextItemWidth(160);
-    if (ImGui::InputInt("Target FPS (0 = uncapped)", &fps))
+    if (ImGui::InputInt(label("Target FPS (0 = uncapped)").c_str(), &fps))
         m_Draft.targetFps = static_cast<u32>(std::max(0, fps));
-    ImGui::SeparatorText("Input actions");
+    ImGui::SeparatorText(text("Input actions"));
     std::optional<std::string> remove;
     for (auto& [name, keys] : m_Draft.inputBindings)
     {
         ImGui::PushID(name.c_str());
         ImGui::TextUnformatted(name.c_str());
         ImGui::SameLine();
-        if (ImGui::SmallButton("Remove action"))
+        if (ImGui::SmallButton(label("Remove action").c_str()))
             remove = name;
         for (usize i = 0; i < keys.size(); ++i)
         {
@@ -105,7 +108,7 @@ void ProjectSettingsPanel::Draw(ProjectSession& session)
             if (i + 1 < keys.size())
                 ImGui::SameLine();
         }
-        if (keys.size() < 8 && ImGui::SmallButton("Add key"))
+        if (keys.size() < 8 && ImGui::SmallButton(label("Add key").c_str()))
         {
             for (usize k = 0; k < static_cast<usize>(KeyCode::Count); ++k)
             {
@@ -118,21 +121,22 @@ void ProjectSettingsPanel::Draw(ProjectSession& session)
             }
         }
         ImGui::SameLine();
-        if (keys.size() > 1 && ImGui::SmallButton("Remove last key"))
+        if (keys.size() > 1 && ImGui::SmallButton(label("Remove last key").c_str()))
             keys.pop_back();
         ImGui::PopID();
     }
     if (remove)
         m_Draft.inputBindings.erase(*remove);
     ImGui::SetNextItemWidth(200);
-    ImGui::InputText("New action", m_NewAction.data(), m_NewAction.size());
+    ImGui::InputText(label("New action").c_str(), m_NewAction.data(), m_NewAction.size());
     ImGui::SameLine();
-    if (ImGui::Button("Add action") && m_NewAction[0] != 0 && m_Draft.inputBindings.size() < 64)
+    if (ImGui::Button(label("Add action").c_str()) && m_NewAction[0] != 0 &&
+        m_Draft.inputBindings.size() < 64)
     {
         m_Draft.inputBindings.try_emplace(m_NewAction.data(), std::vector<KeyCode>{KeyCode::Space});
         m_NewAction.fill(0);
     }
-    if (ImGui::Button("Save project settings"))
+    if (ImGui::Button(label("Save project settings").c_str()))
     {
         const auto result = session.SaveProjectSettings(GetDraft());
         if (result)
@@ -140,14 +144,16 @@ void ProjectSettingsPanel::Draw(ProjectSession& session)
         m_Message = result ? "Project settings saved." : result.GetError().message;
     }
     ImGui::SameLine();
-    if (ImGui::Button("Revert settings draft"))
+    if (ImGui::Button(label("Revert settings draft").c_str()))
     {
         Reset(session.GetProjectSettings());
         m_Message.clear();
     }
     ImGui::EndDisabled();
     if (!m_Message.empty())
-        ImGui::TextWrapped("%s", m_Message.c_str());
+        ImGui::TextWrapped("%s", m_Message == "Project settings saved."
+                                     ? text("Project settings saved.")
+                                     : m_Message.c_str());
     ImGui::EndChild();
 }
 } // namespace Janus::Editor

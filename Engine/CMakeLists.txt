@@ -65,6 +65,7 @@ target_sources(
         Asset/Loader/AudioClipLoader.cpp
         Asset/Loader/AudioClipLoader.h
         Platform/SDL/SDLAudioDevice.cpp
+        Platform/SDL/SDLUserDirectories.cpp
         Animation/AnimationSystem.cpp
         Animation/AnimationReflection.cpp
         Asset/Loader/AnimationClipLoader.cpp
@@ -188,6 +189,7 @@ target_sources(
         Platform/Graphics/GraphicsContext.h
         Platform/Window/WindowConfig.h
         Platform/Window/Window.h
+        Platform/UserDirectories.h
         Platform/SDL/SDLWindow.h
 
         Application/ApplicationConfig.h

@@ -18,9 +18,11 @@
 #include "ScenePicker.h"
 
 #include "Application/Application.h"
+#include "Core/FileSystem/FileSystem.h"
 #include "Core/Input/InputState.h"
 #include "Core/Log/Log.h"
 #include "Host/McpPermissionPolicy.h"
+#include "Platform/UserDirectories.h"
 #include "Platform/Window/Window.h"
 #include "Renderer/Renderer2D.h"
 #include "Scene/Components.h"
@@ -110,38 +112,32 @@ constexpr ImGuiWindowFlags ToolbarFlags =
     | ImGuiWindowFlags_NoScrollbar
     | ImGuiWindowFlags_NoSavedSettings;
 
-
-void ConfigureEditorFont()
+bool ConfigureEditorFont()
 {
     ImGuiIO& io = ImGui::GetIO();
-
-#if defined(_WIN32)
-    if (const char* windowsDirectory = std::getenv("WINDIR");
-        windowsDirectory != nullptr)
+    const auto fontDirectory = Platform::GetSystemFontDirectory();
+    if (fontDirectory)
     {
-        const std::filesystem::path fontPath =
-            std::filesystem::path(windowsDirectory)
-            / "Fonts"
-            / "segoeui.ttf";
-
-        std::error_code error;
-        if (std::filesystem::exists(fontPath, error)
-            && !error)
+        // Borrow installed fonts for local display; no system font is copied into the engine
+        // package.
+        for (const auto* name : {"msyh.ttc", "msyh.ttf", "simsun.ttc", "segoeui.ttf"})
         {
-            if (ImFont* font = io.Fonts->AddFontFromFileTTF(fontPath.string().c_str(), 17.0f);
-                font != nullptr)
+            const auto path = fontDirectory.Value() / name;
+            std::error_code error;
+            if (!std::filesystem::is_regular_file(path, error) || error)
+                continue;
+            if (ImFont* font =
+                    io.Fonts->AddFontFromFileTTF(FileSystem::PathToUtf8(path).c_str(), 17.0f))
             {
                 io.FontDefault = font;
-                return;
+                return std::string_view(name) != "segoeui.ttf";
             }
         }
     }
-#endif
-
     ImFontConfig fallback;
     fallback.SizePixels = 17.0f;
-    io.FontDefault =
-        io.Fonts->AddFontDefaultVector(&fallback);
+    io.FontDefault = io.Fonts->AddFontDefaultVector(&fallback);
+    return false;
 }
 
 
@@ -168,12 +164,18 @@ Result<void> EditorApplication::OnInitialize(Application& application)
             "JanusEditor requires an SDL-backed native window.");
     }
 
+    LoadPreferences();
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     m_ImGuiContextCreated = true;
     ImGui::StyleColorsDark();
-    ConfigureEditorFont();
+    m_ChineseFontAvailable = ConfigureEditorFont();
+    if (m_Preferences.language == EditorLanguage::Chinese && !m_ChineseFontAvailable)
+    {
+        m_Preferences.language = EditorLanguage::English;
+        m_PreferencesError = "Chinese font unavailable; using English labels.";
+    }
 
     ImGuiStyle& style = ImGui::GetStyle();
     style.WindowRounding = 0;
@@ -208,7 +210,7 @@ Result<void> EditorApplication::OnInitialize(Application& application)
     style.Colors[ImGuiCol_Border] = ImVec4{.25f, .29f, .34f, 1};
     style.Colors[ImGuiCol_Text] = ImVec4{.89f, .93f, .97f, 1};
     style.Colors[ImGuiCol_TextDisabled] = ImVec4{.59f, .66f, .73f, 1};
-    m_UiScale = std::max(1.0f, SDL_GetWindowDisplayScale(nativeWindow));
+    m_UiScale = std::max(1.0f, SDL_GetWindowDisplayScale(nativeWindow)) * m_UserScale;
     style.ScaleAllSizes(m_UiScale);
     style.FontScaleDpi = m_UiScale;
 
@@ -253,6 +255,8 @@ Result<void> EditorApplication::OnInitialize(Application& application)
     m_ProjectSettingsPanel = std::make_unique<ProjectSettingsPanel>();
 
     m_EditorContext = std::make_unique<EditorContext>();
+    m_EditorContext->language = m_Preferences.language;
+    m_EditorContext->panelExpanded = &m_Preferences.panelExpanded;
     m_EditorContext->project = m_ProjectSession.get();
     m_EditorContext->renderer = &application.GetRenderer2D();
     m_EditorActions =
@@ -273,6 +277,17 @@ Result<void> EditorApplication::OnInitialize(Application& application)
             *m_EditorContext,
             *m_EditorActions);
 
+    SetEditorLanguage(m_Preferences.language);
+    const auto projectKey = ResolveEditorPreferenceProjectKey(m_ProjectSession->GetProjectRoot());
+    if (projectKey)
+        m_PreferencesProjectKey = projectKey.Value();
+    else
+        m_PreferencesError = projectKey.GetError().message;
+    const auto rememberedProject = m_Preferences.RememberProject(m_PreferencesProjectKey);
+    if (!rememberedProject)
+        m_PreferencesError = rememberedProject.GetError().message;
+    if (!m_PreferencesError.empty())
+        m_EditorConsole->PushError({ErrorCode::InvalidState, m_PreferencesError});
     m_EditorCamera = std::make_unique<EditorCamera>();
     m_SceneRenderer = std::make_unique<SceneRenderer>();
 
@@ -445,6 +460,19 @@ void EditorApplication::OnUpdate(
     ImGui::NewFrame();
 
     const ImGuiViewport* mainViewport = ImGui::GetMainViewport();
+    m_WorkspaceLogicalSize = {mainViewport->WorkSize.x / m_UiScale,
+                              mainViewport->WorkSize.y / m_UiScale};
+    if (m_RestoreWorkspaceSize && m_WorkspaceLogicalSize.x > 0 && m_WorkspaceLogicalSize.y > 0)
+    {
+        const auto reference = m_Preferences.workspaceReferenceSize;
+        if (reference.x > 0 && reference.y > 0)
+        {
+            m_WorkspacePreferences.leftWidth *= m_WorkspaceLogicalSize.x / reference.x;
+            m_WorkspacePreferences.rightWidth *= m_WorkspaceLogicalSize.x / reference.x;
+            m_WorkspacePreferences.utilityHeight *= m_WorkspaceLogicalSize.y / reference.y;
+        }
+        m_RestoreWorkspaceSize = false;
+    }
     EditorWorkspaceLayout workspace =
         BuildEditorWorkspaceLayout(mainViewport->WorkSize.x / m_UiScale,
                                    mainViewport->WorkSize.y / m_UiScale, m_WorkspacePreferences);
@@ -475,19 +503,22 @@ void EditorApplication::OnUpdate(
         ImGui::End();
         ImGui::PopStyleVar(2);
     };
-    splitter("##LeftSplit",
-             {workspace.hierarchy.width, workspace.hierarchy.y, 6 * m_UiScale,
-              workspace.hierarchy.height},
-             false, m_WorkspacePreferences.leftWidth);
+    if (workspace.hierarchy.width > 0)
+        splitter("##LeftSplit",
+                 {workspace.hierarchy.width, workspace.hierarchy.y, 6 * m_UiScale,
+                  workspace.hierarchy.height},
+                 false, m_WorkspacePreferences.leftWidth);
     float right = -m_WorkspacePreferences.rightWidth;
-    splitter("##RightSplit",
-             {workspace.inspector.x - 6 * m_UiScale, workspace.inspector.y, 6 * m_UiScale,
-              workspace.inspector.height},
-             false, right);
+    if (workspace.inspector.width > 0)
+        splitter("##RightSplit",
+                 {workspace.inspector.x - 6 * m_UiScale, workspace.inspector.y, 6 * m_UiScale,
+                  workspace.inspector.height},
+                 false, right);
     m_WorkspacePreferences.rightWidth = std::clamp(-right, 250.0f, 520.0f);
-    splitter("##BottomSplit",
-             {0, workspace.utility.y - 6 * m_UiScale, workspace.utility.width, 6 * m_UiScale}, true,
-             m_WorkspacePreferences.utilityHeight);
+    if (workspace.utility.height > 0)
+        splitter("##BottomSplit",
+                 {0, workspace.utility.y - 6 * m_UiScale, workspace.utility.width, 6 * m_UiScale},
+                 true, m_WorkspacePreferences.utilityHeight);
     m_WorkspacePreferences.leftWidth = std::clamp(m_WorkspacePreferences.leftWidth, 170.0f, 420.0f);
     m_WorkspacePreferences.utilityHeight =
         std::clamp(m_WorkspacePreferences.utilityHeight, 120.0f, 600.0f);
@@ -502,10 +533,28 @@ void EditorApplication::OnUpdate(
                 "Editor session state is incomplete."});
     }
 
+    // Settle an outside-click blur before toolbar or hierarchy commands observe authoring.
+    if (m_ProjectSession && m_InspectorPanel && workspace.inspector.width > 0 &&
+        workspace.inspector.height > 0)
+    {
+        ApplyWorkspaceRect(workspace.inspector, *mainViewport);
+        if (const auto error = m_InspectorPanel->Draw())
+            RecordError(*error);
+    }
+
     if (m_ProjectSession != nullptr)
     {
+        auto settleInspector = [&]()
+        {
+            const auto settled = m_InspectorPanel->CommitPendingEdit();
+            if (!settled)
+                RecordError(settled.GetError());
+            return static_cast<bool>(settled);
+        };
         auto save = [&]()
         {
+            if (!settleInspector())
+                return;
             const auto result = m_ProjectSession->SaveCurrentScene();
             m_ProjectSession->GetCommandBus().RecordOperation(CommandActor::Human, "scene.save",
                                                               result);
@@ -530,33 +579,39 @@ void EditorApplication::OnUpdate(
         ImGui::Begin("##JanusToolbar", nullptr, ToolbarFlags | ImGuiWindowFlags_MenuBar);
         if (ImGui::BeginMenuBar())
         {
-            if (ImGui::BeginMenu("File"))
+            if (ImGui::BeginMenu(EditorLabel(m_Preferences.language, "File").c_str()))
             {
-                if (ImGui::MenuItem("Save Scene", "Ctrl+S", false, canSave))
+                if (ImGui::MenuItem(EditorLabel(m_Preferences.language, "Save Scene").c_str(),
+                                    "Ctrl+S", false, canSave))
                     save();
-                if (ImGui::MenuItem("Project Settings..."))
+                if (ImGui::MenuItem(
+                        EditorLabel(m_Preferences.language, "Project Settings...").c_str()))
                     m_ShowProjectSettings = true;
-                if (ImGui::MenuItem("Exit", "Alt+F4"))
+                if (ImGui::MenuItem(EditorLabel(m_Preferences.language, "Exit").c_str(), "Alt+F4"))
                     m_CloseRequested = true;
                 ImGui::EndMenu();
             }
-            if (ImGui::BeginMenu("Edit"))
+            if (ImGui::BeginMenu(EditorLabel(m_Preferences.language, "Edit").c_str()))
             {
-                if (ImGui::MenuItem("Undo", "Ctrl+Z", false, m_EditorActions->CanUndo()))
+                if (ImGui::MenuItem(EditorLabel(m_Preferences.language, "Undo").c_str(), "Ctrl+Z",
+                                    false, m_EditorActions->CanUndo()))
                     action(m_EditorActions->Undo());
-                if (ImGui::MenuItem("Redo", "Ctrl+Y", false, m_EditorActions->CanRedo()))
+                if (ImGui::MenuItem(EditorLabel(m_Preferences.language, "Redo").c_str(), "Ctrl+Y",
+                                    false, m_EditorActions->CanRedo()))
                     action(m_EditorActions->Redo());
                 ImGui::EndMenu();
             }
-            if (ImGui::BeginMenu("Entity"))
+            if (ImGui::BeginMenu(EditorLabel(m_Preferences.language, "Entity").c_str()))
             {
-                if (ImGui::MenuItem("Create Entity", nullptr, false, !readOnly))
+                if (ImGui::MenuItem(EditorLabel(m_Preferences.language, "Create Entity").c_str(),
+                                    nullptr, false, !readOnly))
                 {
                     const auto created = m_EditorActions->CreateEntity("Entity");
                     if (!created)
                         RecordError(created.GetError());
                 }
-                if (ImGui::MenuItem("Duplicate", "Ctrl+D", false,
+                if (ImGui::MenuItem(EditorLabel(m_Preferences.language, "Duplicate").c_str(),
+                                    "Ctrl+D", false,
                                     !readOnly && m_EditorContext->selection.HasSelection()))
                 {
                     auto copied = m_EditorActions->DuplicateEntity(
@@ -566,18 +621,58 @@ void EditorApplication::OnUpdate(
                 }
                 ImGui::EndMenu();
             }
-            if (ImGui::BeginMenu("View"))
+            if (ImGui::BeginMenu(EditorLabel(m_Preferences.language, "View").c_str()))
             {
-                if (ImGui::MenuItem("Frame Camera"))
+                if (ImGui::MenuItem(EditorLabel(m_Preferences.language, "Frame Camera").c_str()))
                     FrameScene(false);
-                if (ImGui::MenuItem("Focus Selected", "F"))
+                if (ImGui::MenuItem(EditorLabel(m_Preferences.language, "Focus Selected").c_str(),
+                                    "F"))
                     FrameScene(true);
-                ImGui::MenuItem("Grid", nullptr, &m_ShowGrid);
-                if (ImGui::MenuItem("Reset Layout"))
-                    m_WorkspacePreferences = {};
-                if (ImGui::BeginMenu("UI Scale"))
+                ImGui::MenuItem(EditorLabel(m_Preferences.language, "Grid").c_str(), nullptr,
+                                &m_ShowGrid);
+                if (ImGui::MenuItem(EditorLabel(m_Preferences.language, "Reset Layout").c_str()))
+                    m_WorkspacePreferences =
+                        GetDefaultWorkspacePreferences(m_WorkspacePreferences.mode);
+                if (ImGui::BeginMenu(EditorLabel(m_Preferences.language, "Layout").c_str()))
                 {
-                    for (const float scale : {1.0f, 1.25f, 1.5f})
+                    const std::pair<const char*, EditorLayoutMode> modes[] = {
+                        {"Standard", EditorLayoutMode::Standard},
+                        {"Focus", EditorLayoutMode::Focus},
+                        {"Debug", EditorLayoutMode::Debug}};
+                    for (const auto& [name, mode] : modes)
+                    {
+                        if (ImGui::MenuItem(EditorLabel(m_Preferences.language, name).c_str(),
+                                            nullptr, m_WorkspacePreferences.mode == mode))
+                        {
+                            const auto committed = m_InspectorPanel->CommitPendingEdit();
+                            if (committed)
+                            {
+                                m_TransformDrag.Cancel();
+                                m_WorkspacePreferences = GetDefaultWorkspacePreferences(mode);
+                                m_InspectorPanel->ReleaseKeyboardOwnership();
+                            }
+                            else
+                                RecordError(committed.GetError());
+                        }
+                    }
+                    ImGui::EndMenu();
+                }
+                if (ImGui::BeginMenu(EditorLabel(m_Preferences.language, "Language").c_str()))
+                {
+                    if (ImGui::MenuItem("English###English", nullptr,
+                                        m_Preferences.language == EditorLanguage::English))
+                        SetEditorLanguage(EditorLanguage::English);
+                    if (ImGui::MenuItem(m_ChineseFontAvailable
+                                            ? "简体中文###Chinese"
+                                            : "Chinese (font unavailable)###Chinese",
+                                        nullptr, m_Preferences.language == EditorLanguage::Chinese,
+                                        m_ChineseFontAvailable))
+                        SetEditorLanguage(EditorLanguage::Chinese);
+                    ImGui::EndMenu();
+                }
+                if (ImGui::BeginMenu(EditorLabel(m_Preferences.language, "UI Scale").c_str()))
+                {
+                    for (const float scale : {0.75f, 1.0f, 1.25f, 1.5f, 2.0f})
                     {
                         const auto label = std::to_string(static_cast<int>(scale * 100)) + "%";
                         if (ImGui::MenuItem(label.c_str(), nullptr, m_UserScale == scale))
@@ -585,11 +680,25 @@ void EditorApplication::OnUpdate(
                     }
                     ImGui::EndMenu();
                 }
+                if (!m_PreferencesError.empty())
+                {
+                    ImGui::Separator();
+                    ImGui::TextWrapped("%s", m_PreferencesError.c_str());
+                    if (ImGui::MenuItem(
+                            EditorLabel(m_Preferences.language, "Retry saving preferences")
+                                .c_str()))
+                    {
+                        m_PreferencesPending = true;
+                        UpdatePreferences(true);
+                        if (!m_PreferencesSaveFailed)
+                            m_PreferencesError.clear();
+                    }
+                }
                 ImGui::EndMenu();
             }
-            if (ImGui::BeginMenu("Help"))
+            if (ImGui::BeginMenu(EditorLabel(m_Preferences.language, "Help").c_str()))
             {
-                if (ImGui::MenuItem("Editor Controls"))
+                if (ImGui::MenuItem(EditorLabel(m_Preferences.language, "Editor Controls").c_str()))
                     m_ShowAbout = true;
                 ImGui::EndMenu();
             }
@@ -609,7 +718,9 @@ void EditorApplication::OnUpdate(
         auto tool = [&](Icon icon, const char* label, bool enabled)
         {
             ImGui::BeginDisabled(!enabled);
-            const bool clicked = IconButton(icon, label, ImVec2{buttonWidth, 32 * m_UiScale});
+            const bool clicked =
+                IconButton(icon, EditorLabel(m_Preferences.language, label).c_str(),
+                           ImVec2{buttonWidth, 32 * m_UiScale});
             ImGui::EndDisabled();
             return clicked;
         };
@@ -623,7 +734,7 @@ void EditorApplication::OnUpdate(
             action(m_EditorActions->Redo());
         toolSeparator();
         const auto runtime = m_ProjectSession->GetRuntimeState();
-        if (tool(Icon::Play, "Play", !readOnly))
+        if (tool(Icon::Play, "Play", !readOnly) && settleInspector())
         {
             const auto result = m_ProjectSession->StartRuntime(m_GameInput);
             m_ProjectSession->GetCommandBus().RecordOperation(CommandActor::Human, "runtime.play",
@@ -671,11 +782,13 @@ void EditorApplication::OnUpdate(
         }
         toolSeparator();
         ImGui::AlignTextToFramePadding();
-        ImGui::TextUnformatted(RuntimeStateName(m_ProjectSession->GetRuntimeState()).data());
+        ImGui::TextUnformatted(EditorText(
+            m_Preferences.language, RuntimeStateName(m_ProjectSession->GetRuntimeState()).data()));
         ImGui::End();
 
         // Text fields own editing shortcuts; Game focus keeps gameplay keys isolated.
-        if (!ImGui::GetIO().WantTextInput && !m_GameInputActive)
+        if (!ImGui::GetIO().WantTextInput && !ImGui::IsAnyItemActive() &&
+            !(m_InspectorPanel && m_InspectorPanel->OwnsKeyboardInput()) && !m_GameInputActive)
         {
             if (!readOnly && m_EditorContext->selection.HasSelection() &&
                 ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_D, ImGuiInputFlags_RouteGlobal))
@@ -697,17 +810,28 @@ void EditorApplication::OnUpdate(
         ApplyWorkspaceRect(workspace.status, *mainViewport);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{12 * m_UiScale, 3 * m_UiScale});
         ImGui::Begin("##Status", nullptr, ToolbarFlags);
-        ImGui::Text("%s%s", m_ProjectSession->GetEditorScene().GetMetadata().name.c_str(),
-                    m_ProjectSession->IsDirty() ? " *  |  Unsaved changes" : "  |  Saved");
+        ImGui::Text(EditorText(m_Preferences.language, "%s%s"),
+                    m_ProjectSession->GetEditorScene().GetMetadata().name.c_str(),
+                    EditorText(m_Preferences.language, m_ProjectSession->IsDirty()
+                                                           ? " *  |  Unsaved changes"
+                                                           : "  |  Saved"));
         if (ImGui::IsItemHovered())
             ImGui::SetTooltip("%s", m_ProjectSession->GetCurrentScenePath().string().c_str());
+        if (!m_PreferencesError.empty())
+        {
+            ImGui::SameLine();
+            ImGui::TextColored({1, .75f, .3f, 1}, "%s",
+                               EditorText(m_Preferences.language, "Preferences warning"));
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("%s", m_PreferencesError.c_str());
+        }
         if (workspace.status.width > 950 * m_UiScale)
         {
             ImGui::SameLine(workspace.status.width - 390 * m_UiScale);
-            ImGui::Text("Entities: %zu  |  Assets: %zu  |  MCP: %s",
-                        m_ProjectSession->GetEditorScene().GetEntities().size(),
-                        m_ProjectSession->GetAssetRegistry().Size(),
-                        m_McpHost ? "stdio enabled" : "off");
+            ImGui::Text(
+                EditorText(m_Preferences.language, "Entities: %zu  |  Assets: %zu  |  MCP: %s"),
+                m_ProjectSession->GetEditorScene().GetEntities().size(),
+                m_ProjectSession->GetAssetRegistry().Size(), m_McpHost ? "stdio enabled" : "off");
         }
         ImGui::End();
         ImGui::PopStyleVar();
@@ -723,19 +847,24 @@ void EditorApplication::OnUpdate(
         {
             ImGui::SetNextWindowSize(ImVec2{440 * m_UiScale, 250 * m_UiScale},
                                      ImGuiCond_FirstUseEver);
-            if (ImGui::Begin("Editor Controls", &m_ShowAbout))
+            if (ImGui::Begin(EditorLabel(m_Preferences.language, "Editor Controls").c_str(),
+                             &m_ShowAbout))
             {
-                ImGui::TextWrapped(
+                ImGui::TextWrapped(EditorText(
+                    m_Preferences.language,
                     "Scene: click to select, middle-drag to pan, wheel to zoom. F focuses the "
-                    "selected entity. Frame Camera restores the game camera region.");
+                    "selected entity. Frame Camera restores the game camera region."));
                 ImGui::TextWrapped(
-                    "Q selects, W moves. Drag X/Y arrows or the square plane handle. "
-                    "Hold Ctrl to snap movement to the displayed major grid spacing. "
-                    "Esc cancels; release commits one Undo step. UI uses Inspector layout fields.");
+                    EditorText(m_Preferences.language,
+                               "Q selects, W moves. Drag X/Y arrows or the square plane handle. "
+                               "Hold Ctrl to snap movement to the displayed major grid spacing. "
+                               "Esc cancels; release commits one Undo step. UI uses Inspector "
+                               "layout fields."));
                 ImGui::Separator();
-                ImGui::TextWrapped(
+                ImGui::TextWrapped(EditorText(
+                    m_Preferences.language,
                     "Drag panel separators to resize. View > Reset Layout restores defaults. "
-                    "Resource fields accept registered assets of the matching type.");
+                    "Resource fields accept registered assets of the matching type."));
             }
             ImGui::End();
         }
@@ -751,36 +880,25 @@ void EditorApplication::OnUpdate(
                 m_ProjectSession->GetEditorScene());
         }
 
-        ApplyWorkspaceRect(
-            workspace.hierarchy,
-            *mainViewport);
-        const auto hierarchyError =
-            m_HierarchyPanel->Draw();
-        if (hierarchyError.has_value())
+        if (workspace.hierarchy.width > 0 && workspace.hierarchy.height > 0)
         {
-            RecordError(*hierarchyError);
-        }
-
-        ApplyWorkspaceRect(
-            workspace.inspector,
-            *mainViewport);
-        const auto inspectorError =
-            m_InspectorPanel->Draw();
-        if (inspectorError.has_value())
-        {
-            RecordError(*inspectorError);
+            ApplyWorkspaceRect(workspace.hierarchy, *mainViewport);
+            const auto hierarchyError = m_HierarchyPanel->Draw();
+            if (hierarchyError.has_value())
+            {
+                RecordError(*hierarchyError);
+            }
         }
     }
 
-    if (m_AssetBrowserPanel != nullptr
-        && m_ConsolePanel != nullptr)
+    if (m_AssetBrowserPanel != nullptr && m_ConsolePanel != nullptr && workspace.utility.height > 0)
     {
         const bool split = workspace.diagnostics.width > 0;
         ApplyWorkspaceRect(workspace.assets, *mainViewport);
         ImGui::Begin("##ProjectWorkspace", nullptr, WorkspaceContainerFlags);
         if (split)
         {
-            IconText(Icon::Folder, "Project");
+            IconText(Icon::Folder, EditorText(m_Preferences.language, "Project"));
             ImGui::Separator();
             const auto error = m_AssetBrowserPanel->DrawContents();
             if (error)
@@ -791,44 +909,58 @@ void EditorApplication::OnUpdate(
         }
         if (ImGui::BeginTabBar("UtilityTabs"))
         {
-            if (!split && IconTab(Icon::Folder, "Project",
-                                  m_EditorContext->locateAsset ? ImGuiTabItemFlags_SetSelected : 0))
+            if (!split &&
+                IconTab(Icon::Folder, EditorLabel(m_Preferences.language, "Project").c_str(),
+                        m_EditorContext->locateAsset ? ImGuiTabItemFlags_SetSelected : 0))
             {
                 const auto error = m_AssetBrowserPanel->DrawContents();
                 if (error)
                     RecordError(*error);
                 ImGui::EndTabItem();
             }
-            if (IconTab(Icon::Console, "Console"))
+            if (IconTab(Icon::Console, EditorLabel(m_Preferences.language, "Console").c_str()))
             {
                 m_ConsolePanel->DrawContents();
                 ImGui::EndTabItem();
             }
 
-            if (IconTab(Icon::Agent, "Agent Activity"))
+            if (IconTab(Icon::Agent, EditorLabel(m_Preferences.language, "Agent Activity").c_str()))
             {
                 auto& commands = m_ProjectSession->GetCommandBus();
                 if (commands.HasTransaction())
                 {
-                    ImGui::Text("Provisional transaction: %zu commands, %zu bytes reserved",
-                                commands.GetPendingCount(), commands.GetPendingBytes());
-                    if (!commands.RecoveryRequired() && ImGui::Button("Cancel Agent transaction"))
+                    ImGui::Text(
+                        EditorText(m_Preferences.language,
+                                   "Provisional transaction: %zu commands, %zu bytes reserved"),
+                        commands.GetPendingCount(), commands.GetPendingBytes());
+                    if (!commands.RecoveryRequired() &&
+                        ImGui::Button(
+                            EditorLabel(m_Preferences.language, "Cancel Agent transaction")
+                                .c_str()))
                         m_ProjectSession->CancelAuthoringTransaction(
                             m_ProjectSession->GetTransactionOwner(), CommandActor::Human);
                 }
                 if (commands.RecoveryRequired())
                 {
-                    ImGui::TextWrapped(
-                        "Authoring recovery required. Writes, Save and Play are frozen.");
-                    if (ImGui::Button("Discard unsaved changes and reload..."))
-                        ImGui::OpenPopup("Confirm authoring recovery");
+                    ImGui::TextWrapped(EditorText(
+                        m_Preferences.language,
+                        "Authoring recovery required. Writes, Save and Play are frozen."));
+                    if (ImGui::Button(EditorLabel(m_Preferences.language,
+                                                  "Discard unsaved changes and reload...")
+                                          .c_str()))
+                        ImGui::OpenPopup(
+                            EditorLabel(m_Preferences.language, "Confirm authoring recovery")
+                                .c_str());
                 }
-                if (ImGui::BeginPopupModal("Confirm authoring recovery", nullptr,
-                                           ImGuiWindowFlags_AlwaysAutoResize))
+                if (ImGui::BeginPopupModal(
+                        EditorLabel(m_Preferences.language, "Confirm authoring recovery").c_str(),
+                        nullptr, ImGuiWindowFlags_AlwaysAutoResize))
                 {
-                    ImGui::TextUnformatted(
-                        "Discard all unsaved authoring changes and reload the scene from disk?");
-                    if (ImGui::Button("Discard and reload"))
+                    ImGui::TextUnformatted(EditorText(
+                        m_Preferences.language,
+                        "Discard all unsaved authoring changes and reload the scene from disk?"));
+                    if (ImGui::Button(
+                            EditorLabel(m_Preferences.language, "Discard and reload").c_str()))
                     {
                         const auto recovered = m_ProjectSession->DiscardUnsavedAndReload();
                         if (!recovered)
@@ -838,7 +970,8 @@ void EditorApplication::OnUpdate(
                         ImGui::CloseCurrentPopup();
                     }
                     ImGui::SameLine();
-                    if (ImGui::Button("Keep recovery state"))
+                    if (ImGui::Button(
+                            EditorLabel(m_Preferences.language, "Keep recovery state").c_str()))
                         ImGui::CloseCurrentPopup();
                     ImGui::EndPopup();
                 }
@@ -849,10 +982,11 @@ void EditorApplication::OnUpdate(
                 for (usize i = start; i < activity.size(); ++i)
                 {
                     const auto& row = activity[i];
-                    ImGui::TextWrapped("#%llu %s %s | command %llu | %s", row.sequence,
-                                       CommandActorName(row.actor).data(),
-                                       CommandOutcomeName(row.outcome).data(), row.commandId,
-                                       row.description.c_str());
+                    ImGui::TextWrapped(
+                        EditorText(m_Preferences.language, "#%llu %s %s | command %llu | %s"),
+                        row.sequence, CommandActorName(row.actor).data(),
+                        CommandOutcomeName(row.outcome).data(), row.commandId,
+                        row.description.c_str());
                     for (const auto& effect : row.effects)
                         ImGui::TextDisabled("  %s %s", effect.operation.c_str(),
                                             effect.entity.ToString().c_str());
@@ -863,35 +997,41 @@ void EditorApplication::OnUpdate(
                 ImGui::EndChild();
                 ImGui::EndTabItem();
             }
-            if (IconTab(Icon::Profiler, "Profiler"))
+            if (IconTab(Icon::Profiler, EditorLabel(m_Preferences.language, "Profiler").c_str()))
             {
                 bool enabled = m_ProjectSession->GetProfiler().IsEnabled();
-                if (ImGui::Checkbox("Record CPU frames", &enabled))
+                if (ImGui::Checkbox(
+                        EditorLabel(m_Preferences.language, "Record CPU frames").c_str(), &enabled))
                     m_ProjectSession->GetProfiler().SetEnabled(enabled);
                 const auto& frame = m_ProjectSession->GetDiagnosticsFrame();
                 if (frame)
                 {
-                    ImGui::Text("CPU frame %llu: %.3f ms", frame->cpu.frameId,
-                                frame->cpu.durationMilliseconds);
-                    ImGui::TextUnformatted(
-                        "Inclusive scopes overlap. CPU timings do not measure GPU time.");
+                    ImGui::Text(EditorText(m_Preferences.language, "CPU frame %llu: %.3f ms"),
+                                frame->cpu.frameId, frame->cpu.durationMilliseconds);
+                    ImGui::TextUnformatted(EditorText(
+                        m_Preferences.language,
+                        "Inclusive scopes overlap. CPU timings do not measure GPU time."));
                     for (const auto& scope : frame->cpu.scopes)
-                        ImGui::Text("%s: %.3f ms", scope.name.c_str(), scope.durationMilliseconds);
+                        ImGui::Text(EditorText(m_Preferences.language, "%s: %.3f ms"),
+                                    scope.name.c_str(), scope.durationMilliseconds);
                     const auto showPass =
-                        [](const char* name, const std::optional<RenderPassSnapshot>& pass)
+                        [this](const char* name, const std::optional<RenderPassSnapshot>& pass)
                     {
                         if (pass)
-                            ImGui::Text("%s: %zu entities, %u sprites, %u draws", name,
-                                        pass->entityCount, pass->statistics.spriteCount,
+                            ImGui::Text(EditorText(m_Preferences.language,
+                                                   "%s: %zu entities, %u sprites, %u draws"),
+                                        name, pass->entityCount, pass->statistics.spriteCount,
                                         pass->statistics.drawCallCount);
                         else
-                            ImGui::Text("%s: unavailable", name);
+                            ImGui::Text(EditorText(m_Preferences.language, "%s: unavailable"),
+                                        name);
                     };
                     showPass("Scene", frame->sceneView);
                     showPass("Game", frame->gameView);
                 }
                 else
-                    ImGui::TextUnformatted("No completed frame.");
+                    ImGui::TextUnformatted(
+                        EditorText(m_Preferences.language, "No completed frame."));
                 ImGui::EndTabItem();
             }
             ImGui::EndTabBar();
@@ -926,28 +1066,37 @@ void EditorApplication::OnUpdate(
                     ? ImGuiTabItemFlags_SetSelected
                     : ImGuiTabItemFlags_None;
 
-            const bool sceneTabVisible = IconTab(Icon::Entity, "Scene", sceneTabFlags);
+            const bool sceneTabVisible = IconTab(
+                Icon::Entity, EditorLabel(m_Preferences.language, "Scene").c_str(), sceneTabFlags);
 
             m_SelectSceneViewTab = false;
 
             if (sceneTabVisible)
             {
                 m_WasGameView = false;
-                if (IconOnlyButton(Icon::Frame, "Frame Camera"))
+                if (IconOnlyButton(Icon::Frame,
+                                   EditorLabel(m_Preferences.language, "Frame Camera").c_str()))
                     FrameScene(false);
                 ImGui::SameLine();
-                if (IconOnlyButton(Icon::Focus, "Focus Selected (F)"))
+                if (IconOnlyButton(
+                        Icon::Focus,
+                        EditorLabel(m_Preferences.language, "Focus Selected (F)").c_str()))
                     FrameScene(true);
                 ImGui::SameLine();
-                ImGui::Checkbox("Grid", &m_ShowGrid);
+                ImGui::Checkbox(EditorLabel(m_Preferences.language, "Grid").c_str(), &m_ShowGrid);
                 ImGui::SameLine();
-                if (IconOnlyButton(Icon::Select, m_MoveTool ? "Select (Q)" : "Select (Q) *"))
+                if (IconOnlyButton(Icon::Select,
+                                   EditorLabel(m_Preferences.language,
+                                               m_MoveTool ? "Select (Q)" : "Select (Q) *")
+                                       .c_str()))
                 {
                     m_MoveTool = false;
                     m_TransformDrag.Cancel();
                 }
                 ImGui::SameLine();
-                if (IconOnlyButton(Icon::Move, m_MoveTool ? "Move (W) *" : "Move (W)"))
+                if (IconOnlyButton(Icon::Move, EditorLabel(m_Preferences.language,
+                                                           m_MoveTool ? "Move (W) *" : "Move (W)")
+                                                   .c_str()))
                     m_MoveTool = true;
 
                 const ImVec2 available =
@@ -978,7 +1127,11 @@ void EditorApplication::OnUpdate(
 
                     if (m_InitialFrame)
                     {
-                        FrameScene(false);
+                        const auto* savedCamera = m_Preferences.FindCamera(
+                            m_PreferencesProjectKey, m_ProjectSession->GetCurrentScenePath());
+                        if (!savedCamera ||
+                            !m_EditorCamera->RestoreView(savedCamera->position, savedCamera->zoom))
+                            FrameScene(false);
                         m_InitialFrame = false;
                     }
                     const auto presentation =
@@ -1000,10 +1153,13 @@ void EditorApplication::OnUpdate(
                             {viewMin.x, viewMin.y}, {available.x, available.y}, hovered);
                         const float pad = ImGui::GetStyle().WindowPadding.x;
                         char viewLabel[160];
-                        std::snprintf(viewLabel, sizeof(viewLabel),
-                                      "2D  |  %.3f units/px  |  %s  |  Ctrl snap: %.3g",
-                                      m_EditorCamera->GetZoom(), m_MoveTool ? "Move" : "Select",
-                                      m_EditorCamera->GetGridSpacing());
+                        std::snprintf(
+                            viewLabel, sizeof(viewLabel),
+                            EditorText(m_Preferences.language,
+                                       "2D  |  %.3f units/px  |  %s  |  Ctrl snap: %.3g"),
+                            m_EditorCamera->GetZoom(),
+                            EditorText(m_Preferences.language, m_MoveTool ? "Move" : "Select"),
+                            m_EditorCamera->GetGridSpacing());
                         const float labelWidth =
                             std::min(ImGui::CalcTextSize(viewLabel).x, available.x - pad * 4);
                         if (labelWidth > 0 && available.y > ImGui::GetFrameHeight() * 2)
@@ -1042,7 +1198,8 @@ void EditorApplication::OnUpdate(
                     ? ImGuiTabItemFlags_SetSelected
                     : ImGuiTabItemFlags_None;
 
-            const bool gameTabVisible = IconTab(Icon::Play, "Game", gameTabFlags);
+            const bool gameTabVisible = IconTab(
+                Icon::Play, EditorLabel(m_Preferences.language, "Game").c_str(), gameTabFlags);
 
             m_SelectGameViewTab = false;
 
@@ -1107,7 +1264,9 @@ void EditorApplication::OnUpdate(
                         const auto item = ImGui::GetItemRectMin();
                         const auto windowOrigin = ImGui::GetMainViewport()->Pos;
                         const auto& settings = m_ProjectSession->GetProjectSettings();
-                        acceptGameInput = ImGui::IsItemHovered() && !ImGui::GetIO().WantTextInput;
+                        acceptGameInput = ImGui::IsItemHovered() && !ImGui::GetIO().WantTextInput &&
+                                          !ImGui::IsAnyItemActive() &&
+                                          !(m_InspectorPanel && m_InspectorPanel->OwnsKeyboardInput());
                         gameInput = application.GetInput().ForViewport(
                             {item.x - windowOrigin.x, item.y - windowOrigin.y},
                             {fitted.width, fitted.height},
@@ -1291,6 +1450,7 @@ void EditorApplication::OnUpdate(
         }
     }
 
+    UpdatePreferences();
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     if (profileFrame)
@@ -1347,7 +1507,8 @@ void EditorApplication::DrawCloseConfirmation(Application& application)
         {
             RecordError(settled.GetError());
             m_CloseNeedsDraftDecision = true;
-            ImGui::OpenPopup("Uncommitted Inspector edit");
+            ImGui::OpenPopup(
+                EditorLabel(m_Preferences.language, "Uncommitted Inspector edit").c_str());
         }
         else
         {
@@ -1367,7 +1528,7 @@ void EditorApplication::DrawCloseConfirmation(Application& application)
                     application.RequestExit();
             }
             else
-                ImGui::OpenPopup("Close Janus Editor");
+                ImGui::OpenPopup(EditorLabel(m_Preferences.language, "Close Janus Editor").c_str());
         }
     }
     auto fitModal = []
@@ -1379,20 +1540,26 @@ void EditorApplication::DrawCloseConfirmation(Application& application)
                                              std::max(160.0f, viewport->WorkSize.y - 24)});
     };
     fitModal();
-    if (ImGui::BeginPopupModal("Uncommitted Inspector edit", nullptr,
-                               ImGuiWindowFlags_AlwaysAutoResize))
+    if (ImGui::BeginPopupModal(
+            EditorLabel(m_Preferences.language, "Uncommitted Inspector edit").c_str(), nullptr,
+            ImGuiWindowFlags_AlwaysAutoResize))
     {
-        ImGui::TextWrapped("The current field could not be committed. Cancel to correct it, or "
-                           "explicitly discard this field draft.");
+        ImGui::TextWrapped(
+            EditorText(m_Preferences.language,
+                       "The current field could not be committed. Cancel to correct it, or "
+                       "explicitly discard this field draft."));
         ImGui::TextWrapped("%s", m_LastError.c_str());
-        if (ImGui::Button("Cancel close", {-1, 0}) || ImGui::IsKeyPressed(ImGuiKey_Escape))
+        if (ImGui::Button(EditorLabel(m_Preferences.language, "Cancel close").c_str(), {-1, 0}) ||
+            ImGui::IsKeyPressed(ImGuiKey_Escape))
         {
             m_CloseRequested = false;
             m_CloseNeedsDraftDecision = false;
             ImGui::CloseCurrentPopup();
         }
         ImGui::SetItemDefaultFocus();
-        if (ImGui::Button("Discard field draft and review close", {-1, 0}))
+        if (ImGui::Button(
+                EditorLabel(m_Preferences.language, "Discard field draft and review close").c_str(),
+                {-1, 0}))
         {
             m_InspectorPanel->DiscardPendingEdit();
             m_CloseNeedsDraftDecision = false;
@@ -1401,34 +1568,46 @@ void EditorApplication::DrawCloseConfirmation(Application& application)
         ImGui::EndPopup();
     }
     fitModal();
-    if (ImGui::BeginPopupModal("Close Janus Editor", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    if (ImGui::BeginPopupModal(EditorLabel(m_Preferences.language, "Close Janus Editor").c_str(),
+                               nullptr, ImGuiWindowFlags_AlwaysAutoResize))
     {
         auto& commands = m_ProjectSession->GetCommandBus();
         const bool recovery = commands.RecoveryRequired();
         const bool transaction = commands.HasTransaction() && !recovery;
         const bool settingsDirty = m_ProjectSettingsPanel->HasUnsavedChanges(*m_ProjectSession);
-        ImGui::TextWrapped("Scene: %s",
+        ImGui::TextWrapped(EditorText(m_Preferences.language, "Scene: %s"),
                            m_ProjectSession->GetCurrentScenePath().generic_string().c_str());
-        ImGui::TextUnformatted(m_ProjectSession->IsDirty() ? "Scene has unsaved changes."
-                                                           : "Scene is saved.");
+        ImGui::TextUnformatted(EditorText(m_Preferences.language, m_ProjectSession->IsDirty()
+                                                                      ? "Scene has unsaved changes."
+                                                                      : "Scene is saved."));
         if (m_ProjectSession->HasRuntime())
         {
-            ImGui::TextWrapped("Runtime is %s. Simulation continues with gameplay input blocked "
-                               "until you confirm Stop.",
-                               RuntimeStateName(m_ProjectSession->GetRuntimeState()).data());
-            ImGui::Checkbox("Stop runtime before exit", &m_CloseStopRuntime);
+            ImGui::TextWrapped(
+                EditorText(m_Preferences.language,
+                           "Runtime is %s. Simulation continues with gameplay input blocked "
+                           "until you confirm Stop."),
+                EditorText(m_Preferences.language,
+                           RuntimeStateName(m_ProjectSession->GetRuntimeState()).data()));
+            ImGui::Checkbox(EditorLabel(m_Preferences.language, "Stop runtime before exit").c_str(),
+                            &m_CloseStopRuntime);
         }
         if (recovery)
         {
-            ImGui::TextWrapped("Authoring recovery required. Saving is blocked. Discard exits "
-                               "without writing this authoring state.");
+            ImGui::TextWrapped(
+                EditorText(m_Preferences.language,
+                           "Authoring recovery required. Saving is blocked. Discard exits "
+                           "without writing this authoring state."));
             m_CloseSaveSettings = false;
         }
         if (transaction)
         {
-            ImGui::TextWrapped("An Agent transaction is active. Wait for its owner, cancel close, "
-                               "or explicitly roll it back.");
-            if (ImGui::Button("Roll back Agent transaction", {-1, 0}))
+            ImGui::TextWrapped(
+                EditorText(m_Preferences.language,
+                           "An Agent transaction is active. Wait for its owner, cancel close, "
+                           "or explicitly roll it back."));
+            if (ImGui::Button(
+                    EditorLabel(m_Preferences.language, "Roll back Agent transaction").c_str(),
+                    {-1, 0}))
             {
                 const auto rolled = m_CloseController->RollbackTransaction();
                 if (!rolled)
@@ -1438,13 +1617,19 @@ void EditorApplication::DrawCloseConfirmation(Application& application)
         if (settingsDirty)
         {
             ImGui::Separator();
-            ImGui::TextUnformatted("Project settings also have an unsaved draft.");
+            ImGui::TextUnformatted(
+                EditorText(m_Preferences.language, "Project settings also have an unsaved draft."));
             ImGui::BeginDisabled(recovery);
-            if (ImGui::Checkbox("Save project settings before exit", &m_CloseSaveSettings) &&
+            if (ImGui::Checkbox(
+                    EditorLabel(m_Preferences.language, "Save project settings before exit")
+                        .c_str(),
+                    &m_CloseSaveSettings) &&
                 m_CloseSaveSettings)
                 m_CloseDiscardSettings = false;
             ImGui::EndDisabled();
-            if (ImGui::Checkbox("Discard project settings draft", &m_CloseDiscardSettings) &&
+            if (ImGui::Checkbox(
+                    EditorLabel(m_Preferences.language, "Discard project settings draft").c_str(),
+                    &m_CloseDiscardSettings) &&
                 m_CloseDiscardSettings)
                 m_CloseSaveSettings = false;
         }
@@ -1452,11 +1637,14 @@ void EditorApplication::DrawCloseConfirmation(Application& application)
         {
             ImGui::Separator();
             ImGui::TextWrapped("%s", m_CloseController->GetError()->message.c_str());
-            ImGui::TextWrapped("You can retry or cancel. A completed Stop or successful settings "
-                               "save is retained.");
+            ImGui::TextWrapped(
+                EditorText(m_Preferences.language,
+                           "You can retry or cancel. A completed Stop or successful settings "
+                           "save is retained."));
         }
         ImGui::Separator();
-        if (ImGui::Button("Cancel", {-1, 0}) || ImGui::IsKeyPressed(ImGuiKey_Escape))
+        if (ImGui::Button(EditorLabel(m_Preferences.language, "Cancel").c_str(), {-1, 0}) ||
+            ImGui::IsKeyPressed(ImGuiKey_Escape))
         {
             m_CloseController->Cancel();
             ImGui::CloseCurrentPopup();
@@ -1484,11 +1672,14 @@ void EditorApplication::DrawCloseConfirmation(Application& application)
                 RecordError(closed.GetError());
         };
         ImGui::BeginDisabled(!ready || recovery);
-        if (ImGui::Button("Save Scene and Exit", {-1, 0}))
+        if (ImGui::Button(EditorLabel(m_Preferences.language, "Save Scene and Exit").c_str(),
+                          {-1, 0}))
             confirm(true);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!ready);
-        if (ImGui::Button("Discard Scene changes and Exit", {-1, 0}))
+        if (ImGui::Button(
+                EditorLabel(m_Preferences.language, "Discard Scene changes and Exit").c_str(),
+                {-1, 0}))
             confirm(false);
         ImGui::EndDisabled();
         ImGui::EndPopup();
@@ -1497,6 +1688,7 @@ void EditorApplication::DrawCloseConfirmation(Application& application)
 
 void EditorApplication::OnShutdown(Application& application) noexcept
 {
+    UpdatePreferences(true);
     auto& renderer = application.GetRenderer2D();
 
     if (m_McpHost != nullptr)
