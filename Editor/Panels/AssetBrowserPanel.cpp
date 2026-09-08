@@ -1,4 +1,5 @@
 #include "Panels/AssetBrowserPanel.h"
+#include "Core/FileSystem/FileSystem.h"
 
 #include "EditorActions.h"
 #include "EditorContext.h"
@@ -40,6 +41,15 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
         return std::nullopt;
     }
 
+    const auto locate = m_Context.locateAsset;
+    if (locate)
+    {
+        m_SelectedAsset = AssetHandle{*locate};
+        m_Search.fill(0);
+        m_TypeFilter = 0;
+        m_Folder.clear();
+        m_Context.locateAsset.reset();
+    }
     const auto assets = m_Context.project->GetAssetRegistry().GetAssets();
     ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.48f);
     ImGui::InputTextWithHint("##Search", "Search assets...", m_Search.data(), m_Search.size());
@@ -60,7 +70,7 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
             m_Folder.clear();
         std::set<std::string> folders;
         for (const auto& asset : assets)
-            folders.insert(asset.relativePath.parent_path().generic_string());
+            folders.insert(FileSystem::PathToUtf8(asset.relativePath.parent_path()));
         for (const auto& folder : folders)
             if (IconSelectable(Icon::Folder, folder.empty() ? "(root)" : folder.c_str(),
                                m_Folder == folder))
@@ -80,10 +90,11 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
         std::max(1, static_cast<int>((ImGui::GetContentRegionAvail().x + gap) / (tile + gap)));
     for (const auto& asset : assets)
     {
-        const std::string path = asset.relativePath.generic_string();
+        const std::string path = FileSystem::PathToUtf8(asset.relativePath);
         if (m_TypeFilter > 0 && asset.type != types[m_TypeFilter - 1])
             continue;
-        if (!m_Folder.empty() && asset.relativePath.parent_path().generic_string() != m_Folder)
+        if (!m_Folder.empty() &&
+            FileSystem::PathToUtf8(asset.relativePath.parent_path()) != m_Folder)
             continue;
         if (m_Search[0] && path.find(m_Search.data()) == std::string::npos)
             continue;
@@ -100,6 +111,8 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
                 m_SelectedAsset = asset.handle;
             if (!ImGui::IsItemVisible())
             {
+                if (locate == asset.handle.id)
+                    ImGui::SetScrollHereY(0.5f);
                 ++column;
                 ImGui::PopID();
                 continue;
@@ -160,7 +173,7 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
             }
             DrawEllipsizedText(draw, {origin.x + inset, origin.y + tile}, previewWidth,
                                ImGui::GetColorU32(ImGuiCol_Text),
-                               asset.relativePath.filename().string());
+                               FileSystem::PathToUtf8(asset.relativePath.filename()));
             draw->AddRect(origin, end,
                           ImGui::GetColorU32(selectedCard ? ImGuiCol_CheckMark : ImGuiCol_Border),
                           4, 0, selectedCard ? 1.5f : 1.0f);
@@ -171,6 +184,16 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
         else if (IconSelectable(AssetIcon(AssetTypeName(asset.type)), path.c_str(),
                                 asset.handle == m_SelectedAsset))
             m_SelectedAsset = asset.handle;
+        if (locate == asset.handle.id)
+            ImGui::SetScrollHereY(0.5f);
+        if (!m_Context.project->IsAuthoringReadOnly() && ImGui::BeginDragDropSource())
+        {
+            const EditorAssetPayload payload{m_Context.project->GetProjectIdentity(),
+                                             asset.handle.id};
+            ImGui::SetDragDropPayload(EditorAssetPayloadType, &payload, sizeof(payload));
+            IconText(AssetIcon(AssetTypeName(asset.type)), path.c_str());
+            ImGui::EndDragDropSource();
+        }
         ImGui::PopID();
     }
     ImGui::EndChild();
@@ -193,8 +216,7 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
         return std::nullopt;
     }
 
-    const std::string selectedPath =
-        selected->relativePath.generic_string();
+    const std::string selectedPath = FileSystem::PathToUtf8(selected->relativePath);
     const std::string selectedHandle =
         selected->handle.ToString();
 
@@ -203,7 +225,8 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
     ImGui::Dummy({nameWidth, ImGui::GetFrameHeight()});
     DrawEllipsizedText(
         ImGui::GetWindowDrawList(), {footerPos.x, footerPos.y + ImGui::GetStyle().FramePadding.y},
-        nameWidth, ImGui::GetColorU32(ImGuiCol_Text), selected->relativePath.filename().string());
+        nameWidth, ImGui::GetColorU32(ImGuiCol_Text),
+        FileSystem::PathToUtf8(selected->relativePath.filename()));
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("%s\nUUID: %s", selectedPath.c_str(), selectedHandle.c_str());
     ImGui::SameLine();

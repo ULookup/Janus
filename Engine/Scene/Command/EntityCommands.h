@@ -5,6 +5,7 @@
 #include "Scene/Command/SceneCommands.h"
 #include "Scene/SceneReflection.h"
 
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -35,6 +36,45 @@ struct EntitySubtreeSnapshot
 CaptureEntitySubtree(Scene& scene, const SceneReflection& reflection, UUID root);
 [[nodiscard]] Result<void> RestoreEntitySubtree(Scene& scene, const SceneReflection& reflection,
                                                 const EntitySubtreeSnapshot& snapshot);
+
+// Shared bounded cloning helpers for Duplicate and Prefab insertion.
+inline constexpr usize MaxAuthoringSubtreeEntities = 1024;
+inline constexpr usize MaxAuthoringSubtreeDepth = 64;
+Result<void> ValidateAuthoringSubtree(Scene& scene, UUID root);
+Result<void> RemapEntitySubtree(Scene& scene, EntitySubtreeSnapshot& snapshot,
+                                bool allowExternalRootParent);
+Result<void> ValidateSubtreeInsertion(Scene& scene, const EntitySubtreeSnapshot& snapshot);
+usize EstimateSubtreeUndoBytes(const EntitySubtreeSnapshot& snapshot);
+
+class DuplicateEntityCommand final : public ICommand
+{
+  public:
+    static Result<std::unique_ptr<DuplicateEntityCommand>>
+    Create(Scene& scene, SceneReflection reflection, UUID source);
+    UUID GetRoot() const noexcept
+    {
+        return m_Snapshot.root;
+    }
+    Result<void> Execute() override;
+    Result<void> Undo() override;
+    Result<void> Redo() override;
+    std::string_view Describe() const noexcept override
+    {
+        return "Duplicate Entity";
+    }
+    Result<usize> EstimateUndoBytes() const override;
+    std::vector<CommandEffect> GetEffects() const override;
+
+  private:
+    DuplicateEntityCommand(Scene& scene, SceneReflection reflection,
+                           EntitySubtreeSnapshot snapshot);
+    Result<void> Restore();
+    Scene& m_Scene;
+    SceneReflection m_Reflection;
+    EntitySubtreeSnapshot m_Snapshot;
+    bool m_Executed = false;
+    bool m_Present = false;
+};
 
 class ReparentEntityCommand final : public ICommand
 {

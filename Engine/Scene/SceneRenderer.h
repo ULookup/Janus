@@ -6,6 +6,7 @@
 #include "ECS/Entity.h"
 #include "Renderer/OrthographicCamera.h"
 #include "Renderer/RendererTypes.h"
+#include "Scene/ScenePose.h"
 
 namespace Janus
 {
@@ -30,6 +31,7 @@ struct SceneRenderRequest
     const UIInteractionState* uiState = nullptr;
     const AnimationSystem* animations = nullptr;
     Color clearColor = Color::White();
+    std::optional<ScenePositionOverride> positionOverride;
 };
 
 class SceneRenderer

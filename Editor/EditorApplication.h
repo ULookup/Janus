@@ -2,6 +2,7 @@
 
 #include "Application/ApplicationClient.h"
 #include "Core/Input/InputState.h"
+#include "EditorTransformDrag.h"
 #include "EditorWorkspaceLayout.h"
 #include "Renderer/RendererTypes.h"
 
@@ -54,6 +55,7 @@ private:
     void ShutdownImGui(Application& application) noexcept;
     void FrameScene(bool selectedOnly);
     void DrawCloseConfirmation(Application& application);
+    bool DrawSceneInteraction(Vector2 origin, Vector2 size, bool hovered);
 
     std::filesystem::path m_ProjectRoot;
     bool m_McpStdio = false;
@@ -92,6 +94,8 @@ private:
     bool m_ShowProjectSettings = false;
     bool m_ShowAbout = false;
     bool m_ShowGrid = true;
+    bool m_MoveTool = false;
+    EditorTransformDrag m_TransformDrag;
     bool m_InitialFrame = true;
     bool m_WasGameView = false;
     bool m_ReturnToGameView = false;

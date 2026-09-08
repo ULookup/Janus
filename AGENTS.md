@@ -6,6 +6,12 @@ Janus is an Agent-native C++20 2D game engine for both human developers and AI a
 
 This file applies to the entire repository. A more deeply nested `AGENTS.md` may add stricter rules for its subtree.
 
+2026-09-08 update: #95 merged safe-close protection into main (`2fcfeab`). #96 merged Duplicate and
+typed asset workflows into `codex/editor-safe-close`; at this check B was not yet in main. The
+`codex/editor-move-gizmo` workspace integrates A/B and implements C with local validation; C has no
+PR yet. See docs/verification/2026-09-08-editor-move-gizmo.md. The dated Mission and subsystem
+acceptance notes above/below retain their original baselines; D–F and release gates remain pending.
+
 ## v0.8 capability baseline
 
 v0.8 MCP Agent Foundation is complete and is the capability baseline for v0.9.
@@ -216,3 +222,22 @@ A change is complete only when:
 - Game rendering uses logical project resolution for both world projection and UI, independently of render-target pixel dimensions. Scene View keeps its target-sized editor camera. Renderer2D accepts optional projectionViewport; zero dimensions fall back to target size.
 - 10-10 implementation is merged through #92; its historical local evidence is not a release declaration. See the integrated verification record for CPU baseline limits and actual native observations, and docs/project-status.md for post-merge CI and release gaps.
 - Reflection/Command support does not imply complete Human UI coverage: Inspector displays AssetReference UUIDs, and Asset Browser currently lacks Image.texture / Animator.clip assignment. Record these gaps explicitly; do not claim end-to-end Human authoring until implemented and validated.
+
+## Editor Move constraints
+
+- `ScenePose::Resolve` reads the complete local parent chain. `SceneRenderRequest.positionOverride`
+  is a transient, default-empty single-root local-position preview; scratch poses never update
+  Transform local/world caches, dirty state, serialization, cloning, MCP resources or Game View.
+- Keep Sprite rotation/scale rendering semantics; do not use Move to introduce shear rendering.
+- `EditorTransformDrag` owns UUID/value snapshots, including project identity, Scene revision,
+  authoring generation, local parent chain and display/target/camera mapping. UI is single-target
+  X/Y/XY translation; Canvas/UIRect use Inspector layout fields. No direct authoring mutation during drag.
+- Human release uses EditorActions and ProjectSession conditional submission for one shared
+  SetPropertyCommand. Any intervening authoring change invalidates preview; stale rejection must
+  not abort or expire an Agent transaction. Runtime Start also advances this invalidation marker,
+  without changing dirty/history, so same-Pump Play/Stop cannot preserve a stale capture.
+- Cancel on viewport/camera/DPI/focus/selection/modal changes and guard transitions; quarantine
+  captured input until release. Use display-to-target mapping once and full parent affine inversion.
+- Local validation is in docs/verification/2026-09-08-editor-move-gizmo.md; native target-device and
+  system DPI matrices are separate release gates. B's typed slot workflows supersede the historical
+  Image/Animator UI gap noted in the integrated-acceptance baseline above.

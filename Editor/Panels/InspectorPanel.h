@@ -51,6 +51,7 @@ public:
     ComponentTypeId m_ActiveComponent;
     bool m_PropertyEdited = false;
     std::unordered_map<u64, PropertyValue> m_PropertyBuffers;
+    std::unordered_map<u64, std::array<char, 128>> m_AssetSearch;
     std::unordered_map<u64, std::array<char, 4097>> m_StringBuffers;
 };
 

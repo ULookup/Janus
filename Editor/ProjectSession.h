@@ -15,6 +15,7 @@
 #include <chrono>
 #include <filesystem>
 #include <memory>
+#include <thread>
 
 namespace Janus
 {
@@ -52,7 +53,13 @@ public:
       return m_Settings;
   }
   [[nodiscard]] Result<void> SaveProjectSettings(const ProjectSettings& settings);
-  [[nodiscard]] Result<AssetHandle> ExportPrefab(UUID root);
+  [[nodiscard]] Result<AssetHandle> ExportPrefab(UUID root,
+                                                 std::optional<std::string> name = std::nullopt);
+  static Result<void> ValidatePrefabName(std::string_view name);
+  UUID GetProjectIdentity() const noexcept
+  {
+      return m_ProjectIdentity;
+  }
   [[nodiscard]] const std::filesystem::path& GetProjectRoot() const noexcept;
   [[nodiscard]] const std::filesystem::path& GetCurrentScenePath() const noexcept;
   [[nodiscard]] const AssetRegistry& GetAssetRegistry() const noexcept;
@@ -68,6 +75,13 @@ public:
   Result<void> ExecuteAuthoring(std::unique_ptr<ICommand> command,
                                 CommandActor actor = CommandActor::Human, UUID token = {},
                                 UUID owner = {});
+  // Check and execute on the owner thread so a preview never overwrites a newer edit.
+  Result<void> ExecuteAuthoringIfCurrent(std::unique_ptr<ICommand> command, u64 expectedRevision,
+                                        u64 expectedGeneration);
+  u64 GetAuthoringGeneration() const noexcept
+  {
+      return m_AuthoringGeneration;
+  }
   Result<void> UndoAuthoring();
   Result<void> RedoAuthoring();
   Result<UUID> BeginAuthoringTransaction(UUID owner, std::string label = {});
@@ -152,6 +166,9 @@ private:
   std::chrono::steady_clock::time_point m_TransactionDeadline;
   std::deque<std::pair<UUID, UUID>> m_TransactionOwners;
   u64 m_SceneRevision = 0;
+  u64 m_AuthoringGeneration = 0;
+  const std::thread::id m_OwnerThread = std::this_thread::get_id();
+  const UUID m_ProjectIdentity = UUID::Random();
   DiagnosticsFrame m_PendingDiagnostics;
   std::optional<DiagnosticsFrame> m_Diagnostics;
   std::deque<DiagnosticsFrame> m_DiagnosticsHistory;

@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 class TempDirectory final
@@ -43,6 +44,20 @@ public:
 private:
     std::filesystem::path m_Path;
 };
+
+TEST_CASE("Atomic create never replaces an existing destination",
+          "[core][filesystem][asset-workflow]")
+{
+    TempDirectory temp;
+    const auto path = temp.Path() / "new.txt";
+    REQUIRE(Janus::FileSystem::WriteTextAtomic(path, "original",
+                                               Janus::FileSystem::AtomicWriteMode::CreateNew));
+    REQUIRE_FALSE(Janus::FileSystem::WriteTextAtomic(
+        path, "replacement", Janus::FileSystem::AtomicWriteMode::CreateNew));
+    REQUIRE(Janus::FileSystem::ReadText(path).Value() == "original");
+    REQUIRE(std::distance(std::filesystem::directory_iterator(temp.Path()),
+                          std::filesystem::directory_iterator{}) == 1);
+}
 
 TEST_CASE("FileSystem round trips text and binary", "[core][filesystem]")
 {
@@ -119,4 +134,34 @@ TEST_CASE("FileSystem atomic write reports invalid destination", "[core][filesys
     REQUIRE_FALSE(result);
     REQUIRE(result.GetError().code == Janus::ErrorCode::FileWriteFailed);
     REQUIRE_FALSE(Janus::FileSystem::Exists(invalidPath));
+}
+
+TEST_CASE("Concurrent atomic creators publish exactly one complete file",
+          "[filesystem][asset-workflow]")
+{
+    TempDirectory temp;
+    const auto path = temp.Path() / "contended.txt";
+    std::array<bool, 8> succeeded{};
+    std::vector<std::thread> writers;
+    for (int i = 0; i < 8; ++i)
+        writers.emplace_back(
+            [&, i]
+            {
+                succeeded[i] = static_cast<bool>(Janus::FileSystem::WriteTextAtomic(
+                    path, std::string(4096, static_cast<char>('a' + i)),
+                    Janus::FileSystem::AtomicWriteMode::CreateNew));
+            });
+    for (auto& writer : writers)
+        writer.join();
+    int winners = 0;
+    for (int i = 0; i < 8; ++i)
+        if (succeeded[i])
+        {
+            ++winners;
+            REQUIRE(Janus::FileSystem::ReadText(path).Value() ==
+                    std::string(4096, static_cast<char>('a' + i)));
+        }
+    REQUIRE(winners == 1);
+    REQUIRE(std::distance(std::filesystem::directory_iterator(temp.Path()),
+                          std::filesystem::directory_iterator{}) == 1);
 }

@@ -1,5 +1,14 @@
 # Janus 项目进度与产品需求对账
 
+2026-09-08 C 包执行更新：#95 已合入 main（核查基线 `2fcfeab`）；#96 已合入
+`codex/editor-safe-close`，其 B 包内容在本轮开始时尚未进入 main。开发分支
+`codex/editor-move-gizmo` 集成两者后实现单对象 Move：只读子树预览、X/Y/平面手柄、
+Ctrl 网格吸附、一次 Undo、取消与 Agent 竞争保护。两个 Debug preset 构建及本地回归通过，
+原生拖动/窄窗口/最大化/保存重开已有证据；C 包尚未提交/创建 PR。
+详见[Move 验证](verification/2026-09-08-editor-move-gizmo.md)。D–F、目标系统 DPI/设备矩阵、
+PM-01 完整原生出口及首次用户验收仍待完成；v0.10 未发布。
+以下 A/B “尚未提交”与旧 main 描述保留其记录时点，以本段 Git 状态更新为准。
+
 2026-09-08 设计补充：最新远端 main 已到 `df00a14`，#93 的工作区/资源赋值/图标与
 #94 的视觉优化均已合入。下文 `7ecdfb8` 表格保留 09-07 核对时点，不能将其中的
 “本分支待集成”、Image/Animator 无入口或未见选中轮廓当作最新代码事实。
@@ -13,6 +22,12 @@ Duplicate/Move、资源与偏好、文件生命周期及 Release；逐包执行�
 设置草稿与 Runtime/事务保护；Debug CTest 427/427 和两种生产 stdio 集成回归通过。
 尚未提交/合并；X/Alt+F4/弹窗焦点布局的原生 PM 验收仍待完成，因此 PM-01 尚不标为关闭。
 详见[安全关闭验证](verification/2026-09-08-editor-safe-close.md)。
+
+2026-09-08 B 包执行补充：当前工作区已实现共享 Duplicate 命令、Ctrl+D/MCP 入口，
+六类资源槽搜索/定位/拖入、可读 Prefab 名称和 create-only 原子写入；中文路径显式按 UTF-8 保存。
+Debug CTest 439/439 通过，本机原生 Hero 复制、Animator/Image 赋值、命名导出与保存重开已验证。
+PM-05/06 对应缺口已有本机修复证据；尚未提交/合并，Release/DPI/首次用户验收仍保留。
+详见[复制与资源工作流验证](verification/2026-09-08-editor-duplicate-assets.md)。C–F 尚未实施。
 
 核对日期：2026-09-07（北京时间）；代码基线：main / origin/main `7ecdfb8`。
 本文是当前实现、集成、验证及待办的统一入口。PRD 定义产品目标，版本路线图定义版本范围，

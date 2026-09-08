@@ -1,4 +1,5 @@
 #include "Tools/SceneTools.h"
+#include "Core/FileSystem/FileSystem.h"
 
 #include "Asset/AssetRegistry.h"
 #include "Core/Command/CommandBus.h"
@@ -473,7 +474,7 @@ McpToolDescriptor SearchAssetsTool(const AssetRegistry* assets)
             for (const auto& asset : found.Value().assets)
                 entries.push_back({{"handle", asset.handle.ToString()},
                                    {"type", AssetTypeName(asset.type)},
-                                   {"path", asset.relativePath.generic_string()}});
+                                   {"path", FileSystem::PathToUtf8(asset.relativePath)}});
             return ToolResult(Json{{"ok", true},
                                    {"assets", std::move(entries)},
                                    {"total", found.Value().total},
@@ -531,6 +532,38 @@ McpToolDescriptor ReparentEntityTool(McpSceneToolContext context)
         }};
 }
 
+McpToolDescriptor DuplicateEntityTool(McpSceneToolContext context)
+{
+    return McpToolDescriptor{
+        "scene.duplicate_entity",
+        "Duplicate Entity",
+        "Copy an authoring subtree with fresh UUIDs, preserving its parent and one Undo entry.",
+        ObjectInputSchema(Json{{"entity", UuidSchema()}}, Json::array({"entity"})),
+        BasicOutputSchema(Json{{"entity", UuidSchema()}}, Json::array({"entity"})),
+        Json{{"destructiveHint", false}},
+        [context = std::move(context)](const Json& arguments, McpProtocolEra) -> McpDispatchResult
+        {
+            if (!AllowedKeys(arguments, {"entity"}))
+                return InvalidParams("Duplicate accepts entity and optional transaction.");
+            auto entity = ParseEntityUuid(arguments);
+            if (!entity)
+                return InvalidParams(entity.GetError().message);
+            auto writable = CheckWritable(context);
+            if (!writable)
+                return ToolExecutionError(writable.GetError());
+            auto command = DuplicateEntityCommand::Create(
+                *context.scene, SceneReflection(*context.reflection, context.assets),
+                entity.Value());
+            if (!command)
+                return ToolExecutionError(command.GetError());
+            const auto root = command.Value()->GetRoot();
+            auto result = ExecuteCommand(context, arguments, std::move(command).Value());
+            if (!result)
+                return ToolExecutionError(result.GetError());
+            return ToolResult(Json{{"ok", true}, {"entity", root.ToString()}});
+        }};
+}
+
 McpToolDescriptor InstantiatePrefabTool(McpSceneToolContext context)
 {
     return McpToolDescriptor{
@@ -570,7 +603,10 @@ McpToolDescriptor InstantiatePrefabTool(McpSceneToolContext context)
 
 McpToolDescriptor ExportPrefabTool(McpSceneToolContext context)
 {
-    auto schema = ObjectInputSchema(Json{{"entity", UuidSchema()}}, Json::array({"entity"}));
+    auto schema = ObjectInputSchema(
+        Json{{"entity", UuidSchema()},
+             {"name", Json{{"type", "string"}, {"minLength", 1}, {"maxLength", 96}}}},
+        Json::array({"entity"}));
     schema["properties"].erase("transaction");
     return McpToolDescriptor{
         "scene.export_prefab",
@@ -582,16 +618,23 @@ McpToolDescriptor ExportPrefabTool(McpSceneToolContext context)
         Json{{"destructiveHint", false}},
         [context = std::move(context)](const Json& arguments, McpProtocolEra) -> McpDispatchResult
         {
-            if (!AllowedKeys(arguments, {"entity"}) || arguments.contains("transaction"))
-                return InvalidParams(
-                    "Export Prefab accepts only entity; disk saves cannot join transactions.");
+            if (!AllowedKeys(arguments, {"entity", "name"}) || arguments.contains("transaction"))
+                return InvalidParams("Export Prefab accepts entity and optional name; disk saves "
+                                     "cannot join transactions.");
             auto entity = ParseEntityUuid(arguments);
             if (!entity)
                 return InvalidParams(entity.GetError().message);
             auto writable = CheckWritable(context);
             if (!writable)
                 return ToolExecutionError(writable.GetError());
-            auto result = context.exportPrefab(entity.Value());
+            std::optional<std::string> name;
+            if (auto it = arguments.find("name"); it != arguments.end())
+            {
+                if (!it->is_string())
+                    return InvalidParams("Prefab name must be a string.");
+                name = it->get<std::string>();
+            }
+            auto result = context.exportPrefab(entity.Value(), std::move(name));
             if (!result)
                 return ToolExecutionError(result.GetError());
             return ToolResult(Json{{"ok", true}, {"asset", result.Value().ToString()}});
@@ -1125,6 +1168,10 @@ Result<void> RegisterSceneTools(
     {
         return result;
     }
+
+    result = registry.RegisterTool(DuplicateEntityTool(context));
+    if (!result)
+        return result;
 
     result = registry.RegisterTool(ReparentEntityTool(context));
     if (!result)

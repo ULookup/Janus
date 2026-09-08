@@ -144,102 +144,6 @@ void ConfigureEditorFont()
         io.Fonts->AddFontDefaultVector(&fallback);
 }
 
-void DrawSceneGrid(
-    const EditorCamera& camera,
-    Viewport viewport,
-    ImVec2 rectMin,
-    ImVec2 rectMax)
-{
-    if (viewport.width == 0 || viewport.height == 0)
-    {
-        return;
-    }
-
-    const f32 zoom = camera.GetZoom();
-    if (zoom <= 0.0f)
-    {
-        return;
-    }
-
-    f32 worldSpacing = 64.0f;
-    f32 pixelSpacing = worldSpacing / zoom;
-
-    while (pixelSpacing < 24.0f)
-    {
-        worldSpacing *= 2.0f;
-        pixelSpacing = worldSpacing / zoom;
-    }
-
-    while (pixelSpacing > 160.0f && worldSpacing > 0.001f)
-    {
-        worldSpacing *= 0.5f;
-        pixelSpacing = worldSpacing / zoom;
-    }
-
-    const Vector2 worldTopLeft =
-        camera.ScreenToWorld(
-            Vector2{0.0f, 0.0f},
-            viewport);
-    const Vector2 worldBottomRight =
-        camera.ScreenToWorld(
-            Vector2{
-                static_cast<f32>(viewport.width),
-                static_cast<f32>(viewport.height)},
-            viewport);
-
-    ImDrawList* drawList = ImGui::GetWindowDrawList();
-    drawList->PushClipRect(rectMin, rectMax, true);
-
-    const ImU32 gridColor =
-        ImGui::GetColorU32(
-            ImGuiCol_Border,
-            0.35f);
-    const ImU32 axisColor =
-        ImGui::GetColorU32(
-            ImGuiCol_TextDisabled,
-            0.65f);
-
-    const ImU32 minorColor = ImGui::GetColorU32(ImGuiCol_Border, .16f);
-    const f32 minorSpacing = worldSpacing * .25f;
-    const auto lineColor = [&](f32 value)
-    {
-        if (std::abs(value) < .001f)
-            return axisColor;
-        const f32 majorIndex = value / worldSpacing;
-        return std::abs(majorIndex - std::round(majorIndex)) < .001f ? gridColor : minorColor;
-    };
-
-    const f32 firstX = std::floor(worldTopLeft.x / minorSpacing) * minorSpacing;
-
-    // Integer iteration stays bounded even where world coordinates lose float precision.
-    const int columns = static_cast<int>(viewport.width * zoom / minorSpacing) + 2;
-    for (int index = 0; index < columns; ++index)
-    {
-        const f32 worldX = firstX + index * minorSpacing;
-        const f32 screenX =
-            rectMin.x
-            + (worldX - worldTopLeft.x) / zoom;
-
-        drawList->AddLine(ImVec2{screenX, rectMin.y}, ImVec2{screenX, rectMax.y},
-                          lineColor(worldX));
-    }
-
-    const f32 firstY = std::floor(worldBottomRight.y / minorSpacing) * minorSpacing;
-
-    const int rows = static_cast<int>(viewport.height * zoom / minorSpacing) + 2;
-    for (int index = 0; index < rows; ++index)
-    {
-        const f32 worldY = firstY + index * minorSpacing;
-        const f32 screenY =
-            rectMin.y
-            + (worldTopLeft.y - worldY) / zoom;
-
-        drawList->AddLine(ImVec2{rectMin.x, screenY}, ImVec2{rectMax.x, screenY},
-                          lineColor(worldY));
-    }
-
-    drawList->PopClipRect();
-}
 
 } // namespace
 
@@ -482,12 +386,16 @@ Result<void> EditorApplication::OnInitialize(Application& application)
     return Result<void>::Success();
 }
 
-void EditorApplication::OnEvent(const Event&, Application&)
+void EditorApplication::OnEvent(const Event& event, Application&)
 {
+    if (std::holds_alternative<WindowFocusLostEvent>(event) ||
+        std::holds_alternative<WindowResizeEvent>(event))
+        m_TransformDrag.Cancel();
 }
 
 CloseDecision EditorApplication::OnCloseRequested(Application&)
 {
+    m_TransformDrag.Cancel();
     m_CloseRequested = true;
     return CloseDecision::Defer;
 }
@@ -648,6 +556,14 @@ void EditorApplication::OnUpdate(
                     if (!created)
                         RecordError(created.GetError());
                 }
+                if (ImGui::MenuItem("Duplicate", "Ctrl+D", false,
+                                    !readOnly && m_EditorContext->selection.HasSelection()))
+                {
+                    auto copied = m_EditorActions->DuplicateEntity(
+                        *m_EditorContext->selection.GetSelectedUUID());
+                    if (!copied)
+                        RecordError(copied.GetError());
+                }
                 ImGui::EndMenu();
             }
             if (ImGui::BeginMenu("View"))
@@ -761,6 +677,14 @@ void EditorApplication::OnUpdate(
         // Text fields own editing shortcuts; Game focus keeps gameplay keys isolated.
         if (!ImGui::GetIO().WantTextInput && !m_GameInputActive)
         {
+            if (!readOnly && m_EditorContext->selection.HasSelection() &&
+                ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_D, ImGuiInputFlags_RouteGlobal))
+            {
+                auto copied =
+                    m_EditorActions->DuplicateEntity(*m_EditorContext->selection.GetSelectedUUID());
+                if (!copied)
+                    RecordError(copied.GetError());
+            }
             if (canSave && ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S, ImGuiInputFlags_RouteGlobal))
                 save();
             if (m_EditorActions->CanUndo() &&
@@ -804,6 +728,10 @@ void EditorApplication::OnUpdate(
                 ImGui::TextWrapped(
                     "Scene: click to select, middle-drag to pan, wheel to zoom. F focuses the "
                     "selected entity. Frame Camera restores the game camera region.");
+                ImGui::TextWrapped(
+                    "Q selects, W moves. Drag X/Y arrows or the square plane handle. "
+                    "Hold Ctrl to snap movement to the displayed major grid spacing. "
+                    "Esc cancels; release commits one Undo step. UI uses Inspector layout fields.");
                 ImGui::Separator();
                 ImGui::TextWrapped(
                     "Drag panel separators to resize. View > Reset Layout restores defaults. "
@@ -863,7 +791,8 @@ void EditorApplication::OnUpdate(
         }
         if (ImGui::BeginTabBar("UtilityTabs"))
         {
-            if (!split && IconTab(Icon::Folder, "Project"))
+            if (!split && IconTab(Icon::Folder, "Project",
+                                  m_EditorContext->locateAsset ? ImGuiTabItemFlags_SetSelected : 0))
             {
                 const auto error = m_AssetBrowserPanel->DrawContents();
                 if (error)
@@ -1004,13 +933,22 @@ void EditorApplication::OnUpdate(
             if (sceneTabVisible)
             {
                 m_WasGameView = false;
-                if (IconButton(Icon::Frame, "Frame Camera"))
+                if (IconOnlyButton(Icon::Frame, "Frame Camera"))
                     FrameScene(false);
                 ImGui::SameLine();
-                if (IconButton(Icon::Focus, "Focus Selected"))
+                if (IconOnlyButton(Icon::Focus, "Focus Selected (F)"))
                     FrameScene(true);
                 ImGui::SameLine();
                 ImGui::Checkbox("Grid", &m_ShowGrid);
+                ImGui::SameLine();
+                if (IconOnlyButton(Icon::Select, m_MoveTool ? "Select (Q)" : "Select (Q) *"))
+                {
+                    m_MoveTool = false;
+                    m_TransformDrag.Cancel();
+                }
+                ImGui::SameLine();
+                if (IconOnlyButton(Icon::Move, m_MoveTool ? "Move (W) *" : "Move (W)"))
+                    m_MoveTool = true;
 
                 const ImVec2 available =
                     ImGui::GetContentRegionAvail();
@@ -1055,56 +993,17 @@ void EditorApplication::OnUpdate(
                             ImVec2{0.0f, 1.0f},
                             ImVec2{1.0f, 0.0f});
 
-                        if (m_ShowGrid)
-                            DrawSceneGrid(*m_EditorCamera, m_SceneViewViewport,
-                                          ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
-
-                        if (m_EditorContext && m_EditorContext->selection.HasSelection())
-                        {
-                            const auto entity = m_EditorContext->selection.Resolve(
-                                m_ProjectSession->GetEditorScene());
-                            const auto* transform =
-                                m_ProjectSession->GetEditorScene().GetComponent<TransformComponent>(
-                                    entity);
-                            const auto* sprite = m_ProjectSession->GetEditorScene()
-                                                     .GetComponent<SpriteRendererComponent>(entity);
-                            if (transform && sprite)
-                            {
-                                const auto origin = ImGui::GetItemRectMin();
-                                const auto center = m_EditorCamera->GetPosition();
-                                const auto zoom = m_EditorCamera->GetZoom();
-                                const float c = std::cos(transform->worldRotationRadians),
-                                            sn = std::sin(transform->worldRotationRadians);
-                                ImVec2 points[4];
-                                const Vector2 corners[] = {{-1, -1}, {1, -1}, {1, 1}, {-1, 1}};
-                                for (int i = 0; i < 4; ++i)
-                                {
-                                    const float x = corners[i].x * sprite->size.x *
-                                                    transform->worldScale.x * .5f;
-                                    const float y = corners[i].y * sprite->size.y *
-                                                    transform->worldScale.y * .5f;
-                                    points[i] = {origin.x + available.x * .5f +
-                                                     (transform->worldPosition.x + x * c - y * sn -
-                                                      center.x) /
-                                                         zoom,
-                                                 origin.y + available.y * .5f -
-                                                     (transform->worldPosition.y + x * sn + y * c -
-                                                      center.y) /
-                                                         zoom};
-                                }
-                                auto* draw = ImGui::GetWindowDrawList();
-                                draw->PushClipRect(origin, ImGui::GetItemRectMax(), true);
-                                draw->AddPolyline(points, 4, IM_COL32(90, 180, 255, 255),
-                                                  ImDrawFlags_Closed, 2 * m_UiScale);
-                                draw->PopClipRect();
-                            }
-                        }
                         const auto viewMin = ImGui::GetItemRectMin();
                         const auto viewMax = ImGui::GetItemRectMax();
+                        const bool hovered = ImGui::IsItemHovered();
+                        const bool consumed = DrawSceneInteraction(
+                            {viewMin.x, viewMin.y}, {available.x, available.y}, hovered);
                         const float pad = ImGui::GetStyle().WindowPadding.x;
-                        char viewLabel[80];
-                        std::snprintf(viewLabel, sizeof(viewLabel), "2D  |  %.3f units/px",
-                                      m_EditorCamera->GetZoom());
+                        char viewLabel[160];
+                        std::snprintf(viewLabel, sizeof(viewLabel),
+                                      "2D  |  %.3f units/px  |  %s  |  Ctrl snap: %.3g",
+                                      m_EditorCamera->GetZoom(), m_MoveTool ? "Move" : "Select",
+                                      m_EditorCamera->GetGridSpacing());
                         const float labelWidth =
                             std::min(ImGui::CalcTextSize(viewLabel).x, available.x - pad * 4);
                         if (labelWidth > 0 && available.y > ImGui::GetFrameHeight() * 2)
@@ -1119,56 +1018,12 @@ void EditorApplication::OnUpdate(
                                                ImGui::GetColorU32(ImGuiCol_TextDisabled),
                                                viewLabel);
                         }
-                        const bool hovered =
-                            ImGui::IsItemHovered();
-                        if (hovered)
+                        if (hovered && !consumed && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
                         {
-                            if (!ImGui::GetIO().WantTextInput && ImGui::IsKeyPressed(ImGuiKey_F))
-                                FrameScene(true);
-
-                            const ImGuiIO& io = ImGui::GetIO();
-
-                            if (io.MouseWheel != 0.0f)
-                            {
-                                m_EditorCamera->Zoom(io.MouseWheel);
-                            }
-
-                            if (ImGui::IsMouseDragging(
-                                    ImGuiMouseButton_Middle))
-                            {
-                                m_EditorCamera->PanPixels(
-                                    Vector2{
-                                        io.MouseDelta.x,
-                                        io.MouseDelta.y});
-                            }
-
-                            if (ImGui::IsMouseClicked(
-                                    ImGuiMouseButton_Left))
-                            {
-                                const ImVec2 itemMin =
-                                    ImGui::GetItemRectMin();
-                                const ImVec2 mouse =
-                                    ImGui::GetMousePos();
-
-                                const f32 localX =
-                                    mouse.x - itemMin.x;
-                                const f32 localY =
-                                    mouse.y - itemMin.y;
-
-                                const f32 scaleX =
-                                    static_cast<f32>(
-                                        m_SceneViewViewport.width)
-                                    / available.x;
-                                const f32 scaleY =
-                                    static_cast<f32>(
-                                        m_SceneViewViewport.height)
-                                    / available.y;
-
-                                pendingScenePick =
-                                    Vector2{
-                                        localX * scaleX,
-                                        localY * scaleY};
-                            }
+                            const auto mouse = ImGui::GetMousePos();
+                            pendingScenePick = Vector2{
+                                (mouse.x - viewMin.x) * m_SceneViewViewport.width / available.x,
+                                (mouse.y - viewMin.y) * m_SceneViewViewport.height / available.y};
                         }
 
                         renderSceneView = true;
@@ -1275,6 +1130,8 @@ void EditorApplication::OnUpdate(
         ImGui::End();
     }
 
+    if (!renderSceneView || m_CloseRequested)
+        m_TransformDrag.Cancel();
     DrawCloseConfirmation(application);
     if (m_CloseRequested || (m_CloseController && m_CloseController->IsPending()))
         m_SuppressGameUntilReleased = true;
@@ -1334,7 +1191,8 @@ void EditorApplication::OnUpdate(
                                                        false,
                                                        nullptr,
                                                        nullptr,
-                                                       Color{0.14f, 0.18f, 0.23f, 1.0f}});
+                                                       Color{0.14f, 0.18f, 0.23f, 1.0f},
+                                                       m_TransformDrag.GetPreview()});
 
         if (rendered)
             m_ProjectSession->CaptureRenderPass(false, renderer.GetStatistics(),
@@ -1443,6 +1301,7 @@ void EditorApplication::OnUpdate(
 
 void EditorApplication::FrameScene(bool selectedOnly)
 {
+    m_TransformDrag.Cancel();
     if (!m_ProjectSession || !m_EditorCamera || !m_SceneRenderer)
         return;
     auto& scene = m_ProjectSession->GetEditorScene();

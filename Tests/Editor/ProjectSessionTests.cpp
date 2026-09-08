@@ -17,6 +17,7 @@
 #include <filesystem>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <utility>
 
 namespace
@@ -75,6 +76,278 @@ private:
 };
 
 } // namespace
+
+namespace
+{
+struct GenerationCommandState
+{
+    int value = 0;
+    bool failExecute = false, failUndo = false, failRedo = false;
+};
+
+class GenerationCommand final : public Janus::ICommand
+{
+  public:
+    explicit GenerationCommand(GenerationCommandState& state) : m_State(state) {}
+    Janus::Result<void> Execute() override
+    {
+        if (m_State.failExecute)
+            return Failed();
+        ++m_State.value;
+        return Janus::Result<void>::Success();
+    }
+    Janus::Result<void> Undo() override
+    {
+        if (m_State.failUndo)
+            return Failed();
+        --m_State.value;
+        return Janus::Result<void>::Success();
+    }
+    Janus::Result<void> Redo() override
+    {
+        if (m_State.failRedo)
+            return Failed();
+        return Execute();
+    }
+    Janus::Result<Janus::usize> EstimateUndoBytes() const override
+    {
+        return Janus::Result<Janus::usize>::Success(64);
+    }
+    std::string_view Describe() const noexcept override
+    {
+        return "Generation test change";
+    }
+
+  private:
+    static Janus::Result<void> Failed()
+    {
+        return Janus::Result<void>::Failure(Janus::ErrorCode::InvalidState,
+                                            "Injected authoring failure");
+    }
+    GenerationCommandState& m_State;
+};
+} // namespace
+
+TEST_CASE("Conditional authoring invalidates previews after execute undo redo and reload",
+          "[editor][project-session][authoring-generation]")
+{
+    ProjectTempDirectory temp;
+    Janus::Test::FakeRenderDevice device;
+    auto renderer = Janus::Detail::Renderer2DTestAccess::Create(device);
+    auto opened = Janus::Editor::ProjectSession::Open({temp.Path()}, *renderer);
+    REQUIRE(opened);
+    auto session = std::move(opened).Value();
+    GenerationCommandState state;
+    auto command = [&] { return std::make_unique<GenerationCommand>(state); };
+    const auto revision = session->GetSceneRevision();
+    auto generation = session->GetAuthoringGeneration();
+    REQUIRE_FALSE(session->ExecuteAuthoringIfCurrent(command(), revision + 1, generation));
+    REQUIRE_FALSE(session->ExecuteAuthoringIfCurrent(command(), revision, generation + 1));
+    CHECK(state.value == 0);
+    CHECK(session->GetCommandBus().GetHistorySize() == 0);
+    CHECK_FALSE(session->IsDirty());
+    REQUIRE(session->ExecuteAuthoringIfCurrent(command(), revision, generation));
+    CHECK(session->GetAuthoringGeneration() == generation + 1);
+    REQUIRE_FALSE(session->ExecuteAuthoringIfCurrent(command(), revision, generation));
+    REQUIRE(session->UndoAuthoring());
+    CHECK(state.value == 0);
+    CHECK(session->GetAuthoringGeneration() == generation + 2);
+    REQUIRE_FALSE(session->ExecuteAuthoringIfCurrent(command(), revision, generation));
+    REQUIRE(session->RedoAuthoring());
+    CHECK(session->GetAuthoringGeneration() == generation + 3);
+    CHECK(session->GetSceneRevision() == revision);
+    generation = session->GetAuthoringGeneration();
+    REQUIRE(session->SaveCurrentScene());
+    REQUIRE(session->SaveProjectSettings(session->GetProjectSettings()));
+    CHECK(session->GetAuthoringGeneration() == generation);
+    session->MarkDirty();
+    CHECK(session->GetAuthoringGeneration() == generation + 1);
+    generation = session->GetAuthoringGeneration();
+    REQUIRE(session->DiscardUnsavedAndReload());
+    CHECK(session->GetSceneRevision() == revision + 1);
+    CHECK(session->GetAuthoringGeneration() == generation + 1);
+    REQUIRE_FALSE(session->ExecuteAuthoringIfCurrent(command(), revision, generation));
+    CHECK_FALSE(session->IsDirty());
+    CHECK(session->GetCommandBus().GetHistorySize() == 0);
+}
+
+TEST_CASE("Conditional authoring rejects foreign threads and active runtime without executing",
+          "[editor][project-session][authoring-generation]")
+{
+    Janus::Test::FakeRenderDevice device;
+    auto renderer = Janus::Detail::Renderer2DTestAccess::Create(device);
+    auto opened = Janus::Editor::ProjectSession::Open({SandboxProjectRoot()}, *renderer);
+    REQUIRE(opened);
+    auto session = std::move(opened).Value();
+    GenerationCommandState state;
+    const auto revision = session->GetSceneRevision();
+    const auto generation = session->GetAuthoringGeneration();
+    bool accepted = true;
+    std::thread worker(
+        [&]
+        {
+            accepted = static_cast<bool>(session->ExecuteAuthoringIfCurrent(
+                std::make_unique<GenerationCommand>(state), revision, generation));
+        });
+    worker.join();
+    CHECK_FALSE(accepted);
+    REQUIRE(session->PlayRuntime(true));
+    CHECK(session->GetAuthoringGeneration() == generation + 1);
+    REQUIRE_FALSE(session->ExecuteAuthoringIfCurrent(std::make_unique<GenerationCommand>(state),
+                                                     revision, generation));
+    REQUIRE(session->StepRuntime());
+    REQUIRE(session->StopRuntime());
+    REQUIRE_FALSE(session->ExecuteAuthoringIfCurrent(std::make_unique<GenerationCommand>(state),
+                                                     revision, generation));
+    CHECK(state.value == 0);
+    CHECK_FALSE(session->IsDirty());
+    CHECK(session->GetAuthoringGeneration() == generation + 1);
+    CHECK(session->GetCommandBus().GetHistorySize() == 0);
+}
+
+TEST_CASE("Authoring generation tracks agent edits and rollback but not commit grouping",
+          "[editor][project-session][authoring-generation]")
+{
+    Janus::Test::FakeRenderDevice device;
+    auto renderer = Janus::Detail::Renderer2DTestAccess::Create(device);
+    auto opened = Janus::Editor::ProjectSession::Open({SandboxProjectRoot()}, *renderer);
+    REQUIRE(opened);
+    auto session = std::move(opened).Value();
+    GenerationCommandState state;
+    auto command = [&] { return std::make_unique<GenerationCommand>(state); };
+    const auto owner = Janus::UUID::Random();
+    const auto revision = session->GetSceneRevision();
+    auto generation = session->GetAuthoringGeneration();
+    auto token = session->BeginAuthoringTransaction(owner);
+    REQUIRE(token);
+    CHECK(session->GetAuthoringGeneration() == generation);
+    REQUIRE(session->ExecuteAuthoring(command(), Janus::CommandActor::Agent, token.Value(), owner));
+    CHECK(session->GetAuthoringGeneration() == ++generation);
+    REQUIRE_FALSE(session->ExecuteAuthoringIfCurrent(command(), revision, generation));
+    CHECK(session->GetCommandBus().HasTransaction());
+    CHECK(session->GetCommandBus().GetPendingCount() == 1);
+    CHECK(state.value == 1);
+    CHECK(session->GetAuthoringGeneration() == generation);
+    REQUIRE(session->FinishAuthoringTransaction(token.Value(), owner, true));
+    CHECK(session->GetAuthoringGeneration() == generation);
+    REQUIRE(session->FinishAuthoringTransaction(token.Value(), owner, true));
+    CHECK(session->GetAuthoringGeneration() == generation);
+    token = session->BeginAuthoringTransaction(owner);
+    REQUIRE(token);
+    REQUIRE(session->ExecuteAuthoring(command(), Janus::CommandActor::Agent, token.Value(), owner));
+    CHECK(session->GetAuthoringGeneration() == ++generation);
+    REQUIRE(session->FinishAuthoringTransaction(token.Value(), owner, false));
+    CHECK(session->GetAuthoringGeneration() == ++generation);
+    REQUIRE(session->FinishAuthoringTransaction(token.Value(), owner, false));
+    CHECK(session->GetAuthoringGeneration() == generation);
+    CHECK(state.value == 1);
+    token = session->BeginAuthoringTransaction(owner);
+    REQUIRE(token);
+    REQUIRE(session->FinishAuthoringTransaction(token.Value(), owner, false));
+    CHECK(session->GetAuthoringGeneration() == generation);
+    CHECK(session->GetSceneRevision() == revision);
+}
+
+TEST_CASE("Authoring generation invalidates after automatic rollback and transaction expiry",
+          "[editor][project-session][authoring-generation]")
+{
+    Janus::Test::FakeRenderDevice device;
+    auto renderer = Janus::Detail::Renderer2DTestAccess::Create(device);
+    auto opened = Janus::Editor::ProjectSession::Open({SandboxProjectRoot()}, *renderer);
+    REQUIRE(opened);
+    auto session = std::move(opened).Value();
+    GenerationCommandState state, failure;
+    failure.failExecute = true;
+    const auto owner = Janus::UUID::Random();
+    auto token = session->BeginAuthoringTransaction(owner);
+    REQUIRE(token);
+    REQUIRE(session->ExecuteAuthoring(std::make_unique<GenerationCommand>(state),
+                                      Janus::CommandActor::Agent, token.Value(), owner));
+    auto generation = session->GetAuthoringGeneration();
+    REQUIRE_FALSE(session->ExecuteAuthoring(std::make_unique<GenerationCommand>(failure),
+                                            Janus::CommandActor::Agent, token.Value(), owner));
+    CHECK(session->GetAuthoringGeneration() == ++generation);
+    CHECK(state.value == 0);
+    CHECK_FALSE(session->IsDirty());
+    CHECK_FALSE(session->GetCommandBus().HasTransaction());
+    REQUIRE_FALSE(session->ExecuteAuthoring(std::make_unique<GenerationCommand>(failure)));
+    CHECK(session->GetAuthoringGeneration() == generation);
+    token = session->BeginAuthoringTransaction(owner);
+    REQUIRE(token);
+    REQUIRE(session->ExecuteAuthoring(std::make_unique<GenerationCommand>(state),
+                                      Janus::CommandActor::Agent, token.Value(), owner));
+    CHECK(session->GetAuthoringGeneration() == ++generation);
+    session->ExpireAuthoringTransaction(std::chrono::steady_clock::now() +
+                                        std::chrono::seconds(61));
+    CHECK(session->GetAuthoringGeneration() == ++generation);
+    CHECK(state.value == 0);
+    CHECK_FALSE(session->IsDirty());
+    CHECK_FALSE(session->GetCommandBus().HasTransaction());
+}
+
+TEST_CASE("Authoring generation invalidates failed transaction compensation and recovery",
+          "[editor][project-session][authoring-generation]")
+{
+    Janus::Test::FakeRenderDevice device;
+    auto renderer = Janus::Detail::Renderer2DTestAccess::Create(device);
+    auto opened = Janus::Editor::ProjectSession::Open({SandboxProjectRoot()}, *renderer);
+    REQUIRE(opened);
+    auto session = std::move(opened).Value();
+    GenerationCommandState state;
+    state.failUndo = true;
+    const auto owner = Janus::UUID::Random();
+    auto token = session->BeginAuthoringTransaction(owner);
+    REQUIRE(token);
+    REQUIRE(session->ExecuteAuthoring(std::make_unique<GenerationCommand>(state),
+                                      Janus::CommandActor::Agent, token.Value(), owner));
+    auto generation = session->GetAuthoringGeneration();
+    REQUIRE_FALSE(session->FinishAuthoringTransaction(token.Value(), owner, false));
+    CHECK(session->GetCommandBus().RecoveryRequired());
+    CHECK(session->GetAuthoringGeneration() == ++generation);
+    REQUIRE_FALSE(session->ExecuteAuthoringIfCurrent(std::make_unique<GenerationCommand>(state),
+                                                     session->GetSceneRevision(), generation));
+    CHECK(session->GetAuthoringGeneration() == generation);
+    REQUIRE(session->DiscardUnsavedAndReload());
+    CHECK(session->GetAuthoringGeneration() == generation + 1);
+    CHECK_FALSE(session->GetCommandBus().RecoveryRequired());
+}
+
+TEST_CASE("Failed grouped history compensation advances authoring generation",
+          "[editor][project-session][authoring-generation]")
+{
+    Janus::Test::FakeRenderDevice device;
+    auto renderer = Janus::Detail::Renderer2DTestAccess::Create(device);
+    auto opened = Janus::Editor::ProjectSession::Open({SandboxProjectRoot()}, *renderer);
+    REQUIRE(opened);
+    auto session = std::move(opened).Value();
+    GenerationCommandState first, second;
+    const auto owner = Janus::UUID::Random();
+    auto token = session->BeginAuthoringTransaction(owner);
+    REQUIRE(token);
+    REQUIRE(session->ExecuteAuthoring(std::make_unique<GenerationCommand>(first),
+                                      Janus::CommandActor::Agent, token.Value(), owner));
+    REQUIRE(session->ExecuteAuthoring(std::make_unique<GenerationCommand>(second),
+                                      Janus::CommandActor::Agent, token.Value(), owner));
+    REQUIRE(session->FinishAuthoringTransaction(token.Value(), owner, true));
+    SECTION("Undo compensation")
+    {
+        first.failUndo = true;
+        second.failRedo = true;
+        const auto generation = session->GetAuthoringGeneration();
+        REQUIRE_FALSE(session->UndoAuthoring());
+        CHECK(session->GetAuthoringGeneration() == generation + 1);
+    }
+    SECTION("Redo compensation")
+    {
+        REQUIRE(session->UndoAuthoring());
+        second.failRedo = true;
+        first.failUndo = true;
+        const auto generation = session->GetAuthoringGeneration();
+        REQUIRE_FALSE(session->RedoAuthoring());
+        CHECK(session->GetAuthoringGeneration() == generation + 1);
+    }
+    CHECK(session->GetCommandBus().RecoveryRequired());
+}
 
 TEST_CASE("Project settings save rebinds Lua after reopen and respects session guards",
           "[v0.10][project-settings]")

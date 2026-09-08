@@ -50,6 +50,7 @@ target_sources(
         Scene/Command/EntityCommands.cpp
         Prefab/Prefab.cpp
         Scene/SceneRenderer.cpp
+        Scene/ScenePose.cpp
 
         Scripting/LuaStackGuard.h
         Scripting/LuaVirtualMachine.h
@@ -163,6 +164,7 @@ target_sources(
         Scene/Command/EntityCommands.h
         Prefab/Prefab.h
         Scene/SceneRenderer.h
+        Scene/ScenePose.h
 
         Scripting/ScriptEngine.h
         Runtime/RuntimeSession.h

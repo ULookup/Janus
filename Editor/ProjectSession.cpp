@@ -12,6 +12,8 @@
 #include "Scene/SceneReflection.h"
 #include "Scene/SceneSerializer.h"
 
+#include <algorithm>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -87,17 +89,64 @@ ProjectSession::ProjectSession(std::filesystem::path projectRoot,
 
 ProjectSession::~ProjectSession() = default;
 
-Result<AssetHandle> ProjectSession::ExportPrefab(UUID root)
+Result<void> ProjectSession::ValidatePrefabName(std::string_view name)
+{
+    auto invalid = []
+    {
+        return Result<void>::Failure(
+            ErrorCode::InvalidArgument,
+            "Prefab name must be valid UTF-8 (1..96 bytes), without path separators, controls, "
+            "reserved names or trailing spaces/dots.");
+    };
+    if (name.empty() || name.size() > 96 || name.back() == '.' || name.back() == ' ')
+        return invalid();
+    for (unsigned char c : name)
+        if (c < 32 || c == 127 ||
+            std::string_view("<>:\"/\\|?*").find(static_cast<char>(c)) != std::string_view::npos)
+            return invalid();
+    const std::string text(name);
+    auto encoded =
+        nlohmann::json(text).dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
+    if (nlohmann::json::parse(encoded).get<std::string>() != text)
+        return invalid();
+    for (usize i = 0; i + 1 < name.size(); ++i)
+        if (static_cast<unsigned char>(name[i]) == 0xc2 &&
+            static_cast<unsigned char>(name[i + 1]) >= 0x80 &&
+            static_cast<unsigned char>(name[i + 1]) <= 0x9f)
+            return invalid(); // Unicode C1 controls are also unsuitable for display names.
+    auto stem = text.substr(0, text.find('.'));
+    while (!stem.empty() && stem.back() == ' ')
+        stem.pop_back();
+    std::transform(stem.begin(), stem.end(), stem.begin(), [](unsigned char c)
+                   { return static_cast<char>(c >= 'a' && c <= 'z' ? c - 'a' + 'A' : c); });
+    if (stem == "CON" || stem == "PRN" || stem == "AUX" || stem == "NUL" || stem == "CONIN$" ||
+        stem == "CONOUT$" ||
+        ((stem.starts_with("COM") || stem.starts_with("LPT")) &&
+         ((stem.size() == 4 && stem[3] >= '1' && stem[3] <= '9') || stem.substr(3) == "\xc2\xb9" ||
+          stem.substr(3) == "\xc2\xb2" || stem.substr(3) == "\xc2\xb3")))
+        return invalid();
+    return Result<void>::Success();
+}
+
+Result<AssetHandle> ProjectSession::ExportPrefab(UUID root, std::optional<std::string> name)
 {
     if (IsAuthoringReadOnly())
         return Result<AssetHandle>::Failure(
             ErrorCode::InvalidState,
             "Stop runtime and finish transaction/recovery before exporting a Prefab.");
+    if (name)
+    {
+        auto valid = ValidatePrefabName(*name);
+        if (!valid)
+            return Result<AssetHandle>::Failure(valid.GetError());
+    }
     auto text = Prefab::Capture(*m_EditorScene, root, m_ReflectionRegistry);
     if (!text)
         return Result<AssetHandle>::Failure(text.GetError());
     const AssetHandle handle{UUID::Random()};
-    const auto relative = std::filesystem::path("Prefabs") / (handle.ToString() + ".prefab");
+    const auto filename = (name ? *name + "-" : "") + handle.ToString() + ".prefab";
+    const auto relative = std::filesystem::path("Prefabs") /
+                          std::filesystem::path(std::u8string(filename.begin(), filename.end()));
     auto path = ResolveProjectPath(m_ProjectRoot, relative);
     if (!path)
         return Result<AssetHandle>::Failure(path.GetError());
@@ -116,7 +165,8 @@ Result<AssetHandle> ProjectSession::ExportPrefab(UUID root)
     std::filesystem::create_directories(path.Value().parent_path(), error);
     if (error)
         return Result<AssetHandle>::Failure(ErrorCode::FileWriteFailed, error.message());
-    auto written = FileSystem::WriteTextAtomic(path.Value(), text.Value());
+    auto written = FileSystem::WriteTextAtomic(path.Value(), text.Value(),
+                                               FileSystem::AtomicWriteMode::CreateNew);
     if (!written)
         return Result<AssetHandle>::Failure(written.GetError());
     auto saved = next.Save(registryPath.Value());
@@ -233,6 +283,9 @@ Result<void> ProjectSession::StartRuntime(const InputState& input, bool startPau
     }
 
     m_RuntimeSession = std::move(runtime).Value();
+    // Invalidate authoring previews even when Play and Stop run in one dispatcher pump. Runtime
+    // owns a clone; this generation change does not dirty the authoring Scene or its history.
+    ++m_AuthoringGeneration;
     m_Logs->Append(LogLevel::Info, "Runtime", "Runtime started.",
                    {m_RuntimeSession->GetStatus().runtimeId});
     return Result<void>::Success();
@@ -402,6 +455,7 @@ bool ProjectSession::IsDirty() const noexcept
 void ProjectSession::MarkDirty() noexcept
 {
     m_Dirty = true;
+    ++m_AuthoringGeneration;
 }
 
 Result<void> ProjectSession::SaveCurrentScene()
@@ -463,12 +517,32 @@ Result<void> ProjectSession::ExecuteAuthoring(std::unique_ptr<ICommand> command,
         return Result<void>::Failure(ErrorCode::InvalidState,
                                      "Authoring transaction belongs to another writer.");
     const bool pending = m_CommandBus.HasTransaction();
+    const usize pendingCount = m_CommandBus.GetPendingCount();
     auto result = m_CommandBus.Execute(std::move(command), actor, token, owner);
     if (result)
         m_Dirty = true;
+    // Failed Agent commands can still roll back earlier edits or poison compensation.
+    if (result || m_CommandBus.RecoveryRequired() ||
+        (pendingCount > 0 && !m_CommandBus.HasTransaction()))
+        ++m_AuthoringGeneration;
     if (pending && !m_CommandBus.HasTransaction() && !m_CommandBus.RecoveryRequired())
         m_Dirty = m_DirtyBeforeTransaction;
     return result;
+}
+Result<void> ProjectSession::ExecuteAuthoringIfCurrent(std::unique_ptr<ICommand> command,
+                                                       u64 expectedRevision, u64 expectedGeneration)
+{
+    if (std::this_thread::get_id() != m_OwnerThread)
+        return Result<void>::Failure(ErrorCode::InvalidState,
+                                     "Conditional authoring requires the session owner thread.");
+    // Reject before ExecuteAuthoring: stale Human previews must never expire or abort an Agent
+    // transaction. Once these checks pass no pending transaction can change during execution.
+    if (IsAuthoringReadOnly())
+        return Result<void>::Failure(ErrorCode::InvalidState, "Authoring is read-only.");
+    if (m_SceneRevision != expectedRevision || m_AuthoringGeneration != expectedGeneration)
+        return Result<void>::Failure(ErrorCode::InvalidState,
+                                     "Authoring changed while the edit was previewed.");
+    return ExecuteAuthoring(std::move(command));
 }
 Result<void> ProjectSession::UndoAuthoring()
 {
@@ -477,6 +551,8 @@ Result<void> ProjectSession::UndoAuthoring()
     auto result = m_CommandBus.Undo();
     if (result)
         m_Dirty = true;
+    if (result || m_CommandBus.RecoveryRequired())
+        ++m_AuthoringGeneration;
     return result;
 }
 Result<void> ProjectSession::RedoAuthoring()
@@ -486,6 +562,8 @@ Result<void> ProjectSession::RedoAuthoring()
     auto result = m_CommandBus.Redo();
     if (result)
         m_Dirty = true;
+    if (result || m_CommandBus.RecoveryRequired())
+        ++m_AuthoringGeneration;
     return result;
 }
 Result<UUID> ProjectSession::BeginAuthoringTransaction(UUID owner, std::string label)
@@ -514,17 +592,26 @@ Result<void> ProjectSession::FinishAuthoringTransaction(UUID token, UUID owner, 
     if (!known)
         return Result<void>::Failure(ErrorCode::InvalidState, "Unknown transaction owner/token.");
     const bool active = m_CommandBus.HasTransaction() && m_CommandBus.GetTransactionId() == token;
+    const usize pendingCount = m_CommandBus.GetPendingCount();
+    const bool recovery = m_CommandBus.RecoveryRequired();
     auto result = commit ? m_CommandBus.CommitTransaction(token)
                          : m_CommandBus.RollbackTransaction(token, CommandActor::Agent);
     if (active && result && !commit)
         m_Dirty = m_DirtyBeforeTransaction;
+    if (active && !commit &&
+        ((result && pendingCount > 0) || (!recovery && m_CommandBus.RecoveryRequired())))
+        ++m_AuthoringGeneration;
     return result;
 }
 void ProjectSession::CancelAuthoringTransaction(UUID owner, CommandActor actor)
 {
     if (!m_CommandBus.HasTransaction() || owner != m_TransactionOwner)
         return;
+    const usize pendingCount = m_CommandBus.GetPendingCount();
+    const bool recovery = m_CommandBus.RecoveryRequired();
     auto result = m_CommandBus.RollbackTransaction(m_CommandBus.GetTransactionId(), actor);
+    if ((result && pendingCount > 0) || (!recovery && m_CommandBus.RecoveryRequired()))
+        ++m_AuthoringGeneration;
     if (result)
         m_Dirty = m_DirtyBeforeTransaction;
     else
@@ -554,6 +641,7 @@ Result<void> ProjectSession::DiscardUnsavedAndReload()
     m_TransactionOwner = {};
     m_TransactionOwners.clear();
     ++m_SceneRevision;
+    ++m_AuthoringGeneration;
     m_CommandBus.RecordOperation(CommandActor::Human, "Discard unsaved changes and reload",
                                  Result<void>::Success());
     return Result<void>::Success();

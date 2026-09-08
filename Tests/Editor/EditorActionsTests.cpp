@@ -1,5 +1,6 @@
 #include "EditorActions.h"
 #include "EditorContext.h"
+#include "EditorTransformDrag.h"
 #include "ProjectSession.h"
 
 #include "Application/ApplicationConfig.h"
@@ -109,6 +110,35 @@ std::unique_ptr<Janus::Editor::ProjectSession> OpenTempProject(
 }
 
 } // namespace
+
+TEST_CASE("Move drag uses Human actions and one reversible command", "[editor][move]")
+{
+    using namespace Janus;
+    using namespace Janus::Editor;
+    Test::FakeRenderDevice device;
+    auto renderer = Detail::Renderer2DTestAccess::Create(device);
+    auto project = OpenProject(*renderer);
+    EditorContext context;
+    context.project = project.get();
+    EditorActions actions(context);
+    auto id = actions.CreateEntity("Move target");
+    REQUIRE(id);
+    TransformDragView view;
+    view.viewport = {640, 360};
+    view.displaySize = {640, 360};
+    EditorTransformDrag drag;
+    REQUIRE(drag.Begin(*project, id.Value(), TransformDragAxis::X, {320, 180}, view));
+    REQUIRE(drag.Update(*project, {360, 200}, view));
+    const auto entity = project->GetEditorScene().FindEntity(id.Value());
+    CHECK(project->GetEditorScene().GetComponent<TransformComponent>(entity)->position.x == 0);
+    REQUIRE(actions.CommitTransformDrag(drag));
+    CHECK_FALSE(drag.IsActive());
+    CHECK(project->GetEditorScene().GetComponent<TransformComponent>(entity)->position.x == 40);
+    REQUIRE(actions.Undo());
+    CHECK(project->GetEditorScene().GetComponent<TransformComponent>(entity)->position.x == 0);
+    REQUIRE(actions.Redo());
+    CHECK(project->GetEditorScene().GetComponent<TransformComponent>(entity)->position.x == 40);
+}
 
 TEST_CASE("Editor reparent shares command history and Runtime guard", "[ui][editor]")
 {
@@ -742,4 +772,139 @@ TEST_CASE("Editor Button authoring uses undo validation and Runtime guards", "[u
     REQUIRE(actions.Undo());
     REQUIRE(button());
     CHECK_FALSE(button()->interactable);
+}
+
+TEST_CASE("Named Prefab exports preserve history and survive registry reopen",
+          "[asset-workflow][prefab]")
+{
+    ProjectTempDirectory temp;
+    Janus::Test::FakeRenderDevice device;
+    auto renderer = Janus::Detail::Renderer2DTestAccess::Create(device);
+    auto project = OpenTempProject(*renderer, temp.Path());
+    Janus::Editor::EditorContext context;
+    context.project = project.get();
+    Janus::Editor::EditorActions actions(context);
+    auto entity = actions.CreateEntity("Fighter");
+    REQUIRE(entity);
+    REQUIRE(project->SaveCurrentScene());
+    const auto history = project->GetCommandBus().GetHistorySize();
+    const auto count = project->GetAssetRegistry().Size();
+    REQUIRE_FALSE(actions.ExportPrefab(entity.Value(), "../bad"));
+    REQUIRE(project->GetAssetRegistry().Size() == count);
+    auto exported = actions.ExportPrefab(entity.Value(), "Fighter Robot");
+    REQUIRE(exported);
+    const auto* metadata = project->GetAssetRegistry().Find(exported.Value());
+    REQUIRE(metadata);
+    REQUIRE(metadata->relativePath.generic_string() ==
+            "Prefabs/Fighter Robot-" + exported.Value().ToString() + ".prefab");
+    REQUIRE(context.locateAsset == exported.Value().id);
+    REQUIRE_FALSE(project->IsDirty());
+    REQUIRE(project->GetCommandBus().GetHistorySize() == history);
+    auto reopened = OpenTempProject(*renderer, temp.Path());
+    REQUIRE(reopened->GetAssetRegistry().Contains(exported.Value()));
+    auto unicode = actions.ExportPrefab(entity.Value(), "\xe6\x9c\xba\xe5\x99\xa8\xe4\xba\xba");
+    REQUIRE(unicode);
+    REQUIRE(OpenTempProject(*renderer, temp.Path())->GetAssetRegistry().Contains(unicode.Value()));
+    auto second = actions.ExportPrefab(entity.Value(), "Fighter Robot");
+    REQUIRE(second);
+    REQUIRE(second.Value() != exported.Value());
+    auto legacy = actions.ExportPrefab(entity.Value());
+    REQUIRE(legacy);
+    REQUIRE(project->GetAssetRegistry().Find(legacy.Value())->relativePath.filename().string() ==
+            legacy.Value().ToString() + ".prefab");
+}
+
+TEST_CASE("Asset payload assignment validates all six slots and project identity",
+          "[asset-workflow]")
+{
+    using namespace Janus;
+    ProjectTempDirectory temp;
+    auto assets = AssetRegistry::Load(temp.Path() / "Config/AssetRegistry.json");
+    REQUIRE(assets);
+    const AssetType types[] = {AssetType::Texture,   AssetType::Texture,
+                               AssetType::Font,      AssetType::AnimationClip,
+                               AssetType::AudioClip, AssetType::LuaScript};
+    const char* components[] = {"SpriteRenderer", "Image",       "Text",
+                                "Animator",       "AudioSource", "LuaScript"};
+    const char* properties[] = {"SpriteRenderer.texture", "Image.texture",    "Text.font",
+                                "Animator.clip",          "AudioSource.clip", "LuaScript.script"};
+    std::vector<AssetHandle> handles;
+    for (int i = 0; i < 6; ++i)
+    {
+        auto asset = assets.Value().Register(types[i], "Assets/slot" + std::to_string(i));
+        REQUIRE(asset);
+        handles.push_back(asset.Value());
+    }
+    REQUIRE(assets.Value().Save(temp.Path() / "Config/AssetRegistry.json"));
+    Test::FakeRenderDevice device;
+    auto renderer = Detail::Renderer2DTestAccess::Create(device);
+    auto project = OpenTempProject(*renderer, temp.Path());
+    Editor::EditorContext context;
+    context.project = project.get();
+    Editor::EditorActions actions(context);
+    auto entity = actions.CreateEntity("Asset slots");
+    REQUIRE(entity);
+    for (int i = 0; i < 6; ++i)
+    {
+        INFO(components[i]);
+        const auto component = MakeComponentTypeId(components[i]);
+        const auto property = MakePropertyId(properties[i]);
+        REQUIRE(actions.AddComponent(entity.Value(), component));
+        const auto history = project->GetCommandBus().GetHistorySize();
+        REQUIRE_FALSE(actions.AssignAssetPayload(entity.Value(), component, property,
+                                                 {UUID::Random(), handles[i].id}));
+        REQUIRE_FALSE(actions.AssignAssetPayload(entity.Value(), component, property,
+                                                 {project->GetProjectIdentity(), UUID::Random()}));
+        const auto wrong = handles[i < 2 ? 2 : 0];
+        REQUIRE_FALSE(actions.AssignAssetPayload(entity.Value(), component, property,
+                                                 {project->GetProjectIdentity(), wrong.id}));
+        REQUIRE(project->GetCommandBus().GetHistorySize() == history);
+        REQUIRE(actions.AssignAssetPayload(entity.Value(), component, property,
+                                           {project->GetProjectIdentity(), handles[i].id}));
+        SceneReflection reflected(project->GetReflectionRegistry(), &project->GetAssetRegistry());
+        auto value =
+            reflected.GetProperty(project->GetEditorScene(), entity.Value(), component, property);
+        REQUIRE(value);
+        REQUIRE(std::get<AssetReferenceValue>(value.Value()).id == handles[i].id);
+        REQUIRE(actions.Undo());
+        REQUIRE(actions.Redo());
+        REQUIRE(actions.SetProperty(entity.Value(), component, property, AssetReferenceValue{}));
+        auto cleared =
+            reflected.GetProperty(project->GetEditorScene(), entity.Value(), component, property);
+        REQUIRE(cleared);
+        REQUIRE_FALSE(std::get<AssetReferenceValue>(cleared.Value()).id.IsValid());
+        REQUIRE(actions.Undo());
+    }
+    auto duplicate = actions.DuplicateEntity(entity.Value());
+    REQUIRE(duplicate);
+    REQUIRE(context.selection.GetSelectedUUID() == duplicate.Value());
+    SceneReflection reflected(project->GetReflectionRegistry(), &project->GetAssetRegistry());
+    for (int i = 0; i < 6; ++i)
+    {
+        auto value = reflected.GetProperty(project->GetEditorScene(), duplicate.Value(),
+                                           MakeComponentTypeId(components[i]),
+                                           MakePropertyId(properties[i]));
+        REQUIRE(value);
+        REQUIRE(std::get<AssetReferenceValue>(value.Value()).id == handles[i].id);
+    }
+    const auto owner = UUID::Random();
+    auto token = project->BeginAuthoringTransaction(owner);
+    REQUIRE(token);
+    REQUIRE_FALSE(actions.DuplicateEntity(entity.Value()));
+    REQUIRE_FALSE(actions.AssignAssetPayload(entity.Value(), MakeComponentTypeId("Image"),
+                                             MakePropertyId("Image.texture"),
+                                             {project->GetProjectIdentity(), handles[1].id}));
+    REQUIRE(project->FinishAuthoringTransaction(token.Value(), owner, false));
+    REQUIRE(project->SaveCurrentScene());
+    auto reopened = OpenTempProject(*renderer, temp.Path());
+    SceneReflection savedReflection(reopened->GetReflectionRegistry(),
+                                    &reopened->GetAssetRegistry());
+    for (int i = 0; i < 6; ++i)
+    {
+        auto value = savedReflection.GetProperty(reopened->GetEditorScene(), duplicate.Value(),
+                                                 MakeComponentTypeId(components[i]),
+                                                 MakePropertyId(properties[i]));
+        REQUIRE(value);
+        REQUIRE(std::get<AssetReferenceValue>(value.Value()).id == handles[i].id);
+    }
 }

@@ -26,6 +26,24 @@
 
 using namespace Janus;
 
+TEST_CASE("Prefab display names reject unsafe fragments without sanitizing",
+          "[prefab][asset-workflow]")
+{
+    for (const std::string name :
+         {"", ".", "..", "../Robot", "a/b", "a\\b", "a:b", "x?", "CON", "com1.txt", "LPT9", "aux",
+          "NUL.txt", "a.", "a ", "a\n", "CONIN$"})
+    {
+        INFO(name);
+        REQUIRE_FALSE(Editor::ProjectSession::ValidatePrefabName(name));
+    }
+    REQUIRE_FALSE(Editor::ProjectSession::ValidatePrefabName(std::string("a\0b", 3)));
+    REQUIRE_FALSE(Editor::ProjectSession::ValidatePrefabName("\xc0\xaf"));
+    REQUIRE_FALSE(Editor::ProjectSession::ValidatePrefabName("name\xc2\x85"));
+    REQUIRE_FALSE(Editor::ProjectSession::ValidatePrefabName(std::string(97, 'a')));
+    REQUIRE(Editor::ProjectSession::ValidatePrefabName("Robot Fighter"));
+    REQUIRE(Editor::ProjectSession::ValidatePrefabName("\xe6\x9c\xba\xe5\x99\xa8\xe4\xba\xba"));
+}
+
 TEST_CASE("Prefab authoring shares Human Agent history and guards disk exports",
           "[prefab][editor][mcp]")
 {
@@ -67,6 +85,7 @@ TEST_CASE("Prefab authoring shares Human Agent history and guards disk exports",
     REQUIRE(project.PlayRuntime(true));
     REQUIRE_FALSE(actions.InstantiatePrefab(asset.Value()));
     REQUIRE_FALSE(actions.ExportPrefab(id));
+    REQUIRE_FALSE(actions.DuplicateEntity(id));
     REQUIRE(project.StepRuntime());
     REQUIRE(project.GetEditorScene().GetEntities().size() == 2);
     REQUIRE(project.StopRuntime());
@@ -85,7 +104,8 @@ TEST_CASE("Prefab authoring shares Human Agent history and guards disk exports",
         [&](std::unique_ptr<ICommand> command, UUID token)
         { return project.ExecuteAuthoring(std::move(command), CommandActor::Agent, token, owner); },
         temp.Path(),
-        [&](UUID root) { return project.ExportPrefab(root); }};
+        [&](UUID root, std::optional<std::string> name)
+        { return project.ExportPrefab(root, std::move(name)); }};
     REQUIRE(MCP::RegisterSceneTools(tools, toolContext));
     auto call = [&](std::string name, MCP::Json args)
     {
@@ -114,6 +134,19 @@ TEST_CASE("Prefab authoring shares Human Agent history and guards disk exports",
             MCP::McpOperation::SceneSave);
     REQUIRE(MCP::ClassifyMcpOperation("tools/call", {{"name", "scene.instantiate_prefab"}}) ==
             MCP::McpOperation::SceneWrite);
+    REQUIRE(MCP::ClassifyMcpOperation("tools/call", {{"name", "scene.duplicate_entity"}}) ==
+            MCP::McpOperation::SceneWrite);
+    auto duplicateToken = project.BeginAuthoringTransaction(owner);
+    REQUIRE(duplicateToken);
+    REQUIRE(call("scene.duplicate_entity", {{"entity", id.ToString()}}).value("isError", false));
+    REQUIRE(project.GetCommandBus().HasTransaction());
+    REQUIRE_FALSE(
+        call("scene.duplicate_entity",
+             {{"entity", id.ToString()}, {"transaction", duplicateToken.Value().ToString()}})
+            .value("isError", false));
+    REQUIRE(project.FinishAuthoringTransaction(duplicateToken.Value(), owner, false));
+    REQUIRE(project.GetEditorScene().GetEntities().size() == 2);
+    REQUIRE_FALSE(project.IsDirty());
     auto invalid = tools.HandleCall(
         {{"name", "scene.export_prefab"},
          {"arguments", {{"entity", id.ToString()}, {"transaction", UUID::Random().ToString()}}}},
