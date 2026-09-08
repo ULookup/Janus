@@ -14,6 +14,12 @@ Duplicate/Move、资源与偏好、文件生命周期及 Release；逐包执行�
 尚未提交/合并；X/Alt+F4/弹窗焦点布局的原生 PM 验收仍待完成，因此 PM-01 尚不标为关闭。
 详见[安全关闭验证](verification/2026-09-08-editor-safe-close.md)。
 
+2026-09-08 B 包执行补充：当前工作区已实现共享 Duplicate 命令、Ctrl+D/MCP 入口，
+六类资源槽搜索/定位/拖入、可读 Prefab 名称和 create-only 原子写入；中文路径显式按 UTF-8 保存。
+Debug CTest 439/439 通过，本机原生 Hero 复制、Animator/Image 赋值、命名导出与保存重开已验证。
+PM-05/06 对应缺口已有本机修复证据；尚未提交/合并，Release/DPI/首次用户验收仍保留。
+详见[复制与资源工作流验证](verification/2026-09-08-editor-duplicate-assets.md)。C–F 尚未实施。
+
 核对日期：2026-09-07（北京时间）；代码基线：main / origin/main `7ecdfb8`。
 本文是当前实现、集成、验证及待办的统一入口。PRD 定义产品目标，版本路线图定义版本范围，
 专项设计定义实现契约，日期化计划与验收记录保留当时证据；这些文档不再各自推断最新 Git 状态。

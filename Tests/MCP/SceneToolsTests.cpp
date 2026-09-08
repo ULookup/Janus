@@ -157,7 +157,7 @@ TEST_CASE(
 {
     ToolFixture fixture;
 
-    REQUIRE(fixture.tools.GetToolCount() == 9);
+    REQUIRE(fixture.tools.GetToolCount() == 10);
     REQUIRE(
         fixture.tools.FindTool(
             "scene.create_entity")
@@ -683,4 +683,22 @@ TEST_CASE("MCP discovers audio clips and authors AudioSource through guarded com
     fixture.readOnly = true;
     REQUIRE(set("volume", 0.5).at("isError") == true);
     CHECK(fixture.scene.GetComponent<Janus::AudioSourceComponent>(entity)->volume == 1);
+}
+
+TEST_CASE("MCP Duplicate shares history and rejects read-only authoring", "[duplicate][mcp]")
+{
+    ToolFixture fixture;
+    const auto original =
+        StructuredEntity(CallTool(fixture, "scene.create_entity", {{"name", "Source"}}));
+    const auto copy = StructuredEntity(
+        CallTool(fixture, "scene.duplicate_entity", {{"entity", original.ToString()}}));
+    REQUIRE(copy != original);
+    REQUIRE(fixture.commands.GetHistorySize() == 2);
+    REQUIRE(fixture.commands.Undo());
+    REQUIRE_FALSE(fixture.scene.FindEntity(copy).IsValid());
+    REQUIRE(fixture.commands.Redo());
+    REQUIRE(fixture.scene.FindEntity(copy).IsValid());
+    fixture.readOnly = true;
+    REQUIRE(CallTool(fixture, "scene.duplicate_entity", {{"entity", original.ToString()}})
+                .at("isError") == true);
 }

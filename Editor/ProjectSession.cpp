@@ -12,6 +12,8 @@
 #include "Scene/SceneReflection.h"
 #include "Scene/SceneSerializer.h"
 
+#include <algorithm>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -87,17 +89,64 @@ ProjectSession::ProjectSession(std::filesystem::path projectRoot,
 
 ProjectSession::~ProjectSession() = default;
 
-Result<AssetHandle> ProjectSession::ExportPrefab(UUID root)
+Result<void> ProjectSession::ValidatePrefabName(std::string_view name)
+{
+    auto invalid = []
+    {
+        return Result<void>::Failure(
+            ErrorCode::InvalidArgument,
+            "Prefab name must be valid UTF-8 (1..96 bytes), without path separators, controls, "
+            "reserved names or trailing spaces/dots.");
+    };
+    if (name.empty() || name.size() > 96 || name.back() == '.' || name.back() == ' ')
+        return invalid();
+    for (unsigned char c : name)
+        if (c < 32 || c == 127 ||
+            std::string_view("<>:\"/\\|?*").find(static_cast<char>(c)) != std::string_view::npos)
+            return invalid();
+    const std::string text(name);
+    auto encoded =
+        nlohmann::json(text).dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
+    if (nlohmann::json::parse(encoded).get<std::string>() != text)
+        return invalid();
+    for (usize i = 0; i + 1 < name.size(); ++i)
+        if (static_cast<unsigned char>(name[i]) == 0xc2 &&
+            static_cast<unsigned char>(name[i + 1]) >= 0x80 &&
+            static_cast<unsigned char>(name[i + 1]) <= 0x9f)
+            return invalid(); // Unicode C1 controls are also unsuitable for display names.
+    auto stem = text.substr(0, text.find('.'));
+    while (!stem.empty() && stem.back() == ' ')
+        stem.pop_back();
+    std::transform(stem.begin(), stem.end(), stem.begin(), [](unsigned char c)
+                   { return static_cast<char>(c >= 'a' && c <= 'z' ? c - 'a' + 'A' : c); });
+    if (stem == "CON" || stem == "PRN" || stem == "AUX" || stem == "NUL" || stem == "CONIN$" ||
+        stem == "CONOUT$" ||
+        ((stem.starts_with("COM") || stem.starts_with("LPT")) &&
+         ((stem.size() == 4 && stem[3] >= '1' && stem[3] <= '9') || stem.substr(3) == "\xc2\xb9" ||
+          stem.substr(3) == "\xc2\xb2" || stem.substr(3) == "\xc2\xb3")))
+        return invalid();
+    return Result<void>::Success();
+}
+
+Result<AssetHandle> ProjectSession::ExportPrefab(UUID root, std::optional<std::string> name)
 {
     if (IsAuthoringReadOnly())
         return Result<AssetHandle>::Failure(
             ErrorCode::InvalidState,
             "Stop runtime and finish transaction/recovery before exporting a Prefab.");
+    if (name)
+    {
+        auto valid = ValidatePrefabName(*name);
+        if (!valid)
+            return Result<AssetHandle>::Failure(valid.GetError());
+    }
     auto text = Prefab::Capture(*m_EditorScene, root, m_ReflectionRegistry);
     if (!text)
         return Result<AssetHandle>::Failure(text.GetError());
     const AssetHandle handle{UUID::Random()};
-    const auto relative = std::filesystem::path("Prefabs") / (handle.ToString() + ".prefab");
+    const auto filename = (name ? *name + "-" : "") + handle.ToString() + ".prefab";
+    const auto relative = std::filesystem::path("Prefabs") /
+                          std::filesystem::path(std::u8string(filename.begin(), filename.end()));
     auto path = ResolveProjectPath(m_ProjectRoot, relative);
     if (!path)
         return Result<AssetHandle>::Failure(path.GetError());
@@ -116,7 +165,8 @@ Result<AssetHandle> ProjectSession::ExportPrefab(UUID root)
     std::filesystem::create_directories(path.Value().parent_path(), error);
     if (error)
         return Result<AssetHandle>::Failure(ErrorCode::FileWriteFailed, error.message());
-    auto written = FileSystem::WriteTextAtomic(path.Value(), text.Value());
+    auto written = FileSystem::WriteTextAtomic(path.Value(), text.Value(),
+                                               FileSystem::AtomicWriteMode::CreateNew);
     if (!written)
         return Result<AssetHandle>::Failure(written.GetError());
     auto saved = next.Save(registryPath.Value());

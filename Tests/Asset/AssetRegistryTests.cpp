@@ -247,3 +247,18 @@ TEST_CASE(
             == assets[index].relativePath);
     }
 }
+
+TEST_CASE("Asset registry round trips and searches UTF-8 paths", "[asset-workflow][asset]")
+{
+    AssetTempDirectory temp;
+    Janus::AssetRegistry registry;
+    const std::string name = "Prefabs/\xe6\x9c\xba\xe5\x99\xa8\xe4\xba\xba.prefab";
+    const std::filesystem::path path(std::u8string(name.begin(), name.end()));
+    auto registered = registry.Register(Janus::AssetType::Prefab, path);
+    REQUIRE(registered);
+    REQUIRE(registry.Save(temp.Path() / "registry.json"));
+    auto loaded = Janus::AssetRegistry::Load(temp.Path() / "registry.json");
+    REQUIRE(loaded);
+    REQUIRE(loaded.Value().Find(registered.Value())->relativePath == path);
+    REQUIRE(loaded.Value().Search("\xe6\x9c\xba").Value().total == 1);
+}

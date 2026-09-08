@@ -201,8 +201,8 @@ Result<void> McpEditorHost::RegisterCapabilities()
                 return m_Project.ExecuteAuthoring(std::move(command), CommandActor::Agent, token,
                                                   m_Owner);
             },
-            m_Project.GetProjectRoot(),
-            [this](UUID root) { return m_Project.ExportPrefab(root); }});
+            m_Project.GetProjectRoot(), [this](UUID root, std::optional<std::string> name)
+            { return m_Project.ExportPrefab(root, std::move(name)); }});
 }
 
 Result<void> McpEditorHost::Start()

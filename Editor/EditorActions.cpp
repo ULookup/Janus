@@ -109,12 +109,48 @@ Result<void> EditorActions::ReparentEntity(UUID id, UUID parent, usize siblingIn
         scene, std::make_unique<ReparentEntityCommand>(scene, id, parent, siblingIndex));
 }
 
-Result<AssetHandle> EditorActions::ExportPrefab(UUID root)
+Result<AssetHandle> EditorActions::ExportPrefab(UUID root, std::optional<std::string> name)
 {
     if (!m_Context.project)
         return Result<AssetHandle>::Failure(ErrorCode::InvalidState,
                                             "Open a project before exporting a Prefab.");
-    return m_Context.project->ExportPrefab(root);
+    auto result = m_Context.project->ExportPrefab(root, std::move(name));
+    if (result)
+        m_Context.locateAsset = result.Value().id;
+    return result;
+}
+
+Result<UUID> EditorActions::DuplicateEntity(UUID source)
+{
+    auto editable = GetEditableScene();
+    if (!editable)
+        return Result<UUID>::Failure(editable.GetError());
+    auto command =
+        DuplicateEntityCommand::Create(*editable.Value(),
+                                       SceneReflection(m_Context.project->GetReflectionRegistry(),
+                                                       &m_Context.project->GetAssetRegistry()),
+                                       source);
+    if (!command)
+        return Result<UUID>::Failure(command.GetError());
+    const auto root = command.Value()->GetRoot();
+    auto result = ExecutePrepared(*editable.Value(), std::move(command).Value());
+    if (!result)
+        return Result<UUID>::Failure(result.GetError());
+    m_Context.selection.Select(root);
+    return Result<UUID>::Success(root);
+}
+
+Result<void> EditorActions::AssignAssetPayload(UUID entity, ComponentTypeId component,
+                                               PropertyId property,
+                                               const EditorAssetPayload& payload)
+{
+    if (!m_Context.project || payload.project != m_Context.project->GetProjectIdentity() ||
+        !payload.asset.IsValid() ||
+        !m_Context.project->GetAssetRegistry().Contains(AssetHandle{payload.asset}))
+        return Result<void>::Failure(
+            ErrorCode::InvalidArgument,
+            "Asset drag belongs to another project or is no longer registered.");
+    return SetProperty(entity, component, property, AssetReferenceValue{payload.asset});
 }
 
 Result<UUID> EditorActions::InstantiatePrefab(AssetHandle asset)

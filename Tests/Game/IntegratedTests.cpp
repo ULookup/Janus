@@ -83,7 +83,8 @@ TEST_CASE("Integrated Agent prefab authoring remains Human undoable after play a
                                             owner);
         },
         temp.Path(),
-        [&](Janus::UUID root) { return project.ExportPrefab(root); }};
+        [&](Janus::UUID root, std::optional<std::string> name)
+        { return project.ExportPrefab(root, std::move(name)); }};
     REQUIRE(Janus::MCP::RegisterSceneTools(tools, context));
     auto token = project.BeginAuthoringTransaction(owner);
     REQUIRE(token);

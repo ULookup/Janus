@@ -7,6 +7,8 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <map>
+#include <set>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -433,6 +435,215 @@ Result<void> ReorderChildren(
 }
 
 } // namespace
+
+Result<void> ValidateAuthoringSubtree(Scene& scene, UUID root)
+{
+    std::vector<std::pair<ECS::Entity, usize>> pending{{scene.FindEntity(root), 1}};
+    std::set<UUID> visited;
+    while (!pending.empty())
+    {
+        auto [entity, depth] = pending.back();
+        pending.pop_back();
+        const auto* identity = scene.GetComponent<EntityIdentityComponent>(entity);
+        const auto* hierarchy = scene.GetComponent<HierarchyComponent>(entity);
+        if (!identity || !hierarchy || depth > MaxAuthoringSubtreeDepth ||
+            !visited.insert(identity->id).second || visited.size() > MaxAuthoringSubtreeEntities)
+            return Result<void>::Failure(ErrorCode::InvalidArgument,
+                                         "Invalid or oversized authoring subtree.");
+        auto child = hierarchy->firstChild;
+        usize siblings = 0;
+        while (child.IsValid())
+        {
+            const auto* links = scene.GetComponent<HierarchyComponent>(child);
+            if (!links || links->parent != entity || ++siblings > MaxAuthoringSubtreeEntities)
+                return Result<void>::Failure(ErrorCode::InvalidArgument,
+                                             "Invalid authoring child links.");
+            pending.emplace_back(child, depth + 1);
+            child = links->nextSibling;
+        }
+    }
+    return Result<void>::Success();
+}
+
+Result<void> RemapEntitySubtree(Scene& scene, EntitySubtreeSnapshot& snapshot,
+                                bool allowExternalRootParent)
+{
+    std::map<UUID, std::optional<UUID>> parents;
+    for (const auto& entity : snapshot.entities)
+        if (!entity.id.IsValid() || !parents.emplace(entity.id, entity.parent).second)
+            return Result<void>::Failure(ErrorCode::InvalidArgument, "Invalid subtree identity.");
+    if (parents.empty() || parents.size() > MaxAuthoringSubtreeEntities ||
+        !parents.contains(snapshot.root))
+        return Result<void>::Failure(ErrorCode::InvalidArgument, "Invalid subtree root or size.");
+    const auto rootParent = parents.at(snapshot.root);
+    if (rootParent && (!allowExternalRootParent || parents.contains(*rootParent)))
+        return Result<void>::Failure(ErrorCode::InvalidArgument, "Unexpected subtree root parent.");
+    for (const auto& [id, parent] : parents)
+    {
+        (void)parent;
+        UUID cursor = id;
+        usize depth = 1;
+        while (cursor != snapshot.root)
+        {
+            auto it = parents.find(cursor);
+            if (it == parents.end() || !it->second || ++depth > MaxAuthoringSubtreeDepth)
+                return Result<void>::Failure(ErrorCode::InvalidArgument,
+                                             "Broken or cyclic subtree hierarchy.");
+            cursor = *it->second;
+        }
+    }
+    std::map<UUID, UUID> ids;
+    std::set<UUID> reserved;
+    for (const auto& entity : snapshot.entities)
+        reserved.insert(entity.id);
+    for (const auto& entity : snapshot.entities)
+    {
+        UUID id;
+        do
+        {
+            id = UUID::Random();
+        } while (scene.FindEntity(id).IsValid() || !reserved.insert(id).second);
+        ids.emplace(entity.id, id);
+    }
+    snapshot.root = ids.at(snapshot.root);
+    for (auto& entity : snapshot.entities)
+    {
+        entity.id = ids.at(entity.id);
+        if (entity.parent && ids.contains(*entity.parent))
+            entity.parent = ids.at(*entity.parent);
+        // AssetReferenceValue and strings are not entity references. Preserve them verbatim.
+    }
+    return Result<void>::Success();
+}
+
+Result<void> ValidateSubtreeInsertion(Scene& scene, const EntitySubtreeSnapshot& snapshot)
+{
+    // A second screen Canvas is unsupported by the existing UI layout contract.
+    usize canvases = 0, primaryCameras = 0;
+    for (auto entity : scene.GetEntities())
+    {
+        if (scene.HasComponent<CanvasComponent>(entity))
+            ++canvases;
+        const auto* camera = scene.GetComponent<CameraComponent>(entity);
+        if (camera && camera->primary)
+            ++primaryCameras;
+    }
+    for (const auto& entity : snapshot.entities)
+        for (const auto& component : entity.components)
+        {
+            if (component.component == SceneReflectionIds::Canvas)
+            {
+                if (entity.parent || ++canvases > 1)
+                    return Result<void>::Failure(
+                        ErrorCode::InvalidArgument,
+                        "Subtree would create an unsupported Canvas hierarchy.");
+            }
+            if (component.component == SceneReflectionIds::Camera)
+                for (const auto& property : component.properties)
+                    if (property.property == SceneReflectionIds::CameraPrimary &&
+                        std::get<bool>(property.value) && ++primaryCameras > 1)
+                        return Result<void>::Failure(
+                            ErrorCode::InvalidArgument,
+                            "Subtree would create multiple primary cameras.");
+        }
+    return Result<void>::Success();
+}
+
+usize EstimateSubtreeUndoBytes(const EntitySubtreeSnapshot& snapshot)
+{
+    usize bytes = sizeof(EntitySubtreeSnapshot) +
+                  snapshot.entities.capacity() * sizeof(EntityAuthoringSnapshot);
+    for (const auto& entity : snapshot.entities)
+    {
+        bytes += entity.name.capacity() +
+                 entity.components.capacity() * sizeof(ReflectedComponentSnapshot);
+        for (const auto& component : entity.components)
+        {
+            bytes += component.properties.capacity() * sizeof(ReflectedPropertySnapshot);
+            for (const auto& property : component.properties)
+                if (const auto* value = std::get_if<std::string>(&property.value))
+                    bytes += value->capacity();
+        }
+    }
+    return bytes * 2 + 1024;
+}
+
+DuplicateEntityCommand::DuplicateEntityCommand(Scene& scene, SceneReflection reflection,
+                                               EntitySubtreeSnapshot snapshot)
+    : m_Scene(scene), m_Reflection(std::move(reflection)), m_Snapshot(std::move(snapshot))
+{
+}
+
+Result<std::unique_ptr<DuplicateEntityCommand>>
+DuplicateEntityCommand::Create(Scene& scene, SceneReflection reflection, UUID source)
+{
+    auto valid = ValidateAuthoringSubtree(scene, source);
+    if (!valid)
+        return Result<std::unique_ptr<DuplicateEntityCommand>>::Failure(valid.GetError());
+    auto captured = CaptureEntitySubtree(scene, reflection, source);
+    if (!captured)
+        return Result<std::unique_ptr<DuplicateEntityCommand>>::Failure(captured.GetError());
+    auto snapshot = std::move(captured).Value();
+    auto& root = snapshot.entities.front();
+    root.name += " Copy";
+    if (root.parent)
+        ++root.siblingOrder;
+    auto remapped = RemapEntitySubtree(scene, snapshot, true);
+    if (!remapped)
+        return Result<std::unique_ptr<DuplicateEntityCommand>>::Failure(remapped.GetError());
+    return Result<std::unique_ptr<DuplicateEntityCommand>>::Success(
+        std::unique_ptr<DuplicateEntityCommand>(
+            new DuplicateEntityCommand(scene, std::move(reflection), std::move(snapshot))));
+}
+Result<void> DuplicateEntityCommand::Restore()
+{
+    auto valid = ValidateSubtreeInsertion(m_Scene, m_Snapshot);
+    if (!valid)
+        return valid;
+    // A lost external parent must not silently turn a duplicate into a root.
+    const auto parent = m_Snapshot.entities.front().parent;
+    if (parent && !m_Scene.FindEntity(*parent).IsValid())
+        return Result<void>::Failure(ErrorCode::EntityNotFound,
+                                     "Duplicate parent no longer exists.");
+    auto restored = RestoreEntitySubtree(m_Scene, m_Reflection, m_Snapshot);
+    if (restored)
+        m_Present = true;
+    return restored;
+}
+Result<void> DuplicateEntityCommand::Execute()
+{
+    if (m_Executed)
+        return Result<void>::Failure(ErrorCode::InvalidState,
+                                     "Duplicate command already executed.");
+    auto result = Restore();
+    if (result)
+        m_Executed = true;
+    return result;
+}
+Result<void> DuplicateEntityCommand::Undo()
+{
+    if (!m_Present || !m_Scene.DestroyEntity(m_Scene.FindEntity(m_Snapshot.root)))
+        return Result<void>::Failure(ErrorCode::InvalidState, "Duplicate is unavailable for Undo.");
+    m_Present = false;
+    return Result<void>::Success();
+}
+Result<void> DuplicateEntityCommand::Redo()
+{
+    if (!m_Executed || m_Present)
+        return Result<void>::Failure(ErrorCode::InvalidState, "Duplicate is unavailable for Redo.");
+    return Restore();
+}
+Result<usize> DuplicateEntityCommand::EstimateUndoBytes() const
+{
+    return Result<usize>::Success(sizeof(*this) + EstimateSubtreeUndoBytes(m_Snapshot));
+}
+std::vector<CommandEffect> DuplicateEntityCommand::GetEffects() const
+{
+    std::vector<CommandEffect> effects;
+    for (const auto& entity : m_Snapshot.entities)
+        effects.push_back({entity.id, "DuplicateEntity"});
+    return effects;
+}
 
 ReparentEntityCommand::ReparentEntityCommand(Scene& scene, UUID entity, UUID parent, usize index)
     : m_Scene(scene), m_Entity(entity), m_Parent(parent), m_Index(index)

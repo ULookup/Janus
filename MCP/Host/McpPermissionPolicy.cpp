@@ -23,9 +23,10 @@ McpOperation ClassifyMcpOperation(std::string_view method, const Json& params) n
             return McpOperation::ProjectRead;
         if (name == "scene.save" || name == "scene.export_prefab")
             return McpOperation::SceneSave;
-        for (auto known : {"scene.create_entity", "scene.delete_entity", "scene.rename_entity",
-                           "scene.reparent_entity", "scene.add_component", "scene.remove_component",
-                           "scene.set_component_property", "scene.instantiate_prefab"})
+        for (auto known :
+             {"scene.create_entity", "scene.delete_entity", "scene.rename_entity",
+              "scene.reparent_entity", "scene.add_component", "scene.remove_component",
+              "scene.set_component_property", "scene.instantiate_prefab", "scene.duplicate_entity"})
             if (name == known)
                 return McpOperation::SceneWrite;
         for (auto known : {"runtime.play", "runtime.pause", "runtime.stop", "runtime.step"})

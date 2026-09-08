@@ -72,6 +72,7 @@ add_executable(
     Scene/SceneReflectionTests.cpp
     Scene/SceneCommandTests.cpp
     Scene/EntityCommandTests.cpp
+    Scene/DuplicateEntityTests.cpp
     Scene/PrefabTests.cpp
     Scene/SceneRenderTests.cpp
     Scene/LuaScriptSerializationTests.cpp

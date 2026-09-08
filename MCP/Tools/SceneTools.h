@@ -8,6 +8,8 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <optional>
+#include <string>
 
 namespace Janus
 {
@@ -32,7 +34,7 @@ struct McpSceneToolContext
     std::function<bool()> authoringReadOnly;
     std::function<Result<void>(std::unique_ptr<ICommand>, UUID)> executeCommand;
     std::filesystem::path projectRoot;
-    std::function<Result<AssetHandle>(UUID)> exportPrefab;
+    std::function<Result<AssetHandle>(UUID, std::optional<std::string>)> exportPrefab;
 };
 
 [[nodiscard]] Result<void> RegisterSceneTools(
