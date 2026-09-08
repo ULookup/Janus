@@ -57,6 +57,8 @@ public:
     void DestroyTexture(TextureHandle handle);
     [[nodiscard]] Result<TexturePresentationHandle>
     GetTexturePresentationHandle(TextureHandle handle) const;
+    // Dimensions of live textures and render-target attachments; no GPU readback.
+    [[nodiscard]] Result<Viewport> GetTextureSize(TextureHandle handle) const;
 
     [[nodiscard]] Result<RenderTargetHandle> CreateRenderTarget(
         const RenderTargetDesc& desc);

@@ -66,6 +66,39 @@ TEST_CASE(
     renderer->DestroyTexture(texture.Value());
 }
 
+TEST_CASE("Texture preview dimensions follow texture lifetime", "[renderer][renderer2d][preview]")
+{
+    Janus::Test::FakeRenderDevice device;
+    auto renderer = Janus::Detail::Renderer2DTestAccess::Create(device);
+    REQUIRE_FALSE(renderer->GetTextureSize({}));
+    REQUIRE_FALSE(renderer->GetTextureSize({999}));
+
+    device.failNextTextureCreate = true;
+    REQUIRE_FALSE(renderer->CreateTexture({64, 16}));
+    const auto texture = renderer->CreateTexture({64, 16});
+    REQUIRE(texture);
+    const auto size = renderer->GetTextureSize(texture.Value());
+    REQUIRE(size);
+    REQUIRE(size.Value().width == 64);
+    REQUIRE(size.Value().height == 16);
+    REQUIRE(device.createdTextures.size() == 1);
+    renderer->DestroyTexture(texture.Value());
+    REQUIRE_FALSE(renderer->GetTextureSize(texture.Value()));
+
+    const auto target = renderer->CreateRenderTarget({320, 180});
+    REQUIRE(target);
+    const auto oldColor = renderer->GetRenderTargetColorTexture(target.Value());
+    REQUIRE(oldColor);
+    REQUIRE(renderer->GetTextureSize(oldColor.Value()).Value().width == 320);
+    REQUIRE(renderer->ResizeRenderTarget(target.Value(), 640, 360));
+    REQUIRE_FALSE(renderer->GetTextureSize(oldColor.Value()));
+    const auto newColor = renderer->GetRenderTargetColorTexture(target.Value());
+    REQUIRE(newColor);
+    REQUIRE(renderer->GetTextureSize(newColor.Value()).Value().height == 360);
+    REQUIRE(renderer->DestroyRenderTarget(target.Value()));
+    REQUIRE_FALSE(renderer->GetTextureSize(newColor.Value()));
+}
+
 TEST_CASE(
     "Renderer2D creates an offscreen render target with blank color storage",
     "[renderer][renderer2d][render-target][v0.6]")

@@ -23,7 +23,7 @@ BuildEditorWorkspaceLayout(f32 width, f32 height,
     width = ClampNonNegative(width);
     height = ClampNonNegative(height);
     const f32 gap = std::min(6.0f, width / 4.0f);
-    const f32 toolbar = std::min(height, 94.0f);
+    const f32 toolbar = std::min(height, 80.0f);
     const f32 status = std::min(height - toolbar, 26.0f);
     const f32 contentY = toolbar;
     const f32 contentHeight = std::max(0.0f, height - toolbar - status);

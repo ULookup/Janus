@@ -12,6 +12,7 @@
 
 #include <imgui.h>
 
+#include <cfloat>
 #include <string>
 
 namespace Janus::Editor
@@ -91,6 +92,10 @@ std::optional<Error> HierarchyPanel::Draw()
 
     ImGui::EndDisabled();
 
+    ImGui::SameLine();
+    if (IconOnlyButton(Icon::Settings, "Organize / Prefab"))
+        ImGui::OpenPopup("OrganizePrefab");
+
     if (playing)
     {
         ImGui::SameLine();
@@ -100,7 +105,16 @@ std::optional<Error> HierarchyPanel::Draw()
     ImGui::SetNextItemWidth(-1);
     ImGui::InputTextWithHint("##Search", "Search entities...", m_Search.data(), m_Search.size());
     std::optional<Error> reparentError;
-    const bool organize = IconHeader(Icon::Hierarchy, "Organize / Prefab");
+    ImGui::SetNextWindowSizeConstraints({280 * ImGui::GetStyle().FontScaleDpi, 0},
+                                        {FLT_MAX, FLT_MAX});
+    const bool organize = ImGui::BeginPopup("OrganizePrefab");
+    if (organize)
+    {
+        IconText(Icon::Hierarchy, "Organize / Prefab");
+        ImGui::Separator();
+        if (!m_Context.selection.HasSelection())
+            ImGui::TextDisabled("Select an entity first.");
+    }
     if (auto selected = m_Context.selection.GetSelectedUUID(); organize && selected.has_value())
     {
         const auto entity = scene.FindEntity(*selected);
@@ -182,10 +196,12 @@ std::optional<Error> HierarchyPanel::Draw()
         ImGui::EndDisabled();
     }
 
+    if (organize)
+        ImGui::EndPopup();
+
     ImGui::Separator();
 
-    ImGui::TextDisabled("%s%s", scene.GetMetadata().name.c_str(),
-                        m_Context.project->IsDirty() ? " *" : "");
+    ImGui::Text("%s%s", scene.GetMetadata().name.c_str(), m_Context.project->IsDirty() ? " *" : "");
     for (const ECS::Entity entity : scene.GetEntities())
     {
         if (m_Search[0] != '\0')

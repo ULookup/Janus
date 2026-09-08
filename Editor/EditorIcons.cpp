@@ -46,6 +46,36 @@ void DrawTitleIcon(Icon icon)
     draw->PopClipRect();
 }
 
+void DrawEllipsizedText(ImDrawList* draw, ImVec2 pos, float width, ImU32 color,
+                        std::string_view text)
+{
+    if (width <= 0 || text.empty())
+        return;
+    const auto lineEnd = text.find_first_of("\r\n");
+    const bool multiline = lineEnd != std::string_view::npos;
+    if (multiline)
+        text = text.substr(0, lineEnd);
+    const char* remaining = nullptr;
+    ImGui::GetFont()->CalcTextSizeA(ImGui::GetFontSize(), width, 0, text.data(),
+                                    text.data() + text.size(), &remaining);
+    const bool clipped = remaining < text.data() + text.size();
+    std::string label;
+    if (clipped || multiline)
+    {
+        const float dots = ImGui::CalcTextSize("...").x;
+        // Font measurement stops on a UTF-8 boundary and only scans the visible prefix.
+        ImGui::GetFont()->CalcTextSizeA(ImGui::GetFontSize(), std::max(1.0f, width - dots), 0,
+                                        text.data(), text.data() + text.size(), &remaining);
+        label.assign(text.data(), remaining);
+        label += "...";
+    }
+    else
+        label.assign(text);
+    draw->PushClipRect(pos, {pos.x + width, pos.y + ImGui::GetFontSize()}, true);
+    draw->AddText(pos, color, label.c_str());
+    draw->PopClipRect();
+}
+
 bool IconButton(Icon icon, const char* label, ImVec2 size)
 {
     const float iconSize = ImGui::GetFontSize();
@@ -73,6 +103,16 @@ bool IconTab(Icon icon, const char* label, ImGuiTabItemFlags flags)
     const bool open = ImGui::BeginTabItem(SpacedLabel(label).c_str(), nullptr, flags);
     DrawItemIcon(icon, ImGui::GetStyle().FramePadding.x);
     return open;
+}
+
+bool IconOnlyButton(Icon icon, const char* label)
+{
+    const float side = ImGui::GetFrameHeight();
+    const bool clicked = ImGui::Button((std::string("###") + label).c_str(), {side, side});
+    DrawItemIcon(icon, (side - ImGui::GetFontSize()) * 0.5f);
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip("%s", label);
+    return clicked;
 }
 
 bool IconHeader(Icon icon, const char* label, ImGuiTreeNodeFlags flags)

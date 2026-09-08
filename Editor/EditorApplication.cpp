@@ -37,6 +37,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <cstdio>
 #include <iostream>
 #include <optional>
 #include <string>
@@ -126,10 +127,7 @@ void ConfigureEditorFont()
         if (std::filesystem::exists(fontPath, error)
             && !error)
         {
-            if (ImFont* font =
-                    io.Fonts->AddFontFromFileTTF(
-                        fontPath.string().c_str(),
-                        16.0f);
+            if (ImFont* font = io.Fonts->AddFontFromFileTTF(fontPath.string().c_str(), 17.0f);
                 font != nullptr)
             {
                 io.FontDefault = font;
@@ -140,7 +138,7 @@ void ConfigureEditorFont()
 #endif
 
     ImFontConfig fallback;
-    fallback.SizePixels = 16.0f;
+    fallback.SizePixels = 17.0f;
     io.FontDefault =
         io.Fonts->AddFontDefaultVector(&fallback);
 }
@@ -200,44 +198,43 @@ void DrawSceneGrid(
             ImGuiCol_TextDisabled,
             0.65f);
 
-    const f32 firstX =
-        std::floor(worldTopLeft.x / worldSpacing)
-        * worldSpacing;
-
-    for (f32 worldX = firstX;
-         worldX <= worldBottomRight.x;
-         worldX += worldSpacing)
+    const ImU32 minorColor = ImGui::GetColorU32(ImGuiCol_Border, .16f);
+    const f32 minorSpacing = worldSpacing * .25f;
+    const auto lineColor = [&](f32 value)
     {
+        if (std::abs(value) < .001f)
+            return axisColor;
+        const f32 majorIndex = value / worldSpacing;
+        return std::abs(majorIndex - std::round(majorIndex)) < .001f ? gridColor : minorColor;
+    };
+
+    const f32 firstX = std::floor(worldTopLeft.x / minorSpacing) * minorSpacing;
+
+    // Integer iteration stays bounded even where world coordinates lose float precision.
+    const int columns = static_cast<int>(viewport.width * zoom / minorSpacing) + 2;
+    for (int index = 0; index < columns; ++index)
+    {
+        const f32 worldX = firstX + index * minorSpacing;
         const f32 screenX =
             rectMin.x
             + (worldX - worldTopLeft.x) / zoom;
 
-        drawList->AddLine(
-            ImVec2{screenX, rectMin.y},
-            ImVec2{screenX, rectMax.y},
-            std::abs(worldX) < 0.001f
-                ? axisColor
-                : gridColor);
+        drawList->AddLine(ImVec2{screenX, rectMin.y}, ImVec2{screenX, rectMax.y},
+                          lineColor(worldX));
     }
 
-    const f32 firstY =
-        std::floor(worldBottomRight.y / worldSpacing)
-        * worldSpacing;
+    const f32 firstY = std::floor(worldBottomRight.y / minorSpacing) * minorSpacing;
 
-    for (f32 worldY = firstY;
-         worldY <= worldTopLeft.y;
-         worldY += worldSpacing)
+    const int rows = static_cast<int>(viewport.height * zoom / minorSpacing) + 2;
+    for (int index = 0; index < rows; ++index)
     {
+        const f32 worldY = firstY + index * minorSpacing;
         const f32 screenY =
             rectMin.y
             + (worldTopLeft.y - worldY) / zoom;
 
-        drawList->AddLine(
-            ImVec2{rectMin.x, screenY},
-            ImVec2{rectMax.x, screenY},
-            std::abs(worldY) < 0.001f
-                ? axisColor
-                : gridColor);
+        drawList->AddLine(ImVec2{rectMin.x, screenY}, ImVec2{rectMax.x, screenY},
+                          lineColor(worldY));
     }
 
     drawList->PopClipRect();
@@ -275,24 +272,35 @@ Result<void> EditorApplication::OnInitialize(Application& application)
 
     ImGuiStyle& style = ImGui::GetStyle();
     style.WindowRounding = 0;
-    style.ChildRounding = 3;
+    style.ChildRounding = 2;
     style.FrameRounding = 3;
     style.TabRounding = 3;
     style.WindowBorderSize = 1;
-    style.WindowPadding = ImVec2{12, 10};
-    style.FramePadding = ImVec2{10, 6};
-    style.ItemSpacing = ImVec2{8, 7};
-    style.Colors[ImGuiCol_WindowBg] = ImVec4{.105f, .13f, .16f, 1};
-    style.Colors[ImGuiCol_ChildBg] = ImVec4{.09f, .11f, .14f, 1};
-    style.Colors[ImGuiCol_TitleBg] = ImVec4{.12f, .15f, .18f, 1};
-    style.Colors[ImGuiCol_TitleBgActive] = ImVec4{.14f, .18f, .22f, 1};
-    style.Colors[ImGuiCol_Header] = ImVec4{.14f, .27f, .40f, 1};
-    style.Colors[ImGuiCol_HeaderHovered] = ImVec4{.18f, .34f, .50f, 1};
-    style.Colors[ImGuiCol_HeaderActive] = ImVec4{.20f, .39f, .60f, 1};
-    style.Colors[ImGuiCol_Button] = ImVec4{.16f, .20f, .25f, 1};
-    style.Colors[ImGuiCol_ButtonHovered] = ImVec4{.22f, .35f, .49f, 1};
-    style.Colors[ImGuiCol_FrameBg] = ImVec4{.08f, .10f, .13f, 1};
-    style.Colors[ImGuiCol_Border] = ImVec4{.24f, .29f, .34f, 1};
+    style.FrameBorderSize = 1;
+    style.WindowPadding = ImVec2{10, 8};
+    style.FramePadding = ImVec2{8, 4};
+    style.ItemSpacing = ImVec2{7, 6};
+    style.Colors[ImGuiCol_WindowBg] = ImVec4{.12f, .14f, .17f, 1};
+    style.Colors[ImGuiCol_ChildBg] = ImVec4{.105f, .125f, .15f, 1};
+    style.Colors[ImGuiCol_MenuBarBg] = ImVec4{.105f, .12f, .14f, 1};
+    style.Colors[ImGuiCol_TitleBg] = ImVec4{.145f, .17f, .20f, 1};
+    style.Colors[ImGuiCol_TitleBgActive] = style.Colors[ImGuiCol_TitleBg];
+    style.Colors[ImGuiCol_Header] = ImVec4{.16f, .29f, .43f, 1};
+    style.Colors[ImGuiCol_HeaderHovered] = ImVec4{.20f, .32f, .44f, 1};
+    style.Colors[ImGuiCol_HeaderActive] = ImVec4{.20f, .37f, .55f, 1};
+    style.Colors[ImGuiCol_Button] = ImVec4{.15f, .18f, .215f, 1};
+    style.Colors[ImGuiCol_ButtonHovered] = ImVec4{.21f, .29f, .38f, 1};
+    style.Colors[ImGuiCol_ButtonActive] = ImVec4{.20f, .37f, .55f, 1};
+    style.Colors[ImGuiCol_FrameBg] = ImVec4{.105f, .125f, .15f, 1};
+    style.Colors[ImGuiCol_FrameBgHovered] = ImVec4{.16f, .21f, .27f, 1};
+    style.Colors[ImGuiCol_FrameBgActive] = ImVec4{.17f, .25f, .34f, 1};
+    style.Colors[ImGuiCol_Tab] = ImVec4{.12f, .145f, .175f, 1};
+    style.Colors[ImGuiCol_TabHovered] = ImVec4{.20f, .29f, .39f, 1};
+    style.Colors[ImGuiCol_TabSelected] = ImVec4{.19f, .23f, .28f, 1};
+    style.Colors[ImGuiCol_TabSelectedOverline] = ImVec4{.27f, .62f, .94f, 1};
+    style.TabBarOverlineSize = 2;
+    style.Colors[ImGuiCol_CheckMark] = ImVec4{.33f, .70f, 1.0f, 1};
+    style.Colors[ImGuiCol_Border] = ImVec4{.25f, .29f, .34f, 1};
     style.Colors[ImGuiCol_Text] = ImVec4{.89f, .93f, .97f, 1};
     style.Colors[ImGuiCol_TextDisabled] = ImVec4{.59f, .66f, .73f, 1};
     m_UiScale = std::max(1.0f, SDL_GetWindowDisplayScale(nativeWindow));
@@ -660,7 +668,17 @@ void EditorApplication::OnUpdate(
             }
             ImGui::EndMenuBar();
         }
-        const float buttonWidth = 88 * m_UiScale;
+        const float buttonWidth = 80 * m_UiScale;
+        auto toolSeparator = [&]()
+        {
+            ImGui::SameLine(0, 14 * m_UiScale);
+            const ImVec2 pos = ImGui::GetCursorScreenPos();
+            ImGui::GetWindowDrawList()->AddLine({pos.x, pos.y + 3 * m_UiScale},
+                                                {pos.x, pos.y + 29 * m_UiScale},
+                                                ImGui::GetColorU32(ImGuiCol_Border));
+            ImGui::Dummy({1, 32 * m_UiScale});
+            ImGui::SameLine(0, 14 * m_UiScale);
+        };
         auto tool = [&](Icon icon, const char* label, bool enabled)
         {
             ImGui::BeginDisabled(!enabled);
@@ -676,7 +694,7 @@ void EditorApplication::OnUpdate(
         ImGui::SameLine();
         if (tool(Icon::Redo, "Redo", m_EditorActions->CanRedo()))
             action(m_EditorActions->Redo());
-        ImGui::SameLine(0, 20 * m_UiScale);
+        toolSeparator();
         const auto runtime = m_ProjectSession->GetRuntimeState();
         if (tool(Icon::Play, "Play", !readOnly))
         {
@@ -724,7 +742,8 @@ void EditorApplication::OnUpdate(
                 m_SelectGameViewTab = m_ReturnToGameView;
             }
         }
-        ImGui::SameLine(0, 20 * m_UiScale);
+        toolSeparator();
+        ImGui::AlignTextToFramePadding();
         ImGui::TextUnformatted(RuntimeStateName(m_ProjectSession->GetRuntimeState()).data());
         ImGui::End();
 
@@ -981,8 +1000,6 @@ void EditorApplication::OnUpdate(
                     FrameScene(true);
                 ImGui::SameLine();
                 ImGui::Checkbox("Grid", &m_ShowGrid);
-                ImGui::SameLine();
-                ImGui::TextDisabled("2D  |  %.3f units/px", m_EditorCamera->GetZoom());
 
                 const ImVec2 available =
                     ImGui::GetContentRegionAvail();
@@ -1070,6 +1087,26 @@ void EditorApplication::OnUpdate(
                                                   ImDrawFlags_Closed, 2 * m_UiScale);
                                 draw->PopClipRect();
                             }
+                        }
+                        const auto viewMin = ImGui::GetItemRectMin();
+                        const auto viewMax = ImGui::GetItemRectMax();
+                        const float pad = ImGui::GetStyle().WindowPadding.x;
+                        char viewLabel[80];
+                        std::snprintf(viewLabel, sizeof(viewLabel), "2D  |  %.3f units/px",
+                                      m_EditorCamera->GetZoom());
+                        const float labelWidth =
+                            std::min(ImGui::CalcTextSize(viewLabel).x, available.x - pad * 4);
+                        if (labelWidth > 0 && available.y > ImGui::GetFrameHeight() * 2)
+                        {
+                            const ImVec2 pos{viewMin.x + pad,
+                                             viewMax.y - ImGui::GetFontSize() - pad * 2};
+                            auto* draw = ImGui::GetWindowDrawList();
+                            draw->AddRectFilled(pos,
+                                                {pos.x + labelWidth + pad * 2, viewMax.y - pad},
+                                                IM_COL32(20, 25, 32, 220), 3);
+                            DrawEllipsizedText(draw, {pos.x + pad, pos.y + pad * .5f}, labelWidth,
+                                               ImGui::GetColorU32(ImGuiCol_TextDisabled),
+                                               viewLabel);
                         }
                         const bool hovered =
                             ImGui::IsItemHovered();
@@ -1268,7 +1305,7 @@ void EditorApplication::OnUpdate(
                                                        false,
                                                        nullptr,
                                                        nullptr,
-                                                       Color{0.08f, 0.11f, 0.15f, 1.0f}});
+                                                       Color{0.14f, 0.18f, 0.23f, 1.0f}});
 
         if (rendered)
             m_ProjectSession->CaptureRenderPass(false, renderer.GetStatistics(),

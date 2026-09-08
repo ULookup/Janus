@@ -3,6 +3,7 @@
 #include "EditorActions.h"
 #include "EditorContext.h"
 #include "EditorIcons.h"
+#include "EditorWorkspaceLayout.h"
 #include "ProjectSession.h"
 
 #include "Asset/AssetMetadata.h"
@@ -50,9 +51,7 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
     ImGui::SameLine();
     if (IconButton(m_Grid ? Icon::List : Icon::Grid, m_Grid ? "List" : "Grid"))
         m_Grid = !m_Grid;
-    const float footer = m_SelectedAsset.IsValid() ? ImGui::GetFrameHeightWithSpacing() * 3.0f
-                                                   : ImGui::GetTextLineHeightWithSpacing() +
-                                                         ImGui::GetStyle().ItemSpacing.y * 2;
+    const float footer = ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().ItemSpacing.y * 3 + 1;
     const float height = std::max(60.0f, ImGui::GetContentRegionAvail().y - footer);
     if (ImGui::BeginChild("AssetFolders", ImVec2{ImGui::GetFontSize() * 9, height},
                           ImGuiChildFlags_Borders))
@@ -74,9 +73,11 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
     const AssetType types[] = {
         AssetType::Texture,   AssetType::LuaScript, AssetType::ShaderSource, AssetType::Font,
         AssetType::AudioClip, AssetType::Prefab,    AssetType::AnimationClip};
-    const float tile = ImGui::GetFontSize() * 8;
+    const float tile = ImGui::GetFontSize() * 6;
     int column = 0;
-    const int columns = std::max(1, static_cast<int>(ImGui::GetContentRegionAvail().x / tile));
+    const float gap = ImGui::GetStyle().ItemSpacing.x;
+    const int columns =
+        std::max(1, static_cast<int>((ImGui::GetContentRegionAvail().x + gap) / (tile + gap)));
     for (const auto& asset : assets)
     {
         const std::string path = asset.relativePath.generic_string();
@@ -91,7 +92,31 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
         {
             if (column % columns)
                 ImGui::SameLine();
-            ImGui::BeginGroup();
+            const float font = ImGui::GetFontSize();
+            const ImVec2 origin = ImGui::GetCursorScreenPos();
+            const ImVec2 cardSize{std::min(tile, ImGui::GetContentRegionAvail().x),
+                                  tile + font + 12};
+            if (ImGui::InvisibleButton("##AssetCard", cardSize, ImGuiButtonFlags_EnableNav))
+                m_SelectedAsset = asset.handle;
+            if (!ImGui::IsItemVisible())
+            {
+                ++column;
+                ImGui::PopID();
+                continue;
+            }
+            const bool hovered = ImGui::IsItemHovered() || ImGui::IsItemFocused();
+            const bool selectedCard = asset.handle == m_SelectedAsset;
+            auto* draw = ImGui::GetWindowDrawList();
+            const ImVec2 end{origin.x + cardSize.x, origin.y + cardSize.y};
+            draw->AddRectFilled(origin, end,
+                                ImGui::GetColorU32(selectedCard ? ImGuiCol_Header
+                                                   : hovered    ? ImGuiCol_FrameBgHovered
+                                                                : ImGuiCol_ChildBg),
+                                4);
+            const float inset = font * .4f;
+            const float previewWidth = std::max(1.0f, cardSize.x - inset * 2);
+            const float previewHeight = tile - inset * 2;
+            const ImVec2 preview{origin.x + inset, origin.y + inset};
             bool previewDrawn = false;
             if (asset.type == AssetType::Texture && m_Context.renderer)
             {
@@ -100,43 +125,47 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
                 {
                     const auto handle =
                         m_Context.renderer->GetTexturePresentationHandle(texture.Value());
-                    if (handle)
+                    const auto dimensions = m_Context.renderer->GetTextureSize(texture.Value());
+                    if (handle && dimensions && dimensions.Value().width &&
+                        dimensions.Value().height)
                     {
-                        ImGui::Image(ImTextureRef{static_cast<ImTextureID>(handle.Value().value)},
-                                     ImVec2{tile - ImGui::GetStyle().ItemSpacing.x,
-                                            ImGui::GetFontSize() * 3});
-                        if (ImGui::IsItemClicked())
-                            m_SelectedAsset = asset.handle;
+                        const float cell = font * .5f;
+                        for (int y = 0; y * cell < previewHeight; ++y)
+                            for (int x = 0; x * cell < previewWidth; ++x)
+                                draw->AddRectFilled(
+                                    {preview.x + x * cell, preview.y + y * cell},
+                                    {preview.x + std::min((x + 1) * cell, previewWidth),
+                                     preview.y + std::min((y + 1) * cell, previewHeight)},
+                                    (x + y) % 2 ? IM_COL32(43, 48, 56, 255)
+                                                : IM_COL32(35, 40, 47, 255));
+                        const auto fit =
+                            FitAspectRatio(previewWidth, previewHeight,
+                                           static_cast<float>(dimensions.Value().width) /
+                                               dimensions.Value().height);
+                        draw->AddImage(
+                            ImTextureRef{static_cast<ImTextureID>(handle.Value().value)},
+                            {preview.x + fit.x, preview.y + fit.y},
+                            {preview.x + fit.x + fit.width, preview.y + fit.y + fit.height});
                         previewDrawn = true;
                     }
                 }
             }
             if (!previewDrawn)
             {
-                const ImVec2 origin = ImGui::GetCursorScreenPos();
-                const ImVec2 size{tile - ImGui::GetStyle().ItemSpacing.x, ImGui::GetFontSize() * 3};
-                ImGui::GetWindowDrawList()->AddRectFilled(
-                    origin, ImVec2{origin.x + size.x, origin.y + size.y}, IM_COL32(42, 51, 64, 255),
-                    4);
-                const float iconSize = ImGui::GetFontSize() * 2;
-                DrawIcon(
-                    AssetIcon(AssetTypeName(asset.type)),
-                    {origin.x + (size.x - iconSize) * 0.5f, origin.y + (size.y - iconSize) * 0.5f},
-                    iconSize);
-                ImGui::Dummy(size);
-                if (ImGui::IsItemClicked())
-                    m_SelectedAsset = asset.handle;
+                const float iconSize = font * 2.5f;
+                DrawIcon(AssetIcon(AssetTypeName(asset.type)),
+                         {preview.x + (previewWidth - iconSize) * 0.5f,
+                          preview.y + (previewHeight - iconSize) * 0.5f},
+                         iconSize);
             }
-            const auto type = AssetTypeName(asset.type);
-            const std::string label =
-                "[ " + std::string(type) + " ]\n" + asset.relativePath.stem().string();
-            if (ImGui::Selectable(
-                    label.c_str(), asset.handle == m_SelectedAsset, 0,
-                    ImVec2{tile - ImGui::GetStyle().ItemSpacing.x, ImGui::GetFontSize() * 3.5f}))
-                m_SelectedAsset = asset.handle;
-            if (ImGui::IsItemHovered())
-                ImGui::SetTooltip("%s", path.c_str());
-            ImGui::EndGroup();
+            DrawEllipsizedText(draw, {origin.x + inset, origin.y + tile}, previewWidth,
+                               ImGui::GetColorU32(ImGuiCol_Text),
+                               asset.relativePath.filename().string());
+            draw->AddRect(origin, end,
+                          ImGui::GetColorU32(selectedCard ? ImGuiCol_CheckMark : ImGuiCol_Border),
+                          4, 0, selectedCard ? 1.5f : 1.0f);
+            if (hovered)
+                ImGui::SetTooltip("%s\nType: %s", path.c_str(), AssetTypeName(asset.type).data());
             ++column;
         }
         else if (IconSelectable(AssetIcon(AssetTypeName(asset.type)), path.c_str(),
@@ -169,9 +198,15 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
     const std::string selectedHandle =
         selected->handle.ToString();
 
-    ImGui::TextUnformatted(selected->relativePath.filename().string().c_str());
+    const auto footerPos = ImGui::GetCursorScreenPos();
+    const float nameWidth = ImGui::GetContentRegionAvail().x * .28f;
+    ImGui::Dummy({nameWidth, ImGui::GetFrameHeight()});
+    DrawEllipsizedText(
+        ImGui::GetWindowDrawList(), {footerPos.x, footerPos.y + ImGui::GetStyle().FramePadding.y},
+        nameWidth, ImGui::GetColorU32(ImGuiCol_Text), selected->relativePath.filename().string());
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("%s\nUUID: %s", selectedPath.c_str(), selectedHandle.c_str());
+    ImGui::SameLine();
     if (selected->type == AssetType::Prefab)
     {
         std::optional<Error> error;
@@ -183,7 +218,8 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
                 error = created.GetError();
         }
         ImGui::EndDisabled();
-        ImGui::TextWrapped("Creates an independent subtree. Undo removes the whole instance.");
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+            ImGui::SetTooltip("Creates an independent subtree. Undo removes the whole instance.");
         return error;
     }
 
@@ -302,11 +338,6 @@ std::optional<Error> AssetBrowserPanel::DrawContents()
     }
 
     ImGui::EndDisabled();
-
-    if (playing)
-    {
-        ImGui::TextDisabled("Read-only in Play Mode.");
-    }
 
     return error;
 }

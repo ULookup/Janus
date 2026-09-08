@@ -16,7 +16,7 @@ ConsolePanel::ConsolePanel(
 
 void ConsolePanel::DrawContents()
 {
-    if (IconButton(Icon::Delete, "Clear"))
+    if (IconOnlyButton(Icon::Delete, "Clear console"))
     {
         m_Console.Clear();
     }
@@ -27,8 +27,8 @@ void ConsolePanel::DrawContents()
         &m_AutoScroll);
 
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(120.0f);
-    if (ImGui::Combo("Level", &m_LevelFilter, "All\0Info\0Warning\0Error\0"))
+    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 6);
+    if (ImGui::Combo("##Level", &m_LevelFilter, "All levels\0Info\0Warning\0Error\0"))
         m_Console.SetLevelFilter(m_LevelFilter == 0
                                      ? std::nullopt
                                      : std::optional<EditorConsoleLevel>(
@@ -44,30 +44,42 @@ void ConsolePanel::DrawContents()
     const auto& entries =
         m_Console.GetEntries();
 
+    if (entries.empty())
+        ImGui::TextDisabled("No messages at this level.");
+
+    int row = 0;
     for (const EditorConsoleEntry& entry : entries)
     {
-        const char* prefix = entry.level == EditorConsoleLevel::Error     ? "[Error]"
-                             : entry.level == EditorConsoleLevel::Warning ? "[Warning]"
-                                                                          : "[Info]";
-
         const ImVec4 color = entry.level == EditorConsoleLevel::Error ? ImVec4{1, .40f, .40f, 1}
                              : entry.level == EditorConsoleLevel::Warning
                                  ? ImVec4{1, .78f, .30f, 1}
                                  : ImGui::GetStyleColorVec4(ImGuiCol_Text);
         const float iconSize = ImGui::GetFontSize();
         const ImVec2 origin = ImGui::GetCursorScreenPos();
-        ImGui::Dummy({iconSize, iconSize});
+        const float width = ImGui::GetContentRegionAvail().x;
+        const float height = ImGui::GetFrameHeight();
+        auto* draw = ImGui::GetWindowDrawList();
+        if (row % 2 == 0)
+            draw->AddRectFilled(origin, {origin.x + width, origin.y + height},
+                                IM_COL32(255, 255, 255, 5));
+        ImGui::PushID(row++);
+        ImGui::Selectable("##Message", false, 0, {width, height});
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::BeginTooltip();
+            ImGui::PushTextWrapPos(ImGui::GetFontSize() * 40);
+            ImGui::TextUnformatted(entry.message.c_str());
+            ImGui::PopTextWrapPos();
+            ImGui::EndTooltip();
+        }
+        ImGui::PopID();
         DrawIcon(entry.level == EditorConsoleLevel::Error     ? Icon::Error
                  : entry.level == EditorConsoleLevel::Warning ? Icon::Warning
                                                               : Icon::Info,
-                 origin, iconSize);
-        ImGui::SameLine();
-        ImGui::PushStyleColor(ImGuiCol_Text, color);
-        ImGui::TextWrapped(
-            "%s %s",
-            prefix,
-            entry.message.c_str());
-        ImGui::PopStyleColor();
+                 {origin.x + 4, origin.y + (height - iconSize) * .5f}, iconSize);
+        const float inset = iconSize + ImGui::GetStyle().ItemSpacing.x + 4;
+        DrawEllipsizedText(draw, {origin.x + inset, origin.y + (height - iconSize) * .5f},
+                           width - inset, ImGui::GetColorU32(color), entry.message);
     }
 
     if (m_AutoScroll

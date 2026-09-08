@@ -37,7 +37,7 @@ int main(int argc, char** argv)
     Janus::ApplicationConfig config;
     config.vsync = settings.Value().vsync;
     config.targetFps = settings.Value().targetFps;
-    config.window.title = "Janus Editor";
+    config.window.title = launch.projectRoot.filename().string() + " - Janus Editor";
     config.window.width = 1440;
     config.window.height = 900;
     config.window.resizable = true;
