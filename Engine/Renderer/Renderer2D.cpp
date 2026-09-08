@@ -57,6 +57,7 @@ public:
     RendererStatistics statistics;
 
     std::unordered_map<u32, RenderTargetRecord> renderTargets;
+    std::unordered_map<u32, Viewport> textureSizes;
     u32 nextRenderTargetHandle = 1;
     RenderTargetHandle activeTarget;
     Color clearColor = Color::White();
@@ -274,12 +275,30 @@ const RendererStatistics& Renderer2D::GetStatistics() const noexcept
 Result<TextureHandle> Renderer2D::CreateTexture(
     const TextureDesc& desc)
 {
-    return m_Impl->devicePtr->CreateTexture(desc);
+    auto texture = m_Impl->devicePtr->CreateTexture(desc);
+    if (texture)
+        m_Impl->textureSizes[texture.Value().value] = {desc.width, desc.height};
+    return texture;
 }
 
 void Renderer2D::DestroyTexture(TextureHandle handle)
 {
+    m_Impl->textureSizes.erase(handle.value);
     m_Impl->devicePtr->DestroyTexture(handle);
+}
+
+Result<Viewport> Renderer2D::GetTextureSize(TextureHandle handle) const
+{
+    if (const auto found = m_Impl->textureSizes.find(handle.value);
+        found != m_Impl->textureSizes.end())
+        return Result<Viewport>::Success(found->second);
+    for (const auto& [id, target] : m_Impl->renderTargets)
+    {
+        (void)id;
+        if (target.colorTexture.value == handle.value)
+            return Result<Viewport>::Success(target.viewport);
+    }
+    return Result<Viewport>::Failure(ErrorCode::InvalidArgument, "Texture is not live.");
 }
 
 Result<RenderTargetHandle> Renderer2D::CreateRenderTarget(

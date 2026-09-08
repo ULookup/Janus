@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cctype>
 #include <cstdio>
 #include <string>
 #include <utility>
@@ -20,6 +21,20 @@ namespace Janus::Editor
 {
 namespace
 {
+
+std::string PropertyLabel(const PropertyDescriptor& property)
+{
+    std::string label;
+    for (const unsigned char c : property.name)
+    {
+        if (!label.empty() && std::isupper(c))
+            label += ' ';
+        label += label.empty() ? static_cast<char>(std::toupper(c)) : static_cast<char>(c);
+    }
+    if (property.id == MakePropertyId("Transform.rotation"))
+        label += " (rad)";
+    return label;
+}
 
 Error TypeMismatch(
     const PropertyDescriptor& property)
@@ -137,6 +152,11 @@ std::optional<Error> InspectorPanel::Draw()
 
     ImGui::BeginDisabled(readOnly);
 
+    const auto nameIconPos = ImGui::GetCursorScreenPos();
+    const float nameIconSize = ImGui::GetFrameHeight();
+    ImGui::Dummy({nameIconSize, nameIconSize});
+    DrawIcon(Icon::Entity, {nameIconPos.x + 2, nameIconPos.y + 2}, nameIconSize - 4);
+    ImGui::SameLine();
     ImGui::SetNextItemWidth(-1);
     const bool renameCommitted = ImGui::InputText(
         "##Name", m_NameBuffer.data(), m_NameBuffer.size(), ImGuiInputTextFlags_EnterReturnsTrue);
@@ -190,11 +210,24 @@ std::optional<Error> InspectorPanel::Draw()
         }
 
         ImGui::PushStyleColor(ImGuiCol_Header, ImVec4{0.16f, 0.19f, 0.23f, 1.0f});
+        ImGui::SetNextItemAllowOverlap();
         const bool open = IconHeader(ComponentIcon(component->name), component->name.c_str(),
                                      ImGuiTreeNodeFlags_DefaultOpen);
         ImGui::PopStyleColor();
+        const bool headerContext = ImGui::IsItemClicked(ImGuiMouseButton_Right);
+        if (component->removable)
+        {
+            const auto max = ImGui::GetItemRectMax();
+            const auto min = ImGui::GetItemRectMin();
+            const auto next = ImGui::GetCursorScreenPos();
+            ImGui::SetCursorScreenPos({max.x - ImGui::GetFrameHeight(), min.y});
+            const bool menuClicked = IconOnlyButton(Icon::Settings, "Component actions");
+            ImGui::SetCursorScreenPos(next);
+            if (headerContext || menuClicked)
+                ImGui::OpenPopup("ComponentActions");
+        }
         bool removedComponent = false;
-        if (component->removable && ImGui::BeginPopupContextItem("ComponentActions"))
+        if (component->removable && ImGui::BeginPopup("ComponentActions"))
         {
             if (ImGui::MenuItem("Remove Component"))
             {
@@ -277,9 +310,17 @@ std::optional<Error> InspectorPanel::DrawProperty(
     ImGui::PushID(descriptor->name.c_str());
     ImGui::BeginDisabled(!descriptor->editable);
     const float labelX = ImGui::GetCursorPosX();
-    const float labelWidth = ImGui::GetContentRegionAvail().x * 0.36f;
+    const float labelWidth = ImGui::GetContentRegionAvail().x * 0.34f;
     ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted(descriptor->name.c_str());
+    const auto displayLabel = PropertyLabel(*descriptor);
+    const auto labelPos = ImGui::GetCursorScreenPos();
+    ImGui::Dummy({labelWidth - ImGui::GetStyle().ItemSpacing.x, ImGui::GetFrameHeight()});
+    DrawEllipsizedText(ImGui::GetWindowDrawList(),
+                       {labelPos.x, labelPos.y + ImGui::GetStyle().FramePadding.y},
+                       labelWidth - ImGui::GetStyle().ItemSpacing.x,
+                       ImGui::GetColorU32(ImGuiCol_Text), displayLabel);
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("%s\nField: %s", displayLabel.c_str(), descriptor->name.c_str());
     ImGui::SameLine(labelX + labelWidth);
     ImGui::SetNextItemWidth(-1);
 
@@ -352,7 +393,7 @@ std::optional<Error> InspectorPanel::DrawProperty(
         const auto* current = registry.Find(AssetHandle{reference->id});
         const std::string label = current ? current->relativePath.filename().string()
                                           : (reference->id.IsValid() ? "Missing asset" : "None");
-        if (ImGui::BeginCombo("##Asset", label.c_str()))
+        if (ImGui::BeginCombo("##Asset", ("      " + label).c_str()))
         {
             if (ImGui::Selectable("None", !reference->id.IsValid()))
             {
@@ -375,6 +416,8 @@ std::optional<Error> InspectorPanel::DrawProperty(
             }
             ImGui::EndCombo();
         }
+        DrawItemIcon(current ? AssetIcon(AssetTypeName(current->type)) : Icon::Folder,
+                     ImGui::GetStyle().FramePadding.x);
         if (ImGui::IsItemHovered())
             ImGui::SetTooltip("%s\nUUID: %s",
                               current ? current->relativePath.generic_string().c_str()
@@ -468,6 +511,21 @@ std::optional<Error> InspectorPanel::DrawProperty(
                 value->y};
 
             changed = ImGui::DragFloat2("##Value", edited, 0.1f);
+            // Axis labels are a display overlay; the existing compound field keeps its commit
+            // semantics.
+            const auto min = ImGui::GetItemRectMin();
+            const auto max = ImGui::GetItemRectMax();
+            const float gap = ImGui::GetStyle().ItemInnerSpacing.x;
+            const float half = (max.x - min.x - gap) * .5f;
+            if (half > ImGui::GetFontSize() * 4 && !ImGui::IsItemActive())
+            {
+                auto* draw = ImGui::GetWindowDrawList();
+                const float y = min.y + ImGui::GetStyle().FramePadding.y;
+                draw->AddText({min.x + ImGui::GetStyle().FramePadding.x, y},
+                              IM_COL32(232, 125, 120, 255), "X");
+                draw->AddText({min.x + half + gap + ImGui::GetStyle().FramePadding.x, y},
+                              IM_COL32(130, 205, 152, 255), "Y");
+            }
             if (changed)
             {
                 *value =

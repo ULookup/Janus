@@ -27,9 +27,9 @@ struct EditorWorkspaceLayout
 
 struct EditorWorkspacePreferences
 {
-    f32 leftWidth = 250.0f;
-    f32 rightWidth = 340.0f;
-    f32 utilityHeight = 270.0f;
+    f32 leftWidth = 260.0f;
+    f32 rightWidth = 390.0f;
+    f32 utilityHeight = 300.0f;
 };
 
 [[nodiscard]] EditorWorkspaceLayout

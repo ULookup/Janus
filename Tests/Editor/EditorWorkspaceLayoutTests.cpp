@@ -117,6 +117,20 @@ TEST_CASE(
     }
 }
 
+TEST_CASE("Asset preview fitting preserves portrait and atlas proportions",
+          "[editor][workspace][preview]")
+{
+    for (const float ratio : {0.25f, 1.0f, 4.0f})
+    {
+        const auto fit = Janus::Editor::FitAspectRatio(96, 96, ratio);
+        REQUIRE(fit.width / fit.height == Catch::Approx(ratio));
+        REQUIRE(fit.x + fit.width <= 96);
+        REQUIRE(fit.y + fit.height <= 96);
+        REQUIRE(fit.x * 2 + fit.width == Catch::Approx(96));
+        REQUIRE(fit.y * 2 + fit.height == Catch::Approx(96));
+    }
+}
+
 TEST_CASE(
     "Aspect fitting preserves 16 by 9 without cropping",
     "[editor][workspace][game-view][v0.6]")
