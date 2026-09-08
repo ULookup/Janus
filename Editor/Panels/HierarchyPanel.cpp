@@ -12,6 +12,7 @@
 
 #include <imgui.h>
 
+#include <algorithm>
 #include <cfloat>
 #include <string>
 
@@ -184,11 +185,25 @@ std::optional<Error> HierarchyPanel::Draw()
     if (auto selected = m_Context.selection.GetSelectedUUID(); organize && selected.has_value())
     {
         ImGui::BeginDisabled(m_Context.project->IsAuthoringReadOnly());
+        if (ImGui::Button("Duplicate (Ctrl+D)"))
+        {
+            auto duplicated = m_Actions.DuplicateEntity(*selected);
+            if (!duplicated)
+                reparentError = duplicated.GetError();
+            else
+                ImGui::CloseCurrentPopup();
+        }
         if (IconButton(Icon::Prefab, "Export Prefab"))
         {
-            auto exported = m_Actions.ExportPrefab(*selected);
-            if (!exported)
-                reparentError = exported.GetError();
+            m_ExportEntity = *selected;
+            const auto& name =
+                scene.GetComponent<EntityIdentityComponent>(scene.FindEntity(*selected))->name;
+            m_PrefabName.fill(0);
+            std::copy_n(name.data(), std::min(name.size(), m_PrefabName.size() - 1),
+                        m_PrefabName.data());
+            m_ExportError.reset();
+            m_OpenExport = true;
+            ImGui::CloseCurrentPopup();
         }
         if (ImGui::IsItemHovered())
             ImGui::SetTooltip(
@@ -198,6 +213,39 @@ std::optional<Error> HierarchyPanel::Draw()
 
     if (organize)
         ImGui::EndPopup();
+    if (m_OpenExport)
+    {
+        ImGui::OpenPopup("Export Prefab");
+        m_OpenExport = false;
+    }
+    if (ImGui::BeginPopupModal("Export Prefab", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        ImGui::SetNextItemWidth(360 * ImGui::GetStyle().FontScaleDpi);
+        if (ImGui::InputText("Name", m_PrefabName.data(), m_PrefabName.size()))
+            m_ExportError.reset();
+        const std::string name(m_PrefabName.data());
+        auto valid = ProjectSession::ValidatePrefabName(name);
+        ImGui::TextUnformatted("Destination (UUID assigned on export):");
+        ImGui::TextWrapped("Prefabs/%s-<UUID>.prefab", name.c_str());
+        if (!valid)
+            ImGui::TextWrapped("%s", valid.GetError().message.c_str());
+        if (m_ExportError)
+            ImGui::TextWrapped("%s", m_ExportError->message.c_str());
+        ImGui::BeginDisabled(!valid || m_Context.project->IsAuthoringReadOnly());
+        if (ImGui::Button("Export"))
+        {
+            auto exported = m_Actions.ExportPrefab(m_ExportEntity, name);
+            if (!exported)
+                m_ExportError = exported.GetError();
+            else
+                ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel"))
+            ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
 
     ImGui::Separator();
 

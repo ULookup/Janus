@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Core/Error/Error.h"
+#include "Core/UUID/UUID.h"
 #include "ECS/Entity.h"
 
 #include <array>
@@ -34,6 +35,10 @@ private:
     EditorContext& m_Context;
     EditorActions& m_Actions;
     std::array<char, 128> m_Search{};
+    std::array<char, 256> m_PrefabName{};
+    UUID m_ExportEntity;
+    bool m_OpenExport = false;
+    std::optional<Error> m_ExportError;
 };
 
 } // namespace Editor

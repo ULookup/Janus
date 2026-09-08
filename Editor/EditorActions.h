@@ -8,6 +8,7 @@
 #include "Renderer/RendererTypes.h"
 
 #include <memory>
+#include <optional>
 #include <string>
 
 namespace Janus
@@ -20,6 +21,7 @@ namespace Editor
 {
 
 struct EditorContext;
+struct EditorAssetPayload;
 
 class EditorActions final
 {
@@ -27,7 +29,12 @@ public:
     explicit EditorActions(EditorContext& context) noexcept;
 
     [[nodiscard]] Result<UUID> CreateEntity(std::string name);
-    [[nodiscard]] Result<AssetHandle> ExportPrefab(UUID root);
+    [[nodiscard]] Result<AssetHandle> ExportPrefab(UUID root,
+                                                   std::optional<std::string> name = std::nullopt);
+    [[nodiscard]] Result<UUID> DuplicateEntity(UUID source);
+    [[nodiscard]] Result<void> AssignAssetPayload(UUID entity, ComponentTypeId component,
+                                                  PropertyId property,
+                                                  const EditorAssetPayload& payload);
     [[nodiscard]] Result<UUID> InstantiatePrefab(AssetHandle asset);
     [[nodiscard]] Result<void> ReparentEntity(UUID entity, UUID parent, usize siblingIndex = 0);
     [[nodiscard]] Result<void> DeleteEntity(UUID id);

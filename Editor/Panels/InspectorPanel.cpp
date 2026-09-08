@@ -1,4 +1,5 @@
 #include "Panels/InspectorPanel.h"
+#include "Core/FileSystem/FileSystem.h"
 
 #include "EditorActions.h"
 #include "EditorContext.h"
@@ -8,6 +9,7 @@
 #include "Scene/Components.h"
 #include "Scene/Scene.h"
 
+#include <cstring>
 #include <imgui.h>
 
 #include <algorithm>
@@ -390,10 +392,21 @@ std::optional<Error> InspectorPanel::DrawProperty(
 
         const auto& registry = m_Context.project->GetAssetRegistry();
         const auto* current = registry.Find(AssetHandle{reference->id});
-        const std::string label = current ? current->relativePath.filename().string()
+        const std::string label = current ? FileSystem::PathToUtf8(current->relativePath.filename())
                                           : (reference->id.IsValid() ? "Missing asset" : "None");
+        auto& search = m_AssetSearch[key];
+        ImGui::SetNextItemWidth(std::max(30.0f, ImGui::GetContentRegionAvail().x -
+                                                    ImGui::GetFrameHeight() -
+                                                    ImGui::GetStyle().ItemSpacing.x));
         if (ImGui::BeginCombo("##Asset", ("      " + label).c_str()))
         {
+            if (ImGui::IsWindowAppearing())
+            {
+                search.fill(0);
+                ImGui::SetKeyboardFocusHere();
+            }
+            ImGui::InputTextWithHint("##AssetSearch", "Search matching assets...", search.data(),
+                                     search.size());
             if (ImGui::Selectable("None", !reference->id.IsValid()))
             {
                 desired = AssetReferenceValue{};
@@ -404,8 +417,11 @@ std::optional<Error> InspectorPanel::DrawProperty(
                 if (!descriptor->referenceConstraint.empty() &&
                     AssetTypeName(asset.type) != descriptor->referenceConstraint)
                     continue;
+                if (search[0] && FileSystem::PathToUtf8(asset.relativePath).find(search.data()) ==
+                                     std::string::npos)
+                    continue;
                 ImGui::PushID(asset.handle.ToString().c_str());
-                if (ImGui::Selectable(asset.relativePath.generic_string().c_str(),
+                if (ImGui::Selectable(FileSystem::PathToUtf8(asset.relativePath).c_str(),
                                       asset.handle.id == reference->id))
                 {
                     desired = AssetReferenceValue{asset.handle.id};
@@ -419,9 +435,35 @@ std::optional<Error> InspectorPanel::DrawProperty(
                      ImGui::GetStyle().FramePadding.x);
         if (ImGui::IsItemHovered())
             ImGui::SetTooltip("%s\nUUID: %s",
-                              current ? current->relativePath.generic_string().c_str()
+                              current ? FileSystem::PathToUtf8(current->relativePath).c_str()
                                       : "Select a registered asset",
                               reference->id.ToString().c_str());
+        if (ImGui::BeginDragDropTarget())
+        {
+            if (const auto* accepted = ImGui::AcceptDragDropPayload(EditorAssetPayloadType))
+            {
+                if (accepted->DataSize == sizeof(EditorAssetPayload))
+                {
+                    EditorAssetPayload payload;
+                    std::memcpy(&payload, accepted->Data, sizeof(payload));
+                    auto assigned =
+                        m_Actions.AssignAssetPayload(entity, component, descriptor->id, payload);
+                    if (!assigned)
+                    {
+                        ImGui::EndDragDropTarget();
+                        ImGui::EndDisabled();
+                        ImGui::PopID();
+                        return assigned.GetError();
+                    }
+                }
+            }
+            ImGui::EndDragDropTarget();
+        }
+        ImGui::SameLine();
+        ImGui::BeginDisabled(current == nullptr);
+        if (IconOnlyButton(Icon::Folder, "Locate asset"))
+            m_Context.locateAsset = reference->id;
+        ImGui::EndDisabled();
     }
     else
     {

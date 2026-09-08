@@ -23,6 +23,7 @@ CLIENT_CAPABILITIES_KEY = "io.modelcontextprotocol/clientCapabilities"
 EXPECTED_TOOLS = {
     "assets.search",
     "scene.create_entity",
+    "scene.duplicate_entity",
     "scene.delete_entity",
     "scene.rename_entity",
     "scene.reparent_entity",
