@@ -332,6 +332,18 @@ int EntityAnimationState(lua_State* state)
     return 3;
 }
 
+int EntitySetButtonInteractable(lua_State* state)
+{
+    auto* context = GetBindingContext(state);
+    const auto entity = ResolveEntity(state, *context, *CheckEntityRef(state));
+    auto* button = context->scene->GetComponent<ButtonComponent>(entity);
+    if (!button)
+        return luaL_error(state, "Janus Entity is missing ButtonComponent.");
+    luaL_checktype(state, 2, LUA_TBOOLEAN);
+    button->interactable = lua_toboolean(state, 2) != 0;
+    return 0;
+}
+
 int EntitySetText(lua_State* state)
 {
     auto* context = GetBindingContext(state);
@@ -740,6 +752,7 @@ void RegisterEntityBinding(lua_State* state)
             {"get_position", EntityGetPosition},
             {"get_text", EntityGetText},
             {"set_text", EntitySetText},
+            {"set_button_interactable", EntitySetButtonInteractable},
             {"set_position", EntitySetPosition},
             {"set_velocity", EntityPhysicsControl<PhysicsOperation::Velocity>},
             {"apply_impulse", EntityPhysicsControl<PhysicsOperation::Impulse>},

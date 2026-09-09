@@ -2,10 +2,12 @@
 
 #include "Application/ApplicationClient.h"
 #include "Core/Input/InputState.h"
+#include "EditorPreferences.h"
 #include "EditorTransformDrag.h"
 #include "EditorWorkspaceLayout.h"
 #include "Renderer/RendererTypes.h"
 
+#include <chrono>
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -56,6 +58,9 @@ private:
     void FrameScene(bool selectedOnly);
     void DrawCloseConfirmation(Application& application);
     bool DrawSceneInteraction(Vector2 origin, Vector2 size, bool hovered);
+    void LoadPreferences();
+    void UpdatePreferences(bool flush = false);
+    void SetEditorLanguage(EditorLanguage language);
 
     std::filesystem::path m_ProjectRoot;
     bool m_McpStdio = false;
@@ -91,6 +96,7 @@ private:
 
     bool m_SelectSceneViewTab = false;
     bool m_SelectGameViewTab = false;
+    bool m_SelectConsoleTab = false;
     bool m_ShowProjectSettings = false;
     bool m_ShowAbout = false;
     bool m_ShowGrid = true;
@@ -102,6 +108,17 @@ private:
     float m_UiScale = 1.0f;
     float m_UserScale = 1.0f;
     EditorWorkspacePreferences m_WorkspacePreferences;
+    EditorPreferences m_Preferences;
+    std::filesystem::path m_PreferencesPath;
+    std::filesystem::path m_PreferencesProjectKey;
+    std::string m_PreferencesSnapshot;
+    std::string m_PreferencesError;
+    std::chrono::steady_clock::time_point m_PreferencesChanged;
+    bool m_PreferencesPending = false;
+    bool m_PreferencesSaveFailed = false;
+    bool m_RestoreWorkspaceSize = true;
+    Vector2 m_WorkspaceLogicalSize;
+    bool m_ChineseFontAvailable = false;
 
     bool m_ImGuiContextCreated = false;
     bool m_ImGuiPlatformInitialized = false;

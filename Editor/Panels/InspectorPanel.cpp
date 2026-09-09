@@ -4,6 +4,7 @@
 #include "EditorActions.h"
 #include "EditorContext.h"
 #include "EditorIcons.h"
+#include "EditorLocale.h"
 #include "ProjectSession.h"
 
 #include "Scene/Components.h"
@@ -13,8 +14,8 @@
 #include <imgui.h>
 
 #include <algorithm>
-#include <cstddef>
 #include <cctype>
+#include <cstddef>
 #include <cstdio>
 #include <string>
 #include <utility>
@@ -38,45 +39,57 @@ std::string PropertyLabel(const PropertyDescriptor& property)
     return label;
 }
 
-Error TypeMismatch(
-    const PropertyDescriptor& property)
+Error TypeMismatch(const PropertyDescriptor& property)
 {
-    return Error{
-        ErrorCode::InvalidState,
-        "Inspector reflected value does not match property type for '"
-            + property.name
-            + "'."};
+    return Error{ErrorCode::InvalidState,
+                 "Inspector reflected value does not match property type for '" + property.name +
+                     "'."};
 }
+
+class ScalarDraftInputScope final
+{
+  public:
+    ScalarDraftInputScope()
+    {
+        ImGui::PushItemFlag(ImGuiItemFlags_LiveEditOnInputScalar, true);
+    }
+    ~ScalarDraftInputScope()
+    {
+        Release();
+    }
+    void Release()
+    {
+        if (m_Active)
+            ImGui::PopItemFlag();
+        m_Active = false;
+    }
+
+  private:
+    bool m_Active = true;
+};
 
 template <std::size_t Size>
 void CopyStringToBuffer(std::string_view value, std::array<char, Size>& buffer)
 {
     buffer.fill('\0');
 
-    const std::size_t count =
-        std::min(
-            value.size(),
-            buffer.size() - 1);
+    const std::size_t count = std::min(value.size(), buffer.size() - 1);
 
-    std::copy_n(
-        value.data(),
-        count,
-        buffer.data());
+    std::copy_n(value.data(), count, buffer.data());
 }
 
 } // namespace
 
-InspectorPanel::InspectorPanel(
-    EditorContext& context,
-    EditorActions& actions) noexcept
-    : m_Context(context),
-      m_Actions(actions)
+InspectorPanel::InspectorPanel(EditorContext& context, EditorActions& actions) noexcept
+    : m_Context(context), m_Actions(actions)
 {
 }
 
 std::optional<Error> InspectorPanel::Draw()
 {
-    const bool visible = ImGui::Begin("      Inspector###Inspector", nullptr,
+    m_OwnsKeyboardInput = false;
+    const std::string title = "      " + EditorLabel(m_Context.language, "Inspector");
+    const bool visible = ImGui::Begin(title.c_str(), nullptr,
                                       ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
                                           ImGuiWindowFlags_NoCollapse);
 
@@ -90,49 +103,78 @@ std::optional<Error> InspectorPanel::Draw()
 
     if (m_Context.project == nullptr)
     {
-        ImGui::TextUnformatted("No project open.");
+        ImGui::TextUnformatted(EditorText(m_Context.language, "No project open."));
         ImGui::End();
         return std::nullopt;
     }
 
-    Scene& scene =
-        m_Context.project->GetEditorScene();
+    Scene& scene = m_Context.project->GetEditorScene();
 
-    if (!m_Context.selection.Validate(scene)
-        || !m_Context.selection.GetSelectedUUID().has_value())
+    // Keep a failed draft reachable even if selection changed or the edited entity was deleted.
+    const auto pendingError =
+        m_NameDraft.GetError() ? m_NameDraft.GetError() : m_PropertyDraft.GetError();
+    if (pendingError)
     {
-        ImGui::TextUnformatted("No entity selected.");
+        ImGui::TextWrapped("%s", pendingError->message.c_str());
+        if (ImGui::Button(EditorLabel(m_Context.language, "Retry field draft").c_str()))
+        {
+            const auto retried = CommitPendingEdit();
+            if (!retried)
+                return ImGui::End(), std::optional<Error>{retried.GetError()};
+        }
+        ImGui::SameLine();
+        if (ImGui::Button(EditorLabel(m_Context.language, "Discard field draft").c_str()))
+            DiscardPendingEdit();
+        ImGui::Separator();
+    }
+
+    if (!m_Context.selection.Validate(scene) || !m_Context.selection.GetSelectedUUID().has_value())
+    {
+        if (m_NameDraft.IsEdited() || m_PropertyDraft.IsEdited())
+        {
+            if (m_NameDraft.GetError() || m_PropertyDraft.GetError())
+            {
+                ImGui::End();
+                return std::nullopt;
+            }
+            const auto pending = CommitPendingEdit();
+            if (!pending)
+                return ImGui::End(), std::optional<Error>{pending.GetError()};
+        }
+        ImGui::TextUnformatted(EditorText(m_Context.language, "No entity selected."));
         ImGui::End();
         return std::nullopt;
     }
 
-    const UUID id =
-        *m_Context.selection.GetSelectedUUID();
-    const ECS::Entity entity =
-        scene.FindEntity(id);
+    const UUID id = *m_Context.selection.GetSelectedUUID();
+    if ((m_NameDraft.IsEdited() && m_NameDraft.GetEntity() != id) ||
+        (m_PropertyDraft.IsEdited() && m_PropertyDraft.GetEntity() != id))
+    {
+        if (m_NameDraft.GetError() || m_PropertyDraft.GetError())
+        {
+            ImGui::End();
+            return std::nullopt;
+        }
+        const auto pending = CommitPendingEdit();
+        if (!pending)
+            return ImGui::End(), std::optional<Error>{pending.GetError()};
+    }
+    const ECS::Entity entity = scene.FindEntity(id);
 
-    const auto* identity =
-        scene.GetComponent<EntityIdentityComponent>(
-            entity);
+    const auto* identity = scene.GetComponent<EntityIdentityComponent>(entity);
     if (identity == nullptr)
     {
         m_Context.selection.Clear();
-        ImGui::TextUnformatted(
-            "Selected entity is missing persistent identity.");
+        ImGui::TextUnformatted("Selected entity is missing persistent identity.");
         ImGui::End();
         return std::nullopt;
     }
 
-    auto model = BuildInspectorModel(
-        scene,
-        id,
-        m_Context.project->GetReflectionRegistry());
+    auto model = BuildInspectorModel(scene, id, m_Context.project->GetReflectionRegistry());
     if (!model)
     {
         const Error error = model.GetError();
-        ImGui::TextWrapped(
-            "Inspector unavailable: %s",
-            error.message.c_str());
+        ImGui::TextWrapped("Inspector unavailable: %s", error.message.c_str());
         ImGui::End();
         return error;
     }
@@ -141,13 +183,12 @@ std::optional<Error> InspectorPanel::Draw()
 
     if (readOnly)
     {
-        ImGui::TextDisabled("Authoring is currently read-only.");
+        ImGui::TextDisabled("%s",
+                            EditorText(m_Context.language, "Authoring is currently read-only."));
         ImGui::Separator();
     }
 
-    SyncNameBuffer(
-        id,
-        identity->name.c_str());
+    SyncNameBuffer(id, identity->name.c_str());
     SyncPropertyBuffers(id);
 
     std::optional<Error> error;
@@ -160,15 +201,42 @@ std::optional<Error> InspectorPanel::Draw()
     DrawIcon(Icon::Entity, {nameIconPos.x + 2, nameIconPos.y + 2}, nameIconSize - 4);
     ImGui::SameLine();
     ImGui::SetNextItemWidth(-1);
-    const bool renameCommitted = ImGui::InputText(
-        "##Name", m_NameBuffer.data(), m_NameBuffer.size(), ImGuiInputTextFlags_EnterReturnsTrue);
+    const bool nameWasActive = m_NameEditing;
+    ImGui::BeginDisabled(m_PropertyDraft.GetError().has_value());
+    const std::string nameInputId = "##Name" + std::to_string(m_InputGeneration);
+    const bool renameCommitted =
+        ImGui::InputText(nameInputId.c_str(), m_NameBuffer.data(), m_NameBuffer.size(),
+                         ImGuiInputTextFlags_EnterReturnsTrue);
 
     m_NameEditing = ImGui::IsItemActive();
-    m_NameEdited = m_NameEdited || ImGui::IsItemEdited();
-
-    if (!readOnly && (renameCommitted || ImGui::IsItemDeactivatedAfterEdit()))
+    m_OwnsKeyboardInput |= m_NameEditing || ImGui::IsItemDeactivated() || nameWasActive;
+    if (ImGui::IsItemActivated() || (m_NameEditing && !m_NameDraft.MatchesName(id)))
     {
-        const auto renamed = m_Actions.RenameEntity(id, std::string{m_NameBuffer.data()});
+        auto begun = m_PropertyDraft.Commit(*m_Context.project, m_Actions);
+        if (begun)
+        {
+            m_PropertyEdited = false;
+            m_ActiveProperty.reset();
+            begun = m_NameDraft.BeginName(*m_Context.project, id, identity->name);
+        }
+        if (!begun)
+            error = begun.GetError();
+    }
+    m_NameEdited = m_NameEdited || ImGui::IsItemEdited();
+    if (ImGui::IsItemEdited())
+        m_NameDraft.SetValue(std::string{m_NameBuffer.data()});
+
+    if ((nameWasActive || m_NameEditing) && ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+    {
+        m_NameDraft.Cancel();
+        m_NameEdited = false;
+        m_NameEditing = false;
+        ++m_InputGeneration;
+        CopyStringToBuffer(identity->name, m_NameBuffer);
+    }
+    else if (!readOnly && (renameCommitted || ImGui::IsItemDeactivatedAfterEdit()))
+    {
+        const auto renamed = m_NameDraft.Commit(*m_Context.project, m_Actions);
         if (!renamed)
         {
             error = renamed.GetError();
@@ -176,6 +244,7 @@ std::optional<Error> InspectorPanel::Draw()
         else
             m_NameEdited = false;
     }
+    ImGui::EndDisabled();
 
     ImGui::Separator();
 
@@ -193,11 +262,9 @@ std::optional<Error> InspectorPanel::Draw()
                          return rank(left.descriptor) < rank(right.descriptor);
                      });
 
-    for (const InspectorComponentModel& componentModel :
-         model.Value())
+    for (const InspectorComponentModel& componentModel : model.Value())
     {
-        const ComponentDescriptor* component =
-            componentModel.descriptor;
+        const ComponentDescriptor* component = componentModel.descriptor;
         if (component == nullptr)
         {
             continue;
@@ -213,8 +280,25 @@ std::optional<Error> InspectorPanel::Draw()
 
         ImGui::PushStyleColor(ImGuiCol_Header, ImVec4{0.16f, 0.19f, 0.23f, 1.0f});
         ImGui::SetNextItemAllowOverlap();
-        const bool open = IconHeader(ComponentIcon(component->name), component->name.c_str(),
-                                     ImGuiTreeNodeFlags_DefaultOpen);
+        if (m_Context.panelExpanded)
+        {
+            const auto saved = m_Context.panelExpanded->find(component->name);
+            if (saved != m_Context.panelExpanded->end())
+                ImGui::SetNextItemOpen(saved->second);
+        }
+        const bool open =
+            IconHeader(ComponentIcon(component->name),
+                       EditorLabel(m_Context.language, component->name.c_str()).c_str(),
+                       ImGuiTreeNodeFlags_DefaultOpen);
+        if (!open && ImGui::IsItemToggledOpen() && m_PropertyDraft.IsActive() &&
+            m_ActiveComponent == component->id)
+        {
+            const auto settled = CommitPendingEdit();
+            if (!settled)
+                error = settled.GetError();
+        }
+        if (m_Context.panelExpanded)
+            (*m_Context.panelExpanded)[component->name] = open;
         ImGui::PopStyleColor();
         const bool headerContext = ImGui::IsItemClicked(ImGuiMouseButton_Right);
         if (component->removable)
@@ -223,7 +307,8 @@ std::optional<Error> InspectorPanel::Draw()
             const auto min = ImGui::GetItemRectMin();
             const auto next = ImGui::GetCursorScreenPos();
             ImGui::SetCursorScreenPos({max.x - ImGui::GetFrameHeight(), min.y});
-            const bool menuClicked = IconOnlyButton(Icon::Settings, "Component actions");
+            const bool menuClicked = IconOnlyButton(
+                Icon::Settings, EditorLabel(m_Context.language, "Component actions").c_str());
             ImGui::SetCursorScreenPos(next);
             if (headerContext || menuClicked)
                 ImGui::OpenPopup("ComponentActions");
@@ -231,9 +316,11 @@ std::optional<Error> InspectorPanel::Draw()
         bool removedComponent = false;
         if (component->removable && ImGui::BeginPopup("ComponentActions"))
         {
-            if (ImGui::MenuItem("Remove Component"))
+            if (ImGui::MenuItem(EditorLabel(m_Context.language, "Remove Component").c_str()))
             {
-                const auto removed = m_Actions.RemoveComponent(id, component->id);
+                auto removed = CommitPendingEdit();
+                if (removed)
+                    removed = m_Actions.RemoveComponent(id, component->id);
                 if (!removed)
                     error = removed.GetError();
                 else
@@ -244,21 +331,15 @@ std::optional<Error> InspectorPanel::Draw()
 
         if (open && !removedComponent)
         {
-            for (const InspectorPropertyModel& property :
-                 componentModel.properties)
+            for (const InspectorPropertyModel& property : componentModel.properties)
             {
-                const auto propertyError =
-                    DrawProperty(
-                        id,
-                        component->id,
-                        property);
+                const auto propertyError = DrawProperty(id, component->id, property);
                 if (propertyError.has_value())
                 {
                     error = propertyError;
                     break;
                 }
             }
-
         }
 
         ImGui::PopID();
@@ -270,16 +351,20 @@ std::optional<Error> InspectorPanel::Draw()
     }
 
     ImGui::Spacing();
-    if (IconButton(Icon::Add, "Add Component", ImVec2{-1, 0}))
+    if (IconButton(Icon::Add, EditorLabel(m_Context.language, "Add Component").c_str(),
+                   ImVec2{-1, 0}))
         ImGui::OpenPopup("AddComponent");
     if (ImGui::BeginPopup("AddComponent"))
     {
         for (const auto& candidate : model.Value())
         {
             if (!candidate.present && candidate.descriptor && candidate.descriptor->removable &&
-                ImGui::Selectable(candidate.descriptor->name.c_str()))
+                ImGui::Selectable(
+                    EditorLabel(m_Context.language, candidate.descriptor->name.c_str()).c_str()))
             {
-                const auto added = m_Actions.AddComponent(id, candidate.descriptor->id);
+                auto added = CommitPendingEdit();
+                if (added)
+                    added = m_Actions.AddComponent(id, candidate.descriptor->id);
                 if (!added)
                     error = added.GetError();
             }
@@ -293,28 +378,29 @@ std::optional<Error> InspectorPanel::Draw()
     return error;
 }
 
-std::optional<Error> InspectorPanel::DrawProperty(
-    UUID entity,
-    ComponentTypeId component,
-    const InspectorPropertyModel& propertyModel)
+std::optional<Error> InspectorPanel::DrawProperty(UUID entity, ComponentTypeId component,
+                                                  const InspectorPropertyModel& propertyModel)
 {
-    const PropertyDescriptor* descriptor =
-        propertyModel.descriptor;
+    const PropertyDescriptor* descriptor = propertyModel.descriptor;
     if (descriptor == nullptr)
     {
-        return Error{
-            ErrorCode::InvalidState,
-            "Inspector property metadata is missing."};
+        return Error{ErrorCode::InvalidState, "Inspector property metadata is missing."};
     }
 
     const u64 key = descriptor->id.value;
+    const std::string valueInputId = "##Value" + std::to_string(m_InputGeneration);
 
     ImGui::PushID(descriptor->name.c_str());
-    ImGui::BeginDisabled(!descriptor->editable);
+    const bool blockedByDraft =
+        m_NameDraft.GetError().has_value() ||
+        (m_PropertyDraft.GetError().has_value() &&
+         !m_PropertyDraft.MatchesProperty(entity, component, descriptor->id));
+    ImGui::BeginDisabled(!descriptor->editable || blockedByDraft);
     const float labelX = ImGui::GetCursorPosX();
     const float labelWidth = ImGui::GetContentRegionAvail().x * 0.34f;
     ImGui::AlignTextToFramePadding();
-    const auto displayLabel = PropertyLabel(*descriptor);
+    const auto originalLabel = PropertyLabel(*descriptor);
+    const std::string displayLabel = EditorText(m_Context.language, originalLabel.c_str());
     const auto labelPos = ImGui::GetCursorScreenPos();
     ImGui::Dummy({labelWidth - ImGui::GetStyle().ItemSpacing.x, ImGui::GetFrameHeight()});
     DrawEllipsizedText(ImGui::GetWindowDrawList(),
@@ -332,9 +418,7 @@ std::optional<Error> InspectorPanel::DrawProperty(
 
     if (descriptor->type == PropertyType::String)
     {
-        const auto* current =
-            std::get_if<std::string>(
-                &propertyModel.value);
+        const auto* current = std::get_if<std::string>(&propertyModel.value);
         if (current == nullptr)
         {
             ImGui::EndDisabled();
@@ -342,47 +426,28 @@ std::optional<Error> InspectorPanel::DrawProperty(
             return TypeMismatch(*descriptor);
         }
 
-        auto& buffer =
-            m_StringBuffers[key];
+        auto& buffer = m_StringBuffers[key];
 
         if (m_ActiveProperty != key)
         {
-            CopyStringToBuffer(
-                *current,
-                buffer);
+            CopyStringToBuffer(*current, buffer);
         }
 
         if (descriptor->id == MakePropertyId("Text.content"))
-            changed = ImGui::InputTextMultiline("##Value", buffer.data(), buffer.size(),
-                                                ImVec2(0, ImGui::GetTextLineHeight() * 5));
+            commit = ImGui::InputTextMultiline(valueInputId.c_str(), buffer.data(), buffer.size(),
+                                               ImVec2(0, ImGui::GetTextLineHeight() * 5),
+                                               ImGuiInputTextFlags_EnterReturnsTrue |
+                                                   ImGuiInputTextFlags_CtrlEnterForNewLine);
         else
-            changed = ImGui::InputText("##Value", buffer.data(), buffer.size());
+            commit = ImGui::InputText(valueInputId.c_str(), buffer.data(), buffer.size(),
+                                      ImGuiInputTextFlags_EnterReturnsTrue);
+        changed = ImGui::IsItemEdited();
 
-        if (ImGui::IsItemActivated())
-        {
-            m_ActiveProperty = key;
-            m_ActiveComponent = component;
-        }
-
-        commit =
-            ImGui::IsItemDeactivatedAfterEdit();
-
-        if (ImGui::IsItemDeactivated() && !commit && m_ActiveProperty == key && !m_PropertyEdited)
-        {
-            m_ActiveProperty.reset();
-            m_StringBuffers.erase(key);
-        }
-
-        desired =
-            PropertyValue{
-                std::string{buffer.data()}};
+        desired = PropertyValue{std::string{buffer.data()}};
     }
-    else if (descriptor->type
-             == PropertyType::AssetReference)
+    else if (descriptor->type == PropertyType::AssetReference)
     {
-        const auto* reference =
-            std::get_if<AssetReferenceValue>(
-                &propertyModel.value);
+        const auto* reference = std::get_if<AssetReferenceValue>(&propertyModel.value);
         if (reference == nullptr)
         {
             ImGui::EndDisabled();
@@ -392,8 +457,10 @@ std::optional<Error> InspectorPanel::DrawProperty(
 
         const auto& registry = m_Context.project->GetAssetRegistry();
         const auto* current = registry.Find(AssetHandle{reference->id});
-        const std::string label = current ? FileSystem::PathToUtf8(current->relativePath.filename())
-                                          : (reference->id.IsValid() ? "Missing asset" : "None");
+        const std::string label =
+            current ? FileSystem::PathToUtf8(current->relativePath.filename())
+                    : EditorText(m_Context.language,
+                                 reference->id.IsValid() ? "Missing asset" : "None");
         auto& search = m_AssetSearch[key];
         ImGui::SetNextItemWidth(std::max(30.0f, ImGui::GetContentRegionAvail().x -
                                                     ImGui::GetFrameHeight() -
@@ -405,9 +472,12 @@ std::optional<Error> InspectorPanel::DrawProperty(
                 search.fill(0);
                 ImGui::SetKeyboardFocusHere();
             }
-            ImGui::InputTextWithHint("##AssetSearch", "Search matching assets...", search.data(),
-                                     search.size());
-            if (ImGui::Selectable("None", !reference->id.IsValid()))
+            ImGui::InputTextWithHint("##AssetSearch",
+                                     EditorText(m_Context.language, "Search matching assets..."),
+                                     search.data(), search.size());
+            m_OwnsKeyboardInput |= ImGui::IsItemActive() || ImGui::IsItemDeactivated();
+            if (ImGui::Selectable(EditorLabel(m_Context.language, "None").c_str(),
+                                  !reference->id.IsValid()))
             {
                 desired = AssetReferenceValue{};
                 commit = true;
@@ -436,7 +506,7 @@ std::optional<Error> InspectorPanel::DrawProperty(
         if (ImGui::IsItemHovered())
             ImGui::SetTooltip("%s\nUUID: %s",
                               current ? FileSystem::PathToUtf8(current->relativePath).c_str()
-                                      : "Select a registered asset",
+                                      : EditorText(m_Context.language, "Select a registered asset"),
                               reference->id.ToString().c_str());
         if (ImGui::BeginDragDropTarget())
         {
@@ -446,8 +516,10 @@ std::optional<Error> InspectorPanel::DrawProperty(
                 {
                     EditorAssetPayload payload;
                     std::memcpy(&payload, accepted->Data, sizeof(payload));
-                    auto assigned =
-                        m_Actions.AssignAssetPayload(entity, component, descriptor->id, payload);
+                    auto assigned = CommitPendingEdit();
+                    if (assigned)
+                        assigned = m_Actions.AssignAssetPayload(entity, component, descriptor->id,
+                                                                payload);
                     if (!assigned)
                     {
                         ImGui::EndDragDropTarget();
@@ -461,27 +533,24 @@ std::optional<Error> InspectorPanel::DrawProperty(
         }
         ImGui::SameLine();
         ImGui::BeginDisabled(current == nullptr);
-        if (IconOnlyButton(Icon::Folder, "Locate asset"))
+        if (IconOnlyButton(Icon::Folder, EditorLabel(m_Context.language, "Locate asset").c_str()))
             m_Context.locateAsset = reference->id;
         ImGui::EndDisabled();
     }
     else
     {
-        auto [bufferIt, inserted] =
-            m_PropertyBuffers.try_emplace(
-                key,
-                propertyModel.value);
+        auto [bufferIt, inserted] = m_PropertyBuffers.try_emplace(key, propertyModel.value);
 
-        if (!inserted
-            && m_ActiveProperty != key)
+        if (!inserted && m_ActiveProperty != key)
         {
-            bufferIt->second =
-                propertyModel.value;
+            bufferIt->second = propertyModel.value;
         }
 
-        PropertyValue& buffer =
-            bufferIt->second;
+        PropertyValue& buffer = bufferIt->second;
 
+        // ImGui 1.92.9 defers typed scalar values by default. Our backing values are UI drafts:
+        // keep them current so a native close request can settle the last typed value.
+        ScalarDraftInputScope scalarDraftInput;
         switch (descriptor->type)
         {
         case PropertyType::Bool:
@@ -490,12 +559,13 @@ std::optional<Error> InspectorPanel::DrawProperty(
                 std::get_if<bool>(&buffer);
             if (value == nullptr)
             {
+                scalarDraftInput.Release();
                 ImGui::EndDisabled();
                 ImGui::PopID();
                 return TypeMismatch(*descriptor);
             }
 
-            changed = ImGui::Checkbox("##Value", value);
+            changed = ImGui::Checkbox(valueInputId.c_str(), value);
             break;
         }
 
@@ -505,6 +575,7 @@ std::optional<Error> InspectorPanel::DrawProperty(
                 std::get_if<i32>(&buffer);
             if (value == nullptr)
             {
+                scalarDraftInput.Release();
                 ImGui::EndDisabled();
                 ImGui::PopID();
                 return TypeMismatch(*descriptor);
@@ -512,7 +583,7 @@ std::optional<Error> InspectorPanel::DrawProperty(
 
             int edited =
                 static_cast<int>(*value);
-            changed = ImGui::InputInt("##Value", &edited);
+            changed = ImGui::InputInt(valueInputId.c_str(), &edited);
             if (changed)
             {
                 *value =
@@ -527,12 +598,13 @@ std::optional<Error> InspectorPanel::DrawProperty(
                 std::get_if<f32>(&buffer);
             if (value == nullptr)
             {
+                scalarDraftInput.Release();
                 ImGui::EndDisabled();
                 ImGui::PopID();
                 return TypeMismatch(*descriptor);
             }
 
-            changed = ImGui::DragFloat("##Value", value, 0.05f);
+            changed = ImGui::DragFloat(valueInputId.c_str(), value, 0.05f);
             break;
         }
 
@@ -542,6 +614,7 @@ std::optional<Error> InspectorPanel::DrawProperty(
                 std::get_if<Vector2>(&buffer);
             if (value == nullptr)
             {
+                scalarDraftInput.Release();
                 ImGui::EndDisabled();
                 ImGui::PopID();
                 return TypeMismatch(*descriptor);
@@ -551,7 +624,7 @@ std::optional<Error> InspectorPanel::DrawProperty(
                 value->x,
                 value->y};
 
-            changed = ImGui::DragFloat2("##Value", edited, 0.1f);
+            changed = ImGui::DragFloat2(valueInputId.c_str(), edited, 0.1f);
             // Axis labels are a display overlay; the existing compound field keeps its commit
             // semantics.
             const auto min = ImGui::GetItemRectMin();
@@ -583,6 +656,7 @@ std::optional<Error> InspectorPanel::DrawProperty(
                 std::get_if<ColorValue>(&buffer);
             if (value == nullptr)
             {
+                scalarDraftInput.Release();
                 ImGui::EndDisabled();
                 ImGui::PopID();
                 return TypeMismatch(*descriptor);
@@ -594,7 +668,7 @@ std::optional<Error> InspectorPanel::DrawProperty(
                 value->b,
                 value->a};
 
-            changed = ImGui::ColorEdit4("##Value", edited);
+            changed = ImGui::ColorEdit4(valueInputId.c_str(), edited);
             if (changed)
             {
                 *value =
@@ -617,26 +691,9 @@ std::optional<Error> InspectorPanel::DrawProperty(
             break;
         }
 
-        if (ImGui::IsItemActivated())
-        {
-            m_ActiveProperty = key;
-            m_ActiveComponent = component;
-        }
-
-        commit =
-            ImGui::IsItemDeactivatedAfterEdit();
-
-        if (descriptor->type == PropertyType::Bool
-            && changed
-            && !ImGui::IsItemActive())
+        if (descriptor->type == PropertyType::Bool && changed && !ImGui::IsItemActive())
         {
             commit = true;
-        }
-
-        if (ImGui::IsItemDeactivated() && !commit && m_ActiveProperty == key && !m_PropertyEdited)
-        {
-            m_ActiveProperty.reset();
-            m_PropertyBuffers.erase(key);
         }
 
         desired = buffer;
@@ -644,27 +701,84 @@ std::optional<Error> InspectorPanel::DrawProperty(
 
     ImGui::EndDisabled();
 
-    if (changed)
+    const bool isAsset = descriptor->type == PropertyType::AssetReference;
+    const bool itemActive = !isAsset && ImGui::IsItemActive();
+    const bool itemDeactivated = !isAsset && ImGui::IsItemDeactivated();
+    m_OwnsKeyboardInput |= itemActive || itemDeactivated;
+    const bool escaped = !isAsset && m_ActiveProperty == key && (itemActive || itemDeactivated) &&
+                         ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+    if (escaped)
     {
+        ++m_InputGeneration;
+        m_PropertyDraft.Cancel();
+        m_ActiveProperty.reset();
+        m_PropertyEdited = false;
+        m_PropertyBuffers.erase(key);
+        m_StringBuffers.erase(key);
+        ImGui::PopID();
+        return std::nullopt;
+    }
+    if (!isAsset &&
+        (ImGui::IsItemActivated() || changed ||
+         (itemActive && !m_PropertyDraft.MatchesProperty(entity, component, descriptor->id))))
+    {
+        if (!m_PropertyDraft.MatchesProperty(entity, component, descriptor->id))
+        {
+            auto previous = m_PropertyDraft.Commit(*m_Context.project, m_Actions);
+            if (!previous)
+            {
+                ImGui::PopID();
+                return previous.GetError();
+            }
+            previous = m_NameDraft.Commit(*m_Context.project, m_Actions);
+            if (!previous)
+            {
+                ImGui::PopID();
+                return previous.GetError();
+            }
+            m_NameEdited = false;
+            const auto begun = m_PropertyDraft.BeginProperty(*m_Context.project, entity, component,
+                                                             descriptor->id, propertyModel.value);
+            if (!begun)
+            {
+                ImGui::PopID();
+                return begun.GetError();
+            }
+        }
         m_ActiveProperty = key;
         m_ActiveComponent = component;
-        m_PropertyEdited = true;
+        if (changed)
+            m_PropertyDraft.SetValue(desired);
+        m_PropertyEdited = m_PropertyDraft.IsEdited();
     }
 
-    if (descriptor->editable && commit && !m_Context.project->IsAuthoringReadOnly())
+    const bool multilineNewline = descriptor->id == MakePropertyId("Text.content") &&
+                                  (ImGui::GetIO().KeyCtrl || ImGui::GetIO().KeyShift);
+    commit |= !isAsset &&
+              (ImGui::IsItemDeactivatedAfterEdit() ||
+               (itemActive && !multilineNewline && ImGui::IsKeyPressed(ImGuiKey_Enter, false)));
+    if (descriptor->editable && !blockedByDraft && commit &&
+        (isAsset || m_PropertyDraft.MatchesProperty(entity, component, descriptor->id)) &&
+        !m_Context.project->IsAuthoringReadOnly())
     {
-        const auto updated =
-            m_Actions.SetProperty(
-                entity,
-                component,
-                descriptor->id,
-                std::move(desired));
+        auto updated =
+            isAsset ? CommitPendingEdit() : m_PropertyDraft.Commit(*m_Context.project, m_Actions);
+        if (updated && isAsset)
+            updated = m_Actions.SetProperty(entity, component, descriptor->id, std::move(desired));
 
         if (!updated)
         {
             ImGui::PopID();
             return updated.GetError();
         }
+        m_ActiveProperty.reset();
+        m_PropertyEdited = false;
+        m_PropertyBuffers.erase(key);
+        m_StringBuffers.erase(key);
+    }
+    else if (!isAsset && itemDeactivated && m_ActiveProperty == key && !m_PropertyDraft.IsEdited())
+    {
+        m_PropertyDraft.Cancel();
         m_ActiveProperty.reset();
         m_PropertyEdited = false;
         m_PropertyBuffers.erase(key);
@@ -713,35 +827,25 @@ void InspectorPanel::SyncPropertyBuffers(UUID id)
 
 Result<void> InspectorPanel::CommitPendingEdit()
 {
-    if (m_NameEdited)
-    {
-        auto result = m_Actions.RenameEntity(m_NameBufferEntity, m_NameBuffer.data());
-        if (!result)
-            return result;
-        m_NameEdited = false;
-    }
-    if (m_PropertyEdited && m_ActiveProperty)
-    {
-        const auto key = *m_ActiveProperty;
-        PropertyValue value;
-        if (auto text = m_StringBuffers.find(key); text != m_StringBuffers.end())
-            value = std::string{text->second.data()};
-        else if (auto property = m_PropertyBuffers.find(key); property != m_PropertyBuffers.end())
-            value = property->second;
-        else
-            return Result<void>::Failure(ErrorCode::InvalidState,
-                                         "Pending Inspector value is unavailable.");
-        auto result = m_Actions.SetProperty(m_PropertyBufferEntity, m_ActiveComponent,
-                                            PropertyId{key}, std::move(value));
-        if (!result)
-            return result;
-        DiscardPendingEdit();
-    }
+    if (m_Context.project == nullptr)
+        return Result<void>::Failure(ErrorCode::InvalidState,
+                                     "Inspector requires an open project.");
+    auto result = m_NameDraft.Commit(*m_Context.project, m_Actions);
+    if (!result)
+        return result;
+    m_NameEdited = false;
+    result = m_PropertyDraft.Commit(*m_Context.project, m_Actions);
+    if (!result)
+        return result;
+    DiscardPendingEdit();
     return Result<void>::Success();
 }
 
 void InspectorPanel::DiscardPendingEdit()
 {
+    ++m_InputGeneration;
+    m_NameDraft.Cancel();
+    m_PropertyDraft.Cancel();
     m_NameEdited = false;
     m_NameEditing = false;
     m_PropertyEdited = false;

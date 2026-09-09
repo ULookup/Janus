@@ -27,6 +27,17 @@ TEST_CASE("Integrated combat hot reload preserves arena bindings and physical fe
     Janus::InputState input;
     REQUIRE(project.StartRuntime(input));
     const auto run = project.GetRuntimeStatus().runtimeId;
+    auto buttonEnabled = [&](const char* name)
+    {
+        auto& scene = project.GetRuntimeSession()->GetScene();
+        for (const auto entity : scene.GetEntities())
+            if (scene.GetComponent<Janus::EntityIdentityComponent>(entity)->name == name)
+                return scene.GetComponent<Janus::ButtonComponent>(entity)->interactable;
+        CHECK(false);
+        return false;
+    };
+    CHECK(buttonEnabled("Start"));
+    CHECK_FALSE(buttonEnabled("Play"));
     const auto path = temp.Path() / "Scripts/Combat.lua";
     auto text = Janus::FileSystem::ReadText(path);
     REQUIRE(text);
@@ -38,6 +49,9 @@ TEST_CASE("Integrated combat hot reload preserves arena bindings and physical fe
     REQUIRE(snapshot);
     REQUIRE(snapshot->fields.contains("hits"));
     CHECK(std::get<std::string>(snapshot->fields.at("phase")) == "menu");
+    CHECK(buttonEnabled("Start"));
+    CHECK_FALSE(buttonEnabled("Play"));
+    CHECK_FALSE(buttonEnabled("Strike"));
     for (auto key : {Janus::KeyCode::Digit1, Janus::KeyCode::Digit2, Janus::KeyCode::Digit4})
     {
         input.BeginFrame();
@@ -47,6 +61,9 @@ TEST_CASE("Integrated combat hot reload preserves arena bindings and physical fe
     }
     snapshot = project.GetRuntimeSession()->GetSnapshot();
     CHECK(std::get<double>(snapshot->fields.at("enemyHp")) == 8);
+    CHECK_FALSE(buttonEnabled("Start"));
+    CHECK(buttonEnabled("Strike"));
+    CHECK_FALSE(buttonEnabled("Play"));
     CHECK(std::get<double>(snapshot->fields.at("hits")) == 2);
     CHECK(project.GetRuntimeStatus().runtimeId == run);
     CHECK(project.GetRuntimeSession()->GetPhysics().GetBodyCount() == 3);

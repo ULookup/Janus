@@ -1,5 +1,25 @@
 # Janus 项目进度与产品需求对账
 
+2026-09-08 D2 收口更新：main / origin/main 为 `1b496c197ef53d6a29c6b627193c938117cd02f2`。
+[C 包 #97](https://github.com/ULookup/Janus/pull/97) 已合入 main，携带 B；A/B/C 均已集成，
+[该 main 的 Windows CI](https://github.com/ULookup/Janus/actions/runs/34227248146) 成功。
+[D1 包 #98](https://github.com/ULookup/Janus/pull/98) 随后合入 `codex/editor-move-gizmo`
+（`2e12ccf`），没有进入 main；“PR 已合并”不能等同于 D1 已集成 main。
+
+`codex/editor-diagnostics` 基于 D1 的 `c745a5c` 完成 D2 本地实现与验证：共享日志详情/筛选/计数、
+Faulted 定位与停止、Activity UUID 定位、战斗阶段按钮状态，并修复 D1 导致原生鼠标按住时丢失
+Game View 输入的问题。两个 Debug preset 配置构建成功，CTest **487/487**；生产 Editor 两种
+stdio 协议、原生获胜/重开/故障恢复/Activity 定位通过，见 [D2 验证](verification/2026-09-08-editor-diagnostics.md)。
+D2 尚未提交或合入 main，集成时需连同 D1 交付。E/F、PM-01 完整出口、目标设备/DPI/首次用户
+验收仍待完成；v0.10 未发布。以下日期化段落与表格保留历史核查时点。
+
+2026-09-08 D1 执行更新：`codex/editor-preferences` 保留 C 包工作区并完成本地偏好、
+Standard/Focus/Debug 布局、核心中英文字体/文案及有竞争保护的 Inspector 草稿。两个 Debug
+preset 配置构建成功，最终 CTest **482/482**；原生重启、中文/125% 缩放、相机/折叠恢复、
+草稿关闭/取消/非法值保留、偏好损坏和写失败不阻塞保存/退出已验证。C/D1 尚未提交或创建 PR。
+详见 [D1 验证](verification/2026-09-08-editor-preferences.md)。D2/E/F、目标设备与系统 DPI
+矩阵、PM-01 完整出口和首次用户验收仍待完成；v0.10 未发布。以下段落保留各自记录时点。
+
 2026-09-08 C 包执行更新：#95 已合入 main（核查基线 `2fcfeab`）；#96 已合入
 `codex/editor-safe-close`，其 B 包内容在本轮开始时尚未进入 main。开发分支
 `codex/editor-move-gizmo` 集成两者后实现单对象 Move：只读子树预览、X/Y/平面手柄、

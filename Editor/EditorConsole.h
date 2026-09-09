@@ -3,6 +3,7 @@
 #include "Core/Error/Error.h"
 #include "Core/Log/LogStore.h"
 #include "Core/Types.h"
+#include <array>
 #include <memory>
 
 #include <string>
@@ -12,17 +13,14 @@
 namespace Janus::Editor
 {
 
-enum class EditorConsoleLevel
-{
-    Info,
-    Warning,
-    Error
-};
+using EditorConsoleLevel = LogLevel;
+using EditorConsoleEntry = LogEntry;
 
-struct EditorConsoleEntry
+struct EditorConsoleSnapshot
 {
-    EditorConsoleLevel level = EditorConsoleLevel::Info;
-    std::string message;
+    std::vector<LogEntry> entries;
+    std::array<usize, 3> counts{};
+    u64 droppedCount = 0;
 };
 
 class EditorConsole final
@@ -40,6 +38,12 @@ public:
     }
 
     [[nodiscard]] const std::vector<EditorConsoleEntry>& GetEntries() const;
+    [[nodiscard]] EditorConsoleSnapshot Read() const;
+    void SetSearch(std::string_view search);
+    void SetRuntimeFilter(std::optional<UUID> runtime) noexcept
+    {
+        m_RuntimeFilter = runtime;
+    }
     [[nodiscard]] usize GetCapacity() const noexcept;
 
 private:
@@ -48,6 +52,8 @@ private:
         std::string message);
 
     std::optional<EditorConsoleLevel> m_LevelFilter;
+    std::optional<UUID> m_RuntimeFilter;
+    std::string m_Search;
     usize m_Capacity = 200;
     mutable std::vector<EditorConsoleEntry> m_Entries;
     std::shared_ptr<LogStore> m_Store;

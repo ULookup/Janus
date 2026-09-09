@@ -1,6 +1,14 @@
 -- Fixed 10-05b rules live entirely in this game project. Each Runtime has its own Lua VM.
 local Script = {}
 
+local function canAct(action)
+    local b = JanusCombat
+    if action == "Start" then return b.phase == "menu" end
+    if action == "Restart" then return b.phase ~= "menu" end
+    if action == "Strike" or action == "Wait" then return b.phase == "battle" end
+    return action == "Play" and b.phase == "battle" and b.selectedCard ~= "none"
+end
+
 local function reset()
     if JanusCombat.play then
         JanusCombat.play:stop_animation()
@@ -19,6 +27,9 @@ end
 
 local function refresh()
     local b = JanusCombat
+    for name, entity in pairs(b.buttons or {}) do
+        entity:set_button_interactable(canAct(name))
+    end
     local cardStatus, cardCursor = "Stopped", 0
     if b.play then cardStatus, cardCursor = b.play:audio_state() end
     local musicStatus, musicCursor = b.status:audio_state()
@@ -49,6 +60,7 @@ end
 -- Both Button.OnClick and the neutral-step verification scene use this one rule entry.
 local function act(action)
     local b = JanusCombat
+    if not canAct(action) then return end
     if action == "Restart" then
         reset()
     elseif action == "Start" and b.phase == "menu" then
@@ -86,8 +98,11 @@ function Script.OnCreate(self)
         reset()
         self.verificationStep = 0
         refresh()
-    elseif name == "Play" then
-        JanusCombat.play = self.entity
+    else
+        JanusCombat.buttons = JanusCombat.buttons or {}
+        JanusCombat.buttons[name] = self.entity
+        if name == "Play" then JanusCombat.play = self.entity end
+        self.entity:set_button_interactable(canAct(name))
     end
 end
 

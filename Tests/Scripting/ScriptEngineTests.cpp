@@ -677,6 +677,36 @@ return Script
     REQUIRE(engine->Stop());
 }
 
+TEST_CASE("Lua button interaction validates booleans and missing components", "[scripting][d2]")
+{
+    Janus::Test::AssetTempDirectory temp;
+    Janus::AssetRegistry registry;
+    auto script = RegisterScript(temp, registry, "Button.lua", R"lua(
+return { OnCreate = function(self)
+    self.entity:set_button_interactable(false)
+    assert(not pcall(function() self.entity:set_button_interactable("yes") end))
+    assert(not pcall(function() self.entity:set_button_interactable(nil) end))
+end, OnUpdate = function(self) self.entity:set_button_interactable(true) end }
+)lua");
+    Janus::Test::FakeRenderDevice device;
+    auto renderer = Janus::Detail::Renderer2DTestAccess::Create(device);
+    Janus::AssetService assets(temp.Path(), registry, *renderer);
+    Janus::Scene scene;
+    const auto entity = scene.CreateEntity("Button");
+    REQUIRE(scene.AddComponent<Janus::ButtonComponent>(entity, {}));
+    REQUIRE(scene.AddComponent<Janus::LuaScriptComponent>(entity, {script, true}));
+    Janus::InputState input;
+    auto engine = CreateEngine(scene, assets, input);
+    REQUIRE(engine->Start());
+    CHECK_FALSE(scene.GetComponent<Janus::ButtonComponent>(entity)->interactable);
+    CHECK(scene.GetComponent<Janus::ButtonComponent>(entity)->enabled);
+    REQUIRE(engine->Update(Janus::TimeStep::FromSeconds(1.0 / 60)));
+    CHECK(scene.GetComponent<Janus::ButtonComponent>(entity)->interactable);
+    REQUIRE(engine->Stop());
+    REQUIRE(scene.RemoveComponent<Janus::ButtonComponent>(entity));
+    CHECK_FALSE(engine->Start());
+}
+
 TEST_CASE("Lua Text updates validate input and preserve value on failure", "[ui][text][scripting]")
 {
     Janus::Test::AssetTempDirectory temp;

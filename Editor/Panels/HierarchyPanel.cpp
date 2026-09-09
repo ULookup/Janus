@@ -1,4 +1,5 @@
 #include "Panels/HierarchyPanel.h"
+#include "EditorLocale.h"
 
 #include "EditorActions.h"
 #include "EditorContext.h"
@@ -29,7 +30,10 @@ HierarchyPanel::HierarchyPanel(
 
 std::optional<Error> HierarchyPanel::Draw()
 {
-    const bool visible = ImGui::Begin("      Hierarchy###Hierarchy", nullptr,
+    const auto text = [&](const char* key) { return EditorText(m_Context.language, key); };
+    const auto label = [&](const char* key) { return EditorLabel(m_Context.language, key); };
+    const auto title = std::string("      ") + label("Hierarchy");
+    const bool visible = ImGui::Begin(title.c_str(), nullptr,
                                       ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
                                           ImGuiWindowFlags_NoCollapse);
 
@@ -43,7 +47,7 @@ std::optional<Error> HierarchyPanel::Draw()
 
     if (m_Context.project == nullptr)
     {
-        ImGui::TextUnformatted("No project open.");
+        ImGui::TextUnformatted(text("No project open."));
         ImGui::End();
         return std::nullopt;
     }
@@ -56,7 +60,7 @@ std::optional<Error> HierarchyPanel::Draw()
 
     ImGui::BeginDisabled(playing);
 
-    if (IconButton(Icon::Add, "Entity"))
+    if (IconButton(Icon::Add, label("Entity").c_str()))
     {
         const auto created =
             m_Actions.CreateEntity("Entity");
@@ -75,7 +79,8 @@ std::optional<Error> HierarchyPanel::Draw()
         m_Context.selection.HasSelection();
 
     ImGui::BeginDisabled(!canDelete);
-    if (IconButton(Icon::Delete, "Delete") && m_Context.selection.GetSelectedUUID().has_value())
+    if (IconButton(Icon::Delete, label("Delete").c_str()) &&
+        m_Context.selection.GetSelectedUUID().has_value())
     {
         const auto deleted =
             m_Actions.DeleteEntity(
@@ -94,27 +99,28 @@ std::optional<Error> HierarchyPanel::Draw()
     ImGui::EndDisabled();
 
     ImGui::SameLine();
-    if (IconOnlyButton(Icon::Settings, "Organize / Prefab"))
+    if (IconOnlyButton(Icon::Settings, label("Organize / Prefab").c_str()))
         ImGui::OpenPopup("OrganizePrefab");
 
     if (playing)
     {
         ImGui::SameLine();
-        ImGui::TextDisabled("Read-only");
+        ImGui::TextDisabled(text("Read-only"));
     }
 
     ImGui::SetNextItemWidth(-1);
-    ImGui::InputTextWithHint("##Search", "Search entities...", m_Search.data(), m_Search.size());
+    ImGui::InputTextWithHint("##Search", text("Search entities..."), m_Search.data(),
+                             m_Search.size());
     std::optional<Error> reparentError;
     ImGui::SetNextWindowSizeConstraints({280 * ImGui::GetStyle().FontScaleDpi, 0},
                                         {FLT_MAX, FLT_MAX});
     const bool organize = ImGui::BeginPopup("OrganizePrefab");
     if (organize)
     {
-        IconText(Icon::Hierarchy, "Organize / Prefab");
+        IconText(Icon::Hierarchy, text("Organize / Prefab"));
         ImGui::Separator();
         if (!m_Context.selection.HasSelection())
-            ImGui::TextDisabled("Select an entity first.");
+            ImGui::TextDisabled(text("Select an entity first."));
     }
     if (auto selected = m_Context.selection.GetSelectedUUID(); organize && selected.has_value())
     {
@@ -123,9 +129,10 @@ std::optional<Error> HierarchyPanel::Draw()
         const auto parent = hierarchy.parent;
         const auto* parentIdentity = scene.GetComponent<EntityIdentityComponent>(parent);
         ImGui::BeginDisabled(playing);
-        if (ImGui::BeginCombo("Parent", parentIdentity ? parentIdentity->name.c_str() : "<Root>"))
+        if (ImGui::BeginCombo(label("Parent").c_str(),
+                              parentIdentity ? parentIdentity->name.c_str() : text("<Root>")))
         {
-            if (ImGui::Selectable("<Root>", !parent.IsValid()))
+            if (ImGui::Selectable(label("<Root>").c_str(), !parent.IsValid()))
             {
                 auto moved = m_Actions.ReparentEntity(*selected, {});
                 if (!moved)
@@ -161,7 +168,7 @@ std::optional<Error> HierarchyPanel::Draw()
                 ++index;
             }
             ImGui::BeginDisabled(index == 0);
-            if (ImGui::Button("Earlier"))
+            if (ImGui::Button(label("Earlier").c_str()))
             {
                 auto moved = m_Actions.ReparentEntity(*selected, parentIdentity->id, index - 1);
                 if (!moved)
@@ -171,7 +178,7 @@ std::optional<Error> HierarchyPanel::Draw()
             ImGui::SameLine();
             ImGui::BeginDisabled(
                 !scene.GetComponent<HierarchyComponent>(entity)->nextSibling.IsValid());
-            if (ImGui::Button("Later"))
+            if (ImGui::Button(label("Later").c_str()))
             {
                 auto moved = m_Actions.ReparentEntity(*selected, parentIdentity->id, index + 1);
                 if (!moved)
@@ -185,7 +192,7 @@ std::optional<Error> HierarchyPanel::Draw()
     if (auto selected = m_Context.selection.GetSelectedUUID(); organize && selected.has_value())
     {
         ImGui::BeginDisabled(m_Context.project->IsAuthoringReadOnly());
-        if (ImGui::Button("Duplicate (Ctrl+D)"))
+        if (ImGui::Button(label("Duplicate (Ctrl+D)").c_str()))
         {
             auto duplicated = m_Actions.DuplicateEntity(*selected);
             if (!duplicated)
@@ -193,7 +200,7 @@ std::optional<Error> HierarchyPanel::Draw()
             else
                 ImGui::CloseCurrentPopup();
         }
-        if (IconButton(Icon::Prefab, "Export Prefab"))
+        if (IconButton(Icon::Prefab, label("Export Prefab").c_str()))
         {
             m_ExportEntity = *selected;
             const auto& name =
@@ -206,8 +213,8 @@ std::optional<Error> HierarchyPanel::Draw()
             ImGui::CloseCurrentPopup();
         }
         if (ImGui::IsItemHovered())
-            ImGui::SetTooltip(
-                "Save this subtree as a new asset. Select the Prefab in Assets to instantiate it.");
+            ImGui::SetTooltip(text("Save this subtree as a new asset. Select the Prefab in Assets "
+                                   "to instantiate it."));
         ImGui::EndDisabled();
     }
 
@@ -215,24 +222,25 @@ std::optional<Error> HierarchyPanel::Draw()
         ImGui::EndPopup();
     if (m_OpenExport)
     {
-        ImGui::OpenPopup("Export Prefab");
+        ImGui::OpenPopup(label("Export Prefab").c_str());
         m_OpenExport = false;
     }
-    if (ImGui::BeginPopupModal("Export Prefab", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    if (ImGui::BeginPopupModal(label("Export Prefab").c_str(), nullptr,
+                               ImGuiWindowFlags_AlwaysAutoResize))
     {
         ImGui::SetNextItemWidth(360 * ImGui::GetStyle().FontScaleDpi);
-        if (ImGui::InputText("Name", m_PrefabName.data(), m_PrefabName.size()))
+        if (ImGui::InputText(label("Name").c_str(), m_PrefabName.data(), m_PrefabName.size()))
             m_ExportError.reset();
         const std::string name(m_PrefabName.data());
         auto valid = ProjectSession::ValidatePrefabName(name);
-        ImGui::TextUnformatted("Destination (UUID assigned on export):");
+        ImGui::TextUnformatted(text("Destination (UUID assigned on export):"));
         ImGui::TextWrapped("Prefabs/%s-<UUID>.prefab", name.c_str());
         if (!valid)
             ImGui::TextWrapped("%s", valid.GetError().message.c_str());
         if (m_ExportError)
             ImGui::TextWrapped("%s", m_ExportError->message.c_str());
         ImGui::BeginDisabled(!valid || m_Context.project->IsAuthoringReadOnly());
-        if (ImGui::Button("Export"))
+        if (ImGui::Button(label("Export").c_str()))
         {
             auto exported = m_Actions.ExportPrefab(m_ExportEntity, name);
             if (!exported)
@@ -242,7 +250,7 @@ std::optional<Error> HierarchyPanel::Draw()
         }
         ImGui::EndDisabled();
         ImGui::SameLine();
-        if (ImGui::Button("Cancel"))
+        if (ImGui::Button(label("Cancel").c_str()))
             ImGui::CloseCurrentPopup();
         ImGui::EndPopup();
     }

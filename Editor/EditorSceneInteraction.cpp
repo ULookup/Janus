@@ -1,3 +1,4 @@
+#include "Panels/InspectorPanel.h"
 #include "EditorActions.h"
 #include "EditorApplication.h"
 #include "EditorCamera.h"
@@ -87,7 +88,9 @@ bool EditorApplication::DrawSceneInteraction(Vector2 origin, Vector2 size, bool 
     auto& io = ImGui::GetIO();
     const bool wasDragging = m_TransformDrag.IsActive();
     const bool blocked = m_CloseRequested || m_ProjectSession->IsClosePending() ||
-                         io.WantTextInput || ImGui::GetDragDropPayload() != nullptr ||
+                         io.WantTextInput || ImGui::IsAnyItemActive() ||
+                         (m_InspectorPanel && m_InspectorPanel->OwnsKeyboardInput()) ||
+                         ImGui::GetDragDropPayload() != nullptr ||
                          ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId);
     if (blocked)
     {
@@ -191,8 +194,9 @@ bool EditorApplication::DrawSceneInteraction(Vector2 origin, Vector2 size, bool 
     if (m_MoveTool && !editable)
         draw->AddText({origin.x + 12 * m_UiScale, origin.y + 12 * m_UiScale},
                       ImGui::GetColorU32(ImGuiCol_TextDisabled),
-                      layoutEntity ? "UI uses layout properties in Inspector."
-                                   : "Move is unavailable while authoring is locked.");
+                      EditorText(m_Preferences.language,
+                                 layoutEntity ? "UI uses layout properties in Inspector."
+                                              : "Move is unavailable while authoring is locked."));
     if (m_MoveTool && editable)
     {
         const auto center = projectPoint(pose.Value().position);

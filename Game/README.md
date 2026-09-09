@@ -18,6 +18,13 @@ The enemy returns 2 damage after each nonlethal turn. Three **Wait** cards lose.
 **Restart to Menu** restores HP, turn, selection and damage. Up/Down select a button;
 Enter/Space confirm. Controls outside their valid phase do nothing; select a card each turn.
 Pause/Step does not click buttons. Stop restores the EditorScene's original text.
+Buttons display their disabled color outside valid phases: only Start works in the menu;
+Strike/Wait and Restart work in battle, Play requires a selected card, and only Restart
+works after victory or defeat. Combat.lua also rejects invalid keyboard/direct actions before
+audio, animation or arena feedback. Hot reload resets both phase and button availability.
+The generic Lua method `Entity:set_button_interactable(bool)` changes the bound runtime
+Button only; it rejects non-boolean arguments and entities without a Button. It does not
+change the saved authoring scene or introduce game rules into Engine.
 Successful card plays now trigger a one-shot green border animation. Invalid plays do not
 restart it; Restart restores the base border. The animation does not change combat timing.
 

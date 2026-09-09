@@ -25,12 +25,23 @@ struct EditorWorkspaceLayout
     EditorPanelRect status;
 };
 
+enum class EditorLayoutMode
+{
+    Standard,
+    Focus,
+    Debug
+};
+
 struct EditorWorkspacePreferences
 {
     f32 leftWidth = 260.0f;
     f32 rightWidth = 390.0f;
     f32 utilityHeight = 300.0f;
+    EditorLayoutMode mode = EditorLayoutMode::Standard;
 };
+
+[[nodiscard]] EditorWorkspacePreferences
+GetDefaultWorkspacePreferences(EditorLayoutMode mode) noexcept;
 
 [[nodiscard]] EditorWorkspaceLayout
 BuildEditorWorkspaceLayout(f32 width, f32 height,

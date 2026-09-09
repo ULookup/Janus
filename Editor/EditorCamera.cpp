@@ -61,6 +61,16 @@ Vector2 EditorCamera::ScreenToWorld(
             + (halfHeight - viewportPoint.y) * m_Zoom};
 }
 
+bool EditorCamera::RestoreView(Vector2 position, f32 zoom) noexcept
+{
+    if (!std::isfinite(position.x) || !std::isfinite(position.y) || !std::isfinite(zoom) ||
+        zoom < MinZoom || zoom > MaxZoom)
+        return false;
+    m_Position = position;
+    m_Zoom = zoom;
+    return true;
+}
+
 OrthographicCamera EditorCamera::ToRenderCamera() const noexcept
 {
     OrthographicCamera camera;

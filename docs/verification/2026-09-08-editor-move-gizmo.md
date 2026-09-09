@@ -1,5 +1,9 @@
 # C 包：Scene View Move Gizmo 验证
 
+PR 交付更新：实现提交 `3bf2273`，已创建 [#97](https://github.com/ULookup/Janus/pull/97)，
+目标 main，并承接尚未进入 main 的 B 包。以下“未提交/未创建”是本地验收时点；
+C 内容由验收快照逐文件核验后提交，未改变代码。PR CI 不以本地结果代替。
+
 日期：2026-09-08。开发分支 `codex/editor-move-gizmo`，C 包实现为未提交工作区。
 完整依赖基线为 `59387eb0a03507207a9808610e9e8cfd8da152a8`：将 main 的 #95 与
 `codex/editor-safe-close` 中已合并的 #96 集成到本地开发分支。

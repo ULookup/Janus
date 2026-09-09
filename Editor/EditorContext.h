@@ -2,8 +2,11 @@
 
 #include "Core/UUID/UUID.h"
 #include "ECS/Entity.h"
+#include "EditorLocale.h"
 
+#include <map>
 #include <optional>
+#include <string>
 
 namespace Janus
 {
@@ -48,6 +51,8 @@ struct EditorContext
     Renderer2D* renderer = nullptr;
     EditorSelection selection;
     std::optional<UUID> locateAsset;
+    EditorLanguage language = EditorLanguage::English;
+    std::map<std::string, bool>* panelExpanded = nullptr;
 };
 
 } // namespace Editor

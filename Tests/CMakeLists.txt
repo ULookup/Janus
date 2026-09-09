@@ -43,6 +43,8 @@ add_executable(
     Editor/EditorViewSourceTests.cpp
     Editor/EditorWorkflowTests.cpp
     Editor/EditorWorkspaceLayoutTests.cpp
+    Editor/EditorPreferencesTests.cpp
+    Editor/EditorLocaleTests.cpp
     Editor/ScenePickerTests.cpp
     Editor/ProjectSessionTests.cpp
     Editor/RuntimeSessionTests.cpp
@@ -112,6 +114,11 @@ target_link_libraries(
 # ============================================================
 
 janus_set_warnings(JanusTests)
+
+if(TARGET JanusImGui)
+    target_sources(JanusTests PRIVATE Editor/EditorGameInputTests.cpp)
+    target_link_libraries(JanusTests PRIVATE JanusImGui)
+endif()
 
 include(Catch)
 catch_discover_tests(JanusTests PROPERTIES ENVIRONMENT "SDL_AUDIO_DRIVER=dummy")

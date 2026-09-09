@@ -57,3 +57,57 @@ TEST_CASE("Console level filters query the shared structured store", "[console][
     console.SetLevelFilter({});
     REQUIRE(console.GetEntries().size() == 2);
 }
+
+TEST_CASE("Console search and counts cover retained logs beyond one protocol page", "[console][d2]")
+{
+    using namespace Janus;
+    auto store = std::make_shared<LogStore>(300);
+    const auto runtime = UUID::Random();
+    store->Append(LogLevel::Error, "Lua", "first failure", {runtime, 7, ErrorCode::InvalidState});
+    for (int i = 0; i < 240; ++i)
+        store->Append(LogLevel::Info, "Renderer", "frame");
+    store->Append(LogLevel::Warning, "Asset", "missing texture");
+    Editor::EditorConsole console(store);
+    console.SetSearch("FAILURE");
+    auto view = console.Read();
+    REQUIRE(view.entries.size() == 1);
+    CHECK(view.counts[0] == 240);
+    CHECK(view.counts[1] == 1);
+    CHECK(view.counts[2] == 1);
+    const auto& entry = view.entries.front();
+    CHECK(entry.sequence == 1);
+    CHECK(entry.timestampMilliseconds > 0);
+    CHECK(entry.category == "Lua");
+    CHECK(entry.context.runtimeId == runtime);
+    CHECK(entry.context.frameIndex == 7);
+    CHECK(entry.context.errorCode == ErrorCode::InvalidState);
+    console.SetSearch("renderer");
+    CHECK(console.Read().entries.size() == 240);
+    console.SetRuntimeFilter(runtime);
+    CHECK(console.Read().entries.empty());
+    console.SetSearch("");
+    CHECK(console.Read().entries.size() == 1);
+    console.SetLevelFilter(Editor::EditorConsoleLevel::Warning);
+    CHECK(console.Read().entries.empty());
+    console.Clear();
+    CHECK(store->Read().Value().entries.empty());
+    CHECK(console.Read().counts == std::array<usize, 3>{});
+}
+
+TEST_CASE("Console refresh discards evicted details and preserves stable log identities",
+          "[console][d2]")
+{
+    using namespace Janus;
+    auto store = std::make_shared<LogStore>(2);
+    Editor::EditorConsole console(store);
+    store->Append(LogLevel::Error, "Lua", "old");
+    const auto selected = console.Read().entries.front().sequence;
+    store->Append(LogLevel::Info, "Editor", "new");
+    store->Append(LogLevel::Warning, "Asset", std::string(9000, 'x'));
+    const auto view = console.Read();
+    REQUIRE(view.entries.size() == 2);
+    CHECK(view.entries.front().sequence != selected);
+    CHECK(view.entries.back().truncated);
+    CHECK(view.droppedCount == 1);
+    CHECK(view.counts == std::array<usize, 3>{1, 1, 0});
+}
