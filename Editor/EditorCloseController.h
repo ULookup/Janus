@@ -10,6 +10,7 @@ struct ProjectSettings;
 namespace Editor
 {
 class ProjectSession;
+class PreparedScene;
 
 // Session-owned state stays behind ProjectSession. This owner-thread controller only coordinates
 // explicit Human decisions and must be destroyed before its borrowed session.
@@ -37,6 +38,7 @@ class EditorCloseController final
     }
     Result<void> RollbackTransaction();
     Result<void> Confirm(bool saveScene, bool stopRuntime, const ProjectSettings* saveSettings);
+    Result<void> ConfirmSceneChange(PreparedScene& candidate, bool saveScene, bool stopRuntime);
 
   private:
     Result<void> Failed(Error error);

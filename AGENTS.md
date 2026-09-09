@@ -1,5 +1,10 @@
 # Janus Agent Guide
 
+2026-09-09 PR delivery: D2 is committed as `01b5813` in PR #99 targeting main (carrying D1).
+E1 is committed as `bcac506` in PR #100 targeting `codex/editor-diagnostics`.
+Merge #99 first, then retarget #100 to main. Neither is merged at this check; CI is separate
+from local validation. Earlier uncommitted descriptions below retain their historical dates.
+
 ## Mission
 
 Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.10 Game Systems release preparation**. As verified on 2026-09-07, main / origin/main is `7ecdfb8`: PR #92 merged Prefab Foundation and integrated acceptance after the UI/Button, Combat/Animation, Audio and Physics dependency chain. Post-merge Windows CI passed 412/412 tests. **v0.10 is not released; v0.11 Production Demo is not complete.** Read [docs/project-status.md](docs/project-status.md) for the current implementation matrix, PRD gaps and release gates; dated plans/verification retain their original baselines. This branch adds the editor workspace upgrade, typed asset assignment and 40 vector icons; see docs/verification/2026-09-07-editor-icons.md. Remaining work includes unsaved-close protection, Release/target-device verification and release preparation, not an unimplemented Physics/Prefab subsystem. Do not silently change PRD scope or automatically begin v0.11. Prefer a complete, testable vertical slice over parallel unfinished subsystems.
@@ -23,6 +28,26 @@ D2/E/F and release gates remained pending at that check.
 (`c745a5c`) and completes D2 locally with 487/487 Debug tests and modern/legacy production
 Editor stdio verification. D2 is uncommitted; E/F and release gates remain pending.
 See docs/verification/2026-09-08-editor-diagnostics.md; earlier notes retain historical baselines.
+
+2026-09-09 E1 update: `codex/editor-scene-documents` preserves D1 and the uncommitted D2 work,
+and completes E1 locally with 498/498 Debug tests and both production Editor stdio eras.
+Remote main is still `1b496c1`; D2/E1 are uncommitted. E2/F and release gates remain pending.
+See docs/verification/2026-09-09-editor-scene-documents.md.
+
+## Editor E1 scene document constraints
+
+- PreparedScene owns an opaque candidate tagged with project identity, revision and authoring
+  generation. Validate source/path/assets before replacement; stale candidates fail without swapping.
+  Human save/discard authorization stays inside EditorCloseController; ordinary New/Open reject dirty.
+- New reserves a project-relative .scene path without writing. First Save is atomic create-only;
+  SaveAs overwrites only on explicit request and changes the active path only after success. Neither
+  operation changes project.defaultScene. Unsaved discard rebuilds an empty Scene without reading disk.
+- Clear commands before releasing their borrowed Scene. Replacement advances revision/generation
+  and clears selection/drafts/move preview; SaveAs preserves UUIDs/history and selection.
+- Refresh MCP Scene bindings before every owner-thread request, including requests within one Pump.
+  Prepare registries before swapping them; never destroy the active handler's registry. Queued old
+  epochs and lifecycle transaction parameters are rejected without aborting an Agent transaction.
+- Filesystem diagnostic paths must use UTF-8 so error responses remain serializable over stdio.
 
 ## Editor D2 diagnostic and input constraints
 

@@ -195,6 +195,11 @@ set_tests_properties(
 
 # The same external host exercises the game observation chain in both protocol eras.
 foreach(era IN ITEMS modern legacy)
+    add_test(NAME MCP.SceneDocuments.${era}
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/MCP/scene_documents_external_e2e.py
+            --host $<TARGET_FILE:JanusMcpExternalHost>
+            --project ${CMAKE_SOURCE_DIR}/Game --era ${era})
+    set_tests_properties(MCP.SceneDocuments.${era} PROPERTIES TIMEOUT 60 RUN_SERIAL TRUE)
     add_test(NAME MCP.Integrated.${era}
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/MCP/integrated_external_e2e.py
             --host $<TARGET_FILE:JanusMcpExternalHost>

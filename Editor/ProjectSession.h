@@ -30,6 +30,26 @@ namespace Editor
 
 using RuntimeSession = Janus::RuntimeSession;
 
+class PreparedScene final
+{
+  public:
+    ~PreparedScene();
+    const std::filesystem::path& GetPath() const noexcept
+    {
+        return m_Path;
+    }
+
+  private:
+    friend class ProjectSession;
+    PreparedScene() = default;
+    UUID m_Project;
+    u64 m_Revision = 0, m_Generation = 0;
+    bool m_New = false;
+    std::filesystem::path m_Path;
+    std::string m_Source;
+    std::unique_ptr<Scene> m_Scene;
+};
+
 class ProjectSession final
 {
 public:
@@ -62,6 +82,16 @@ public:
   }
   [[nodiscard]] const std::filesystem::path& GetProjectRoot() const noexcept;
   [[nodiscard]] const std::filesystem::path& GetCurrentScenePath() const noexcept;
+  bool HasSavedSceneFile() const noexcept
+  {
+      return m_HasSavedFile;
+  }
+  Result<std::unique_ptr<PreparedScene>> PrepareNewScene(const std::filesystem::path& path);
+  Result<std::unique_ptr<PreparedScene>> PrepareOpenScene(const std::filesystem::path& path);
+  Result<void> CommitPreparedScene(PreparedScene& candidate);
+  Result<void> NewScene(const std::filesystem::path& path);
+  Result<void> OpenScene(const std::filesystem::path& path);
+  Result<void> SaveSceneAs(const std::filesystem::path& path, bool overwrite = false);
   [[nodiscard]] const AssetRegistry& GetAssetRegistry() const noexcept;
   [[nodiscard]] ReflectionRegistry& GetReflectionRegistry() noexcept;
   [[nodiscard]] const ReflectionRegistry& GetReflectionRegistry() const noexcept;
@@ -135,6 +165,12 @@ public:
 
 private:
   friend class EditorCloseController;
+  Result<std::filesystem::path> ResolveScenePath(const std::filesystem::path& path) const;
+  Result<std::unique_ptr<PreparedScene>> PrepareScene(const std::filesystem::path& path,
+                                                      bool create);
+  Result<void> ValidatePreparedScene(const PreparedScene& candidate) const;
+  void ReplacePreparedScene(PreparedScene& candidate);
+  bool m_HasSavedFile = true;
   bool m_ClosePending = false;
   Result<void> SaveCurrentSceneImpl();
   Result<void> SaveProjectSettingsImpl(const ProjectSettings& settings);

@@ -17,6 +17,7 @@ add_library(
     EditorWorkspaceLayout.cpp
     ScenePicker.cpp
     ProjectSession.cpp
+    SceneDocument.cpp
 )
 
 target_include_directories(
@@ -77,6 +78,7 @@ if(JANUS_BUILD_EDITOR)
         Main.cpp
         EditorApplication.cpp
         EditorSceneInteraction.cpp
+        EditorSceneDocuments.cpp
         EditorPreferencesHost.cpp
         EditorIcons.cpp
         Panels/AssetBrowserPanel.cpp

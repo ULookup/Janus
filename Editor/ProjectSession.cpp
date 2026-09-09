@@ -468,27 +468,31 @@ Result<void> ProjectSession::SaveCurrentScene()
 
 Result<void> ProjectSession::SaveCurrentSceneImpl()
 {
-    if (HasRuntime() || m_CommandBus.HasTransaction() || m_CommandBus.RecoveryRequired())
+    if (std::this_thread::get_id() != m_OwnerThread || HasRuntime() ||
+        m_CommandBus.HasTransaction() || m_CommandBus.RecoveryRequired())
     {
         return Result<void>::Failure(
             ErrorCode::InvalidState,
             "Cannot save the authoring Scene while Play Mode is active.");
     }
 
-    const std::filesystem::path scenePath =
-        m_ProjectRoot / m_CurrentScenePath;
-
+    auto resolved = ResolveScenePath(m_CurrentScenePath);
+    if (!resolved)
+        return Result<void>::Failure(resolved.GetError());
+    auto serialized = SceneSerializer::Serialize(*m_EditorScene, m_ReflectionRegistry);
+    if (!serialized)
+        return Result<void>::Failure(serialized.GetError());
     auto saved =
-        SceneSerializer::Save(
-            *m_EditorScene,
-            m_ReflectionRegistry,
-            scenePath);
+        FileSystem::WriteTextAtomic(resolved.Value(), serialized.Value(),
+                                    m_HasSavedFile ? FileSystem::AtomicWriteMode::Replace
+                                                   : FileSystem::AtomicWriteMode::CreateNew);
     if (!saved)
     {
         return saved;
     }
 
     m_Dirty = false;
+    m_HasSavedFile = true;
     return Result<void>::Success();
 }
 
@@ -631,13 +635,25 @@ Result<void> ProjectSession::DiscardUnsavedAndReload()
     if (HasRuntime())
         return Result<void>::Failure(ErrorCode::InvalidState,
                                      "Stop runtime before discard/reload.");
-    auto loaded = SceneDeserializer::Load(m_ProjectRoot / m_CurrentScenePath, m_ReflectionRegistry);
+    auto loadSavedOrEmpty = [&]() -> Result<std::unique_ptr<Scene>>
+    {
+        // An unsaved document has no disk baseline; an occupied path must not block recovery.
+        if (!m_HasSavedFile)
+            return Result<std::unique_ptr<Scene>>::Success(std::make_unique<Scene>());
+        auto resolved = ResolveScenePath(m_CurrentScenePath);
+        if (!resolved)
+            return Result<std::unique_ptr<Scene>>::Failure(resolved.GetError());
+        return SceneDeserializer::Load(resolved.Value(), m_ReflectionRegistry);
+    };
+    auto loaded = loadSavedOrEmpty();
     if (!loaded)
         return Result<void>::Failure(loaded.GetError());
+    if (!m_HasSavedFile)
+        loaded.Value()->SetName(FileSystem::PathToUtf8(m_CurrentScenePath.stem()));
     // Destroy commands before their referenced scene. MCP refreshes bindings on this revision.
     m_CommandBus.ResetAfterRecovery();
     m_EditorScene = std::move(loaded).Value();
-    m_Dirty = false;
+    m_Dirty = !m_HasSavedFile;
     m_TransactionOwner = {};
     m_TransactionOwners.clear();
     ++m_SceneRevision;
