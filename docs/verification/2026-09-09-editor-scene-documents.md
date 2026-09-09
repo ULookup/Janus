@@ -1,5 +1,14 @@
 # E1 场景文档生命周期验证
 
+PR 交付更新：实现提交 `bcac506f7a1beb7afa7583d07fc8f9aff4a2e168`，
+已创建 [#100](https://github.com/ULookup/Janus/pull/100)，目标 `codex/editor-diagnostics`。
+依赖 [D2 #99](https://github.com/ULookup/Janus/pull/99)，其实现提交
+`01b5813a272f2df7491ee37888116e612dd86ca0`，目标 main 并携带 D1。
+先合 #99，再将 #100 改为 main。拆分后的完整工作树逐文件核对与下述验收快照一致。
+两个 Debug preset 拆分后再次配置构建成功，完整 CTest **498/498，42.89 秒**；日志为
+`out/pr-e1-tests-build.log`、`out/pr-e1-debug-build.log`、`out/pr-e1-ctest.log`。
+下文未提交描述保留原验收时点；本地通过不能代替 PR CI。
+
 日期：2026-09-09（北京时间）。E1 已本地完成；E2/F、完整 PM-01 出口、Release/目标设备/
 系统 DPI/首次用户验收仍待完成，v0.10 未发布。
 

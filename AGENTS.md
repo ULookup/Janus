@@ -1,5 +1,10 @@
 # Janus Agent Guide
 
+2026-09-09 PR delivery: D2 is committed as `01b5813` in PR #99 targeting main (carrying D1).
+E1 is committed as `bcac506` in PR #100 targeting `codex/editor-diagnostics`.
+Merge #99 first, then retarget #100 to main. Neither is merged at this check; CI is separate
+from local validation. Earlier uncommitted descriptions below retain their historical dates.
+
 ## Mission
 
 Janus is an Agent-native C++20 2D game engine for both human developers and AI agents. The current milestone is **v0.10 Game Systems release preparation**. As verified on 2026-09-07, main / origin/main is `7ecdfb8`: PR #92 merged Prefab Foundation and integrated acceptance after the UI/Button, Combat/Animation, Audio and Physics dependency chain. Post-merge Windows CI passed 412/412 tests. **v0.10 is not released; v0.11 Production Demo is not complete.** Read [docs/project-status.md](docs/project-status.md) for the current implementation matrix, PRD gaps and release gates; dated plans/verification retain their original baselines. This branch adds the editor workspace upgrade, typed asset assignment and 40 vector icons; see docs/verification/2026-09-07-editor-icons.md. Remaining work includes unsaved-close protection, Release/target-device verification and release preparation, not an unimplemented Physics/Prefab subsystem. Do not silently change PRD scope or automatically begin v0.11. Prefer a complete, testable vertical slice over parallel unfinished subsystems.

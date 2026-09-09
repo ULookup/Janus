@@ -1,5 +1,10 @@
 # Janus 项目进度与产品需求对账
 
+2026-09-09 PR 交付更新：[D2 #99](https://github.com/ULookup/Janus/pull/99) 目标 main，
+携带尚未进入 main 的 D1，D2 实现提交 `01b5813`；[E1 #100](https://github.com/ULookup/Janus/pull/100)
+目标 `codex/editor-diagnostics`，E1 实现提交 `bcac506`。先合 #99，再将 #100 改为 main。
+两者已提交并推送，尚未合并；PR CI 以 GitHub 当前检查为准。以下“未提交”保留各次本地验收时点。
+
 2026-09-09 E1 收口更新：远端 main 再核查仍为 `1b496c197ef53d6a29c6b627193c938117cd02f2`，
 下述已通过的 main CI 仍对应该提交。`codex/editor-scene-documents` 保留 D1 基线和 D2 未提交工作，
 完成 E1 场景新建/打开/另存、受保护替换、MCP 每请求绑定刷新和排队旧请求拒绝。

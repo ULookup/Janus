@@ -1,5 +1,12 @@
 # D2 日志、故障入口与示例按钮验收
 
+2026-09-09 PR 交付更新：实现提交 `01b5813a272f2df7491ee37888116e612dd86ca0`，
+已创建 [#99](https://github.com/ULookup/Janus/pull/99)，目标 main，携带尚未进入 main 的 D1。
+独立拆分后两个 Debug preset 配置构建成功，完整 CTest 再验 **487/487，41.15 秒**。
+日志为 `out/pr-d2-tests-build.log`、`out/pr-d2-debug-build.log`、`out/pr-d2-ctest.log`。
+后续 E1 是 [#100](https://github.com/ULookup/Janus/pull/100)，以 D2 为基线；先合 #99，
+再将 #100 改为 main。下文未提交/无 PR 描述保留 09-08 验收时点，PR CI 另行检查。
+
 日期：2026-09-08。按用户“先完成 D2，验证后收口”执行；E/F 未启动。
 工作分支 `codex/editor-diagnostics`，起点 `c745a5cf7009430d720b767ee14a1fa3e32adab0`
 （包含 D1）；本文记录未提交工作树的本地验证，不代表 main 已集成或 v0.10 发布。
