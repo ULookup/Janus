@@ -1,5 +1,14 @@
 # Janus 项目进度与产品需求对账
 
+2026-09-09 E1 收口更新：远端 main 再核查仍为 `1b496c197ef53d6a29c6b627193c938117cd02f2`，
+下述已通过的 main CI 仍对应该提交。`codex/editor-scene-documents` 保留 D1 基线和 D2 未提交工作，
+完成 E1 场景新建/打开/另存、受保护替换、MCP 每请求绑定刷新和排队旧请求拒绝。
+两个 Debug preset 配置构建成功，定向 **9 用例 / 144 断言**、全量 **498/498**；生产 Editor
+两种 stdio 协议及原生新建/另存/取消/保存后切换已通过，见
+[E1 验证](verification/2026-09-09-editor-scene-documents.md)。D2/E1 尚未提交或合入 main，
+集成仍需携带 D1。下一包为 E2（项目入口/欢迎页），F、完整 PM-01 出口、目标设备/DPI/
+首次用户验收仍待完成，v0.10 未发布。下文是日期化历史，以本段为当前本地交付状态。
+
 2026-09-08 D2 收口更新：main / origin/main 为 `1b496c197ef53d6a29c6b627193c938117cd02f2`。
 [C 包 #97](https://github.com/ULookup/Janus/pull/97) 已合入 main，携带 B；A/B/C 均已集成，
 [该 main 的 Windows CI](https://github.com/ULookup/Janus/actions/runs/34227248146) 成功。

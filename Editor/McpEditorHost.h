@@ -46,43 +46,42 @@ public:
     [[nodiscard]] std::optional<Error> GetWorkerError() const;
 
 private:
-    McpEditorHost(
-        ProjectSession& project,
-        std::istream& input,
-        std::ostream& output,
-        const MCP::IMcpPermissionPolicy& permissionPolicy,
-        usize maxRequestsPerPump);
+  friend struct McpEditorHostTestAccess;
+  McpEditorHost(ProjectSession& project, std::istream& input, std::ostream& output,
+                const MCP::IMcpPermissionPolicy& permissionPolicy, usize maxRequestsPerPump);
 
-    [[nodiscard]] Result<void> RegisterCapabilities();
-    [[nodiscard]] MCP::McpDispatchResult DispatchRequest(
-        std::string_view method,
-        const MCP::Json& params,
-        MCP::McpProtocolEra era);
+  [[nodiscard]] Result<void> RegisterCapabilities();
+  [[nodiscard]] Result<void> EnsureSceneBindingsCurrent();
+  void PublishBindingEpoch();
+  [[nodiscard]] MCP::McpDispatchResult
+  DispatchRequest(std::string_view method, const MCP::Json& params, MCP::McpProtocolEra era);
 
-    void AbortOwnedRequest(const MCP::Json& params);
-    void RunWorker() noexcept;
-    void InterruptWorkerRead() noexcept;
-    void RecordWorkerError(Error error) noexcept;
+  void AbortOwnedRequest(const MCP::Json& params);
+  void RunWorker() noexcept;
+  void InterruptWorkerRead() noexcept;
+  void RecordWorkerError(Error error) noexcept;
 
-    ProjectSession& m_Project;
-    UUID m_Owner = UUID::Random();
-    std::thread::id m_OwnerThread = std::this_thread::get_id();
-    u64 m_SceneRevision = 0;
-    const MCP::IMcpPermissionPolicy& m_PermissionPolicy;
+  ProjectSession& m_Project;
+  UUID m_Owner = UUID::Random();
+  std::thread::id m_OwnerThread = std::this_thread::get_id();
+  u64 m_SceneRevision = 0;
+  u64 m_ContextRevision = 0;
+  std::atomic<u64> m_BindingEpoch{0};
+  const MCP::IMcpPermissionPolicy& m_PermissionPolicy;
 
-    MCP::ToolRegistry m_Tools;
-    MCP::ResourceRegistry m_Resources;
-    MCP::McpCapabilityRouter m_Router;
-    MCP::McpMainThreadDispatcher m_Dispatcher;
-    MCP::McpProtocolSession m_Protocol;
-    MCP::StdioTransport m_Transport;
+  MCP::ToolRegistry m_Tools;
+  MCP::ResourceRegistry m_Resources;
+  MCP::McpCapabilityRouter m_Router;
+  MCP::McpMainThreadDispatcher m_Dispatcher;
+  MCP::McpProtocolSession m_Protocol;
+  MCP::StdioTransport m_Transport;
 
-    std::thread m_Worker;
-    std::atomic<bool> m_Running{false};
-    std::atomic<bool> m_Stopping{false};
+  std::thread m_Worker;
+  std::atomic<bool> m_Running{false};
+  std::atomic<bool> m_Stopping{false};
 
-    mutable std::mutex m_ErrorMutex;
-    std::optional<Error> m_WorkerError;
+  mutable std::mutex m_ErrorMutex;
+  std::optional<Error> m_WorkerError;
 };
 
 } // namespace Janus::Editor

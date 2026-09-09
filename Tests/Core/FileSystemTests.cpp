@@ -59,6 +59,25 @@ TEST_CASE("Atomic create never replaces an existing destination",
                           std::filesystem::directory_iterator{}) == 1);
 }
 
+TEST_CASE("FileSystem errors preserve UTF8 paths and clean failed atomic writes",
+          "[filesystem][e1]")
+{
+    TempDirectory temp;
+    const auto path = temp.Path() / std::filesystem::path(u8"新场景.scene");
+    const auto utf8 = Janus::FileSystem::PathToUtf8(path);
+    const auto missing = Janus::FileSystem::ReadText(path);
+    REQUIRE_FALSE(missing);
+    CHECK(missing.GetError().message.find(utf8) != std::string::npos);
+    REQUIRE(Janus::FileSystem::WriteTextAtomic(path, "original"));
+    const auto conflict = Janus::FileSystem::WriteTextAtomic(
+        path, "replacement", Janus::FileSystem::AtomicWriteMode::CreateNew);
+    REQUIRE_FALSE(conflict);
+    CHECK(conflict.GetError().message.find(utf8) != std::string::npos);
+    CHECK(Janus::FileSystem::ReadText(path).Value() == "original");
+    CHECK(std::distance(std::filesystem::directory_iterator(temp.Path()),
+                        std::filesystem::directory_iterator{}) == 1);
+}
+
 TEST_CASE("FileSystem round trips text and binary", "[core][filesystem]")
 {
     TempDirectory temp;

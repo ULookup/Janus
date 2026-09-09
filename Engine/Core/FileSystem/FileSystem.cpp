@@ -30,30 +30,29 @@ Result<std::vector<u8>> ReadBytes(const std::filesystem::path& path)
     {
         if (error)
         {
-            return Result<std::vector<u8>>::Failure(
-                ErrorCode::FileReadFailed,
-                "Failed to check file '" + path.string() + "': " + error.message() + ".");
+            return Result<std::vector<u8>>::Failure(ErrorCode::FileReadFailed,
+                                                    "Failed to check file '" + PathToUtf8(path) +
+                                                        "': " + error.message() + ".");
         }
 
-        return Result<std::vector<u8>>::Failure(
-            ErrorCode::FileNotFound,
-            "File not found '" + path.string() + "'.");
+        return Result<std::vector<u8>>::Failure(ErrorCode::FileNotFound,
+                                                "File not found '" + PathToUtf8(path) + "'.");
     }
 
     std::ifstream stream(path, std::ios::binary | std::ios::ate);
     if (!stream)
     {
-        return Result<std::vector<u8>>::Failure(
-            ErrorCode::FileReadFailed,
-            "Failed to open file for reading '" + path.string() + "'.");
+        return Result<std::vector<u8>>::Failure(ErrorCode::FileReadFailed,
+                                                "Failed to open file for reading '" +
+                                                    PathToUtf8(path) + "'.");
     }
 
     const auto end = stream.tellg();
     if (end < std::streampos{0})
     {
-        return Result<std::vector<u8>>::Failure(
-            ErrorCode::FileReadFailed,
-            "Failed to determine size of file '" + path.string() + "'.");
+        return Result<std::vector<u8>>::Failure(ErrorCode::FileReadFailed,
+                                                "Failed to determine size of file '" +
+                                                    PathToUtf8(path) + "'.");
     }
 
     const auto size = static_cast<std::uintmax_t>(end);
@@ -63,18 +62,17 @@ Result<std::vector<u8>> ReadBytes(const std::filesystem::path& path)
     const auto maxVectorSize = static_cast<std::uintmax_t>(std::vector<u8>{}.max_size());
     if (size > maxStreamSize || size > maxSize || size > maxVectorSize)
     {
-        return Result<std::vector<u8>>::Failure(
-            ErrorCode::FileReadFailed,
-            "Failed to determine size of file '" + path.string() + "'.");
+        return Result<std::vector<u8>>::Failure(ErrorCode::FileReadFailed,
+                                                "Failed to determine size of file '" +
+                                                    PathToUtf8(path) + "'.");
     }
 
     std::vector<u8> contents(static_cast<std::size_t>(size));
     stream.seekg(0);
     if (!stream)
     {
-        return Result<std::vector<u8>>::Failure(
-            ErrorCode::FileReadFailed,
-            "Failed to seek file '" + path.string() + "'.");
+        return Result<std::vector<u8>>::Failure(ErrorCode::FileReadFailed,
+                                                "Failed to seek file '" + PathToUtf8(path) + "'.");
     }
 
     if (!contents.empty())
@@ -85,9 +83,8 @@ Result<std::vector<u8>> ReadBytes(const std::filesystem::path& path)
     }
     if (!stream)
     {
-        return Result<std::vector<u8>>::Failure(
-            ErrorCode::FileReadFailed,
-            "Failed to read file '" + path.string() + "'.");
+        return Result<std::vector<u8>>::Failure(ErrorCode::FileReadFailed,
+                                                "Failed to read file '" + PathToUtf8(path) + "'.");
     }
 
     return Result<std::vector<u8>>::Success(std::move(contents));
@@ -123,11 +120,10 @@ Result<void> ReplaceAtomically(const std::filesystem::path& temporary,
     if (::MoveFileExW(temporary.c_str(), target.c_str(), flags) == 0)
     {
         const DWORD error = ::GetLastError();
-        return Result<void>::Failure(
-            ErrorCode::FileWriteFailed,
-            "Failed to atomically replace file '" + target.string()
-                + "' (Win32 error "
-                + std::to_string(static_cast<unsigned long>(error)) + ").");
+        return Result<void>::Failure(ErrorCode::FileWriteFailed,
+                                     "Failed to atomically replace file '" + PathToUtf8(target) +
+                                         "' (Win32 error " +
+                                         std::to_string(static_cast<unsigned long>(error)) + ").");
     }
 #else
     std::error_code error;
@@ -142,10 +138,9 @@ Result<void> ReplaceAtomically(const std::filesystem::path& temporary,
         std::filesystem::rename(temporary, target, error);
     if (error)
     {
-        return Result<void>::Failure(
-            ErrorCode::FileWriteFailed,
-            "Failed to atomically replace file '" + target.string()
-                + "': " + error.message() + ".");
+        return Result<void>::Failure(ErrorCode::FileWriteFailed,
+                                     "Failed to atomically replace file '" + PathToUtf8(target) +
+                                         "': " + error.message() + ".");
     }
 #endif
 
@@ -190,17 +185,16 @@ Result<void> WriteBinary(
     if (contents.size()
         > static_cast<std::size_t>(std::numeric_limits<std::streamsize>::max()))
     {
-        return Result<void>::Failure(
-            ErrorCode::FileWriteFailed,
-            "Failed to write file '" + path.string() + "': contents are too large.");
+        return Result<void>::Failure(ErrorCode::FileWriteFailed, "Failed to write file '" +
+                                                                     PathToUtf8(path) +
+                                                                     "': contents are too large.");
     }
 
     std::ofstream stream(path, std::ios::binary | std::ios::trunc);
     if (!stream)
     {
-        return Result<void>::Failure(
-            ErrorCode::FileWriteFailed,
-            "Failed to open file for writing '" + path.string() + "'.");
+        return Result<void>::Failure(ErrorCode::FileWriteFailed,
+                                     "Failed to open file for writing '" + PathToUtf8(path) + "'.");
     }
 
     if (!contents.empty())
@@ -213,9 +207,8 @@ Result<void> WriteBinary(
 
     if (!stream)
     {
-        return Result<void>::Failure(
-            ErrorCode::FileWriteFailed,
-            "Failed to write file '" + path.string() + "'.");
+        return Result<void>::Failure(ErrorCode::FileWriteFailed,
+                                     "Failed to write file '" + PathToUtf8(path) + "'.");
     }
 
     return Result<void>::Success();

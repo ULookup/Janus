@@ -25,6 +25,21 @@
 #include <utility>
 #include <vector>
 
+namespace Janus::Editor
+{
+struct McpEditorHostTestAccess
+{
+    static MCP::McpDispatchResult Call(McpEditorHost& host, const MCP::Json& params)
+    {
+        return host.DispatchRequest("tools/call", params, MCP::McpProtocolEra::Modern2026);
+    }
+    static usize Pending(McpEditorHost& host)
+    {
+        return host.m_Dispatcher.GetPendingCount();
+    }
+};
+} // namespace Janus::Editor
+
 namespace
 {
 
@@ -175,6 +190,128 @@ private:
 };
 
 } // namespace
+
+TEST_CASE("MCP scene lifecycle refreshes bindings before following requests", "[editor][mcp][e1]")
+{
+    using namespace Janus;
+    ProjectFixture fixture;
+    std::istringstream input(
+        EncodeRequest(1, "tools/call",
+                      {{"name", "scene.new"},
+                       {"arguments", {{"path", "Scenes/E1-MCP.scene"}, {"expectedRevision", 0}}}}) +
+        EncodeRequest(2, "resources/read", {{"uri", "engine://scene/current"}}) +
+        EncodeRequest(
+            3, "tools/call",
+            {{"name", "scene.create_entity"}, {"arguments", {{"name", "New document entity"}}}}) +
+        EncodeRequest(4, "resources/read", {{"uri", "engine://scene/current"}}) +
+        EncodeRequest(5, "tools/call",
+                      {{"name", "scene.open"}, {"arguments", {{"path", "Scenes/Main.scene"}}}}));
+    std::ostringstream output;
+    MCP::AllowAllMcpPermissionPolicy policy;
+    auto host = Editor::McpEditorHost::Create(*fixture.project, input, output, policy, 8);
+    REQUIRE(host);
+    REQUIRE(host.Value()->Start());
+    REQUIRE(PumpUntilWorkerStops(*host.Value()));
+    auto responses = ParseResponses(output.str());
+    REQUIRE(responses.size() == 5);
+    REQUIRE(responses[0].contains("result"));
+    CHECK_FALSE(responses[0]["result"].value("isError", false));
+    auto current =
+        MCP::Json::parse(responses[1]["result"]["contents"][0]["text"].get<std::string>());
+    CHECK(current["entityCount"] == 0);
+    CHECK(current["sceneRevision"] == 1);
+    CHECK(current["bindingEpoch"] == 1);
+    CHECK(current["scenePath"] == "Scenes/E1-MCP.scene");
+    CHECK(current["hasSavedFile"] == false);
+    current = MCP::Json::parse(responses[3]["result"]["contents"][0]["text"].get<std::string>());
+    CHECK(current["entityCount"] == 1);
+    CHECK(fixture.project->GetCurrentScenePath() == "Scenes/E1-MCP.scene");
+    CHECK(fixture.project->IsDirty());
+}
+
+TEST_CASE("One MCP pump rejects queued old scene writes without mutating the new scene",
+          "[editor][mcp][e1]")
+{
+    using namespace Janus;
+    ProjectFixture fixture;
+    std::istringstream input;
+    std::ostringstream output;
+    MCP::AllowAllMcpPermissionPolicy policy;
+    auto host = Editor::McpEditorHost::Create(*fixture.project, input, output, policy, 8);
+    REQUIRE(host);
+    auto& live = *host.Value();
+    MCP::McpDispatchResult first, stale;
+    auto waitFor = [&](usize count)
+    {
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+        while (Editor::McpEditorHostTestAccess::Pending(live) < count &&
+               std::chrono::steady_clock::now() < deadline)
+            std::this_thread::yield();
+        return Editor::McpEditorHostTestAccess::Pending(live) == count;
+    };
+    std::thread a(
+        [&]
+        {
+            first = Editor::McpEditorHostTestAccess::Call(
+                live, {{"name", "scene.new"}, {"arguments", {{"path", "Scenes/E1-queue.scene"}}}});
+        });
+    const bool queuedFirst = waitFor(1);
+    std::thread b(
+        [&]
+        {
+            stale = Editor::McpEditorHostTestAccess::Call(
+                live, {{"name", "scene.create_entity"}, {"arguments", {{"name", "Stale write"}}}});
+        });
+    const bool queuedBoth = waitFor(2);
+    auto pumped = live.Pump();
+    live.Stop();
+    a.join();
+    b.join();
+    REQUIRE(queuedFirst);
+    REQUIRE(queuedBoth);
+    REQUIRE(pumped);
+    CHECK(pumped.Value() == 2);
+    REQUIRE(std::holds_alternative<MCP::Json>(first));
+    CHECK_FALSE(std::get<MCP::Json>(first).value("isError", false));
+    REQUIRE(std::holds_alternative<MCP::McpDispatchError>(stale));
+    CHECK(std::get<MCP::McpDispatchError>(stale).message.find("context changed") !=
+          std::string::npos);
+    CHECK(fixture.project->GetEditorScene().GetEntities().empty());
+}
+
+TEST_CASE("Lifecycle transaction parameters never compensate pending Agent commands",
+          "[editor][mcp][e1]")
+{
+    using namespace Janus;
+    ProjectFixture fixture;
+    std::istringstream input;
+    std::ostringstream output;
+    MCP::AllowAllMcpPermissionPolicy policy;
+    auto host = Editor::McpEditorHost::Create(*fixture.project, input, output, policy);
+    REQUIRE(host);
+    const auto call = [&](std::string name, MCP::Json args)
+    {
+        return Editor::McpEditorHostTestAccess::Call(*host.Value(),
+                                                     {{"name", name}, {"arguments", args}});
+    };
+    auto begun = call("transaction.begin", MCP::Json::object());
+    REQUIRE(std::holds_alternative<MCP::Json>(begun));
+    const auto token = std::get<MCP::Json>(begun)["structuredContent"]["transaction"];
+    auto entity = call("scene.create_entity", {{"name", "Pending"}, {"transaction", token}});
+    REQUIRE(std::holds_alternative<MCP::Json>(entity));
+    CHECK_FALSE(std::get<MCP::Json>(entity).value("isError", false));
+    for (const auto* name : {"scene.new", "scene.open", "scene.save_as"})
+    {
+        auto denied = call(name, {{"path", "Scenes/Blocked.scene"}, {"transaction", token}});
+        CHECK(std::holds_alternative<MCP::McpDispatchError>(denied));
+        CHECK(fixture.project->GetCommandBus().HasTransaction());
+        CHECK(fixture.project->GetCommandBus().GetPendingCount() == 1);
+    }
+    auto staleRevision =
+        call("scene.open", {{"path", "Scenes/Main.scene"}, {"expectedRevision", 99}});
+    CHECK(std::holds_alternative<MCP::McpDispatchError>(staleRevision));
+    CHECK(fixture.project->GetCommandBus().HasTransaction());
+}
 
 TEST_CASE("Live MCP reads exclude Move previews and Agent edits invalidate pending Human moves",
           "[editor][mcp][host][move][authoring-generation]")

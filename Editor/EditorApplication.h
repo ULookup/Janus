@@ -7,6 +7,7 @@
 #include "EditorWorkspaceLayout.h"
 #include "Renderer/RendererTypes.h"
 
+#include <array>
 #include <chrono>
 #include <filesystem>
 #include <memory>
@@ -37,6 +38,7 @@ class InspectorPanel;
 class McpEditorHost;
 class ProjectSession;
 class ProjectSettingsPanel;
+class PreparedScene;
 
 class EditorApplication final : public ApplicationClient
 {
@@ -57,6 +59,8 @@ private:
     void ShutdownImGui(Application& application) noexcept;
     void FrameScene(bool selectedOnly);
     void DrawCloseConfirmation(Application& application);
+    void DrawSceneDocumentDialog();
+    void RefreshSceneDocumentViews();
     bool DrawSceneInteraction(Vector2 origin, Vector2 size, bool hovered);
     void LoadPreferences();
     void UpdatePreferences(bool flush = false);
@@ -66,6 +70,15 @@ private:
     bool m_McpStdio = false;
     std::unique_ptr<ProjectSession> m_ProjectSession;
     std::unique_ptr<EditorCloseController> m_CloseController;
+    std::unique_ptr<EditorCloseController> m_SceneLeave;
+    std::unique_ptr<PreparedScene> m_PreparedScene;
+    std::array<char, 1025> m_SceneDocumentPath{};
+    int m_SceneDocumentAction = 0;
+    bool m_OpenSceneDialog = false;
+    bool m_SceneOverwrite = false;
+    bool m_SceneStopRuntime = false;
+    std::string m_SceneDocumentError;
+    u64 m_ViewSceneRevision = 0;
     bool m_CloseRequested = false;
     bool m_CloseNeedsDraftDecision = false;
     bool m_CloseStopRuntime = false;

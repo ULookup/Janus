@@ -2,8 +2,10 @@
 
 #include "ProjectSession.h"
 
+#include "Core/FileSystem/FileSystem.h"
 #include "Resources/DebugResources.h"
 #include "Resources/SceneResources.h"
+#include "Tools/SceneDocumentTools.h"
 #include "Tools/SceneTools.h"
 #include "Tools/TransactionTools.h"
 
@@ -89,18 +91,12 @@ Result<std::unique_ptr<McpEditorHost>> McpEditorHost::Create(
         std::move(host));
 }
 
-McpEditorHost::McpEditorHost(
-    ProjectSession& project,
-    std::istream& input,
-    std::ostream& output,
-    const MCP::IMcpPermissionPolicy& permissionPolicy,
-    usize maxRequestsPerPump)
-    : m_Project(project),
-      m_PermissionPolicy(permissionPolicy),
-      m_Router(m_Tools, m_Resources),
-      m_Dispatcher(maxRequestsPerPump),
-      m_Protocol(BuildServerConfig()),
-      m_Transport(input, output)
+McpEditorHost::McpEditorHost(ProjectSession& project, std::istream& input, std::ostream& output,
+                             const MCP::IMcpPermissionPolicy& permissionPolicy,
+                             usize maxRequestsPerPump)
+    : m_Project(project), m_ContextRevision(project.GetSceneRevision()),
+      m_PermissionPolicy(permissionPolicy), m_Router(m_Tools, m_Resources),
+      m_Dispatcher(maxRequestsPerPump), m_Protocol(BuildServerConfig()), m_Transport(input, output)
 {
     m_Protocol.SetRequestHandler(
         [this](
@@ -122,14 +118,14 @@ McpEditorHost::~McpEditorHost()
 
 Result<void> McpEditorHost::RegisterCapabilities()
 {
+    MCP::ToolRegistry tools;
+    MCP::ResourceRegistry resourcesRegistry;
     auto resources =
         MCP::RegisterSceneResources(
-            m_Resources,
+            resourcesRegistry,
             MCP::McpSceneResourceContext{
-                &m_Project.GetEditorScene(),
-                &m_Project.GetReflectionRegistry(),
-                &m_Project.GetAssetRegistry(),
-                [this]()
+                &m_Project.GetEditorScene(), &m_Project.GetReflectionRegistry(),
+                &m_Project.GetAssetRegistry(), [this]()
                 {
                     std::string displayPath =
                         m_Project.GetProjectRoot()
@@ -151,7 +147,7 @@ Result<void> McpEditorHost::RegisterCapabilities()
     }
 
     auto debug = MCP::RegisterDebugCapabilities(
-        m_Tools, m_Resources,
+        tools, resourcesRegistry,
         {[this]() { return m_Project.GetRuntimeStatus(); },
          [this]() -> const Scene*
          {
@@ -181,16 +177,15 @@ Result<void> McpEditorHost::RegisterCapabilities()
         return debug;
 
     auto transactions = MCP::RegisterTransactionCapabilities(
-        m_Tools, m_Resources,
+        tools, resourcesRegistry,
         {&m_Project.GetCommandBus(), [this](std::string label)
          { return m_Project.BeginAuthoringTransaction(m_Owner, std::move(label)); },
          [this](UUID token, bool commit)
          { return m_Project.FinishAuthoringTransaction(token, m_Owner, commit); }});
     if (!transactions)
         return transactions;
-    m_SceneRevision = m_Project.GetSceneRevision();
-    return MCP::RegisterSceneTools(
-        m_Tools,
+    auto sceneTools = MCP::RegisterSceneTools(
+        tools,
         MCP::McpSceneToolContext{
             &m_Project.GetEditorScene(), &m_Project.GetReflectionRegistry(),
             &m_Project.GetCommandBus(), &m_Project.GetAssetRegistry(), [this]()
@@ -203,6 +198,43 @@ Result<void> McpEditorHost::RegisterCapabilities()
             },
             m_Project.GetProjectRoot(), [this](UUID root, std::optional<std::string> name)
             { return m_Project.ExportPrefab(root, std::move(name)); }});
+    if (!sceneTools)
+        return sceneTools;
+    auto documents = MCP::RegisterSceneDocumentTools(
+        tools, {[this]() { return m_Project.GetSceneRevision(); },
+                [this](std::string_view name, std::string_view path, bool overwrite)
+                {
+                    const auto relative =
+                        std::filesystem::path(std::u8string(path.begin(), path.end()));
+                    if (name == "scene.new")
+                        return m_Project.NewScene(relative);
+                    if (name == "scene.open")
+                        return m_Project.OpenScene(relative);
+                    return m_Project.SaveSceneAs(relative, overwrite);
+                }});
+    if (!documents)
+        return documents;
+    // Build all callbacks before replacing the active set; never destroy a running handler.
+    m_Tools = std::move(tools);
+    m_Resources = std::move(resourcesRegistry);
+    m_SceneRevision = m_Project.GetSceneRevision();
+    return Result<void>::Success();
+}
+
+void McpEditorHost::PublishBindingEpoch()
+{
+    if (m_ContextRevision != m_Project.GetSceneRevision())
+    {
+        m_ContextRevision = m_Project.GetSceneRevision();
+        m_BindingEpoch.fetch_add(1);
+    }
+}
+Result<void> McpEditorHost::EnsureSceneBindingsCurrent()
+{
+    PublishBindingEpoch();
+    if (m_SceneRevision != m_Project.GetSceneRevision())
+        return RegisterCapabilities();
+    return Result<void>::Success();
 }
 
 Result<void> McpEditorHost::Start()
@@ -259,14 +291,9 @@ Result<usize> McpEditorHost::Pump()
     m_Project.ExpireAuthoringTransaction();
     if (!m_Running.load())
         m_Project.CancelAuthoringTransaction(m_Owner);
-    if (m_SceneRevision != m_Project.GetSceneRevision())
-    {
-        m_Tools = {};
-        m_Resources = {};
-        auto registered = RegisterCapabilities();
-        if (!registered)
-            return Result<usize>::Failure(registered.GetError());
-    }
+    auto bindings = EnsureSceneBindingsCurrent();
+    if (!bindings)
+        return Result<usize>::Failure(bindings.GetError());
     auto pumped =
         m_Dispatcher.Pump();
     if (!pumped)
@@ -332,12 +359,19 @@ MCP::McpDispatchResult McpEditorHost::DispatchRequest(
     const MCP::Json ownedParams =
         params;
 
+    const auto queuedEpoch = m_BindingEpoch.load();
     return m_Dispatcher.Invoke(
-        [this,
-         method = ownedMethod,
-         params = ownedParams,
-         era]()
+        [this, method = ownedMethod, params = ownedParams, era, queuedEpoch]()
         {
+            auto bindings = EnsureSceneBindingsCurrent();
+            if (!bindings)
+                return MCP::McpDispatchResult{MCP::McpDispatchError{
+                    MCP::JsonRpcInternalError, bindings.GetError().message, nullptr}};
+            if (queuedEpoch != m_BindingEpoch.load())
+                return MCP::McpDispatchResult{MCP::McpDispatchError{
+                    MCP::JsonRpcInvalidParams,
+                    "Scene context changed while request was queued; read the current context.",
+                    nullptr}};
             const MCP::McpOperation operation =
                 MCP::ClassifyMcpOperation(
                     method,
@@ -345,6 +379,9 @@ MCP::McpDispatchResult McpEditorHost::DispatchRequest(
 
             const std::string target = MCP::McpRequestTarget(method, params);
 
+            const bool lifecycle =
+                method == "tools/call" &&
+                (target == "scene.new" || target == "scene.open" || target == "scene.save_as");
             if (operation == MCP::McpOperation::Unclassified)
             {
                 m_Project.GetCommandBus().RecordOperation(
@@ -363,8 +400,8 @@ MCP::McpDispatchResult McpEditorHost::DispatchRequest(
             {
                 m_Project.GetCommandBus().RecordOperation(
                     CommandActor::Agent, "Permission denied: " + target, authorized, m_Owner);
-                if (operation == MCP::McpOperation::SceneWrite ||
-                    operation == MCP::McpOperation::TransactionControl)
+                if (!lifecycle && (operation == MCP::McpOperation::SceneWrite ||
+                                   operation == MCP::McpOperation::TransactionControl))
                     AbortOwnedRequest(params);
                 return MCP::McpDispatchResult{
                     PermissionDenied(
@@ -393,9 +430,10 @@ MCP::McpDispatchResult McpEditorHost::DispatchRequest(
 
             const auto before = m_Project.GetCommandBus().GetNextActivitySequence();
             auto response = m_Router.HandleRequest(method, params, era);
+            PublishBindingEpoch();
             auto* value = std::get_if<MCP::Json>(&response);
             const bool failed = !value || value->value("isError", false);
-            if (operation == MCP::McpOperation::SceneWrite && failed)
+            if (!lifecycle && operation == MCP::McpOperation::SceneWrite && failed)
                 AbortOwnedRequest(params);
             if (method == "tools/call" &&
                 m_Project.GetCommandBus().GetNextActivitySequence() == before)
@@ -404,11 +442,20 @@ MCP::McpDispatchResult McpEditorHost::DispatchRequest(
                     failed ? Result<void>::Failure(ErrorCode::InvalidState, "MCP operation failed.")
                            : Result<void>::Success(),
                     m_Owner);
-            if (operation == MCP::McpOperation::SceneRead && value && value->contains("contents"))
+            if ((operation == MCP::McpOperation::SceneRead || target == "engine://project/info") &&
+                value && value->contains("contents"))
             {
                 for (auto& content : (*value)["contents"])
                 {
                     auto payload = MCP::Json::parse(content["text"].get<std::string>());
+                    if (target == "engine://scene/current" || target == "engine://project/info")
+                    {
+                        payload["sceneRevision"] = m_Project.GetSceneRevision();
+                        payload["bindingEpoch"] = m_BindingEpoch.load();
+                        payload["scenePath"] =
+                            FileSystem::PathToUtf8(m_Project.GetCurrentScenePath());
+                        payload["hasSavedFile"] = m_Project.HasSavedSceneFile();
+                    }
                     payload["authoringTransaction"] =
                         MCP::TransactionStatusJson(m_Project.GetCommandBus());
                     content["text"] = payload.dump();

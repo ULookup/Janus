@@ -179,11 +179,28 @@ Integrated v0.10 acceptance is merged. A full Roguelike, save data, multiple-sce
 and networking remain future product work.
 
 
+## Scene documents in Editor (E1)
+
+Use **File > New Scene...**, **Open Scene...** or **Save Scene As...** with a project-relative
+`.scene` path whose parent directory already exists. New/Open first prepare a candidate, then
+offer Save and change, Discard and change, or Cancel. Runtime must be explicitly stopped;
+finish or explicitly roll back an active Agent transaction before preparing again.
+New starts an empty dirty document without creating a file; add a Camera for a world preview.
+Its first Save refuses an occupied target. Save As requires an explicit overwrite choice for
+existing files and retains entity IDs and Undo history. These operations leave `defaultScene`
+unchanged: reopening the project still starts its configured default scene.
+
+Agents use `scene.new {path}`, `scene.open {path}` and `scene.save_as {path, overwrite?}`;
+all accept optional `expectedRevision` and reject transaction parameters. Save a dirty scene
+and stop Runtime before New/Open. Read `engine://scene/current` or `engine://project/info`
+for `scenePath`, `hasSavedFile`, `sceneRevision` and `bindingEpoch`. A queued request rejected
+with context changed must reread the current context before retrying.
+
 ## Physics showcase (10-08)
 
-To use `Scenes/PhysicsShowcase.scene`, copy Game, set the copy's `project.json.defaultScene`
-to that path, reopen the copied project in Editor and Play. The current Editor has no general
-scene-file switching UI. The left robot falls
+To use `Scenes/PhysicsShowcase.scene`, copy Game, open the copy in Editor and choose
+**File > Open Scene...** with that path. Prepare the scene, resolve any unsaved changes, then Play.
+The left robot falls
 through a checkpoint onto the floor; the right robot is removed when it touches
 the collector. The left platform moves kinematically. Space applies an upward
 impulse, Enter teleports the player back to its initial pose and clears velocity.
@@ -211,8 +228,8 @@ explicitly. Lua runtime methods and full limits are specified in the physics des
 
 ## Prefab showcase (10-09)
 
-In a Game copy, set `project.json.defaultScene` to `Scenes/PrefabShowcase.scene`, reopen
-that project and Play to see two independent robot subtrees.
+In a Game copy, use **File > Open Scene...** with `Scenes/PrefabShowcase.scene`, prepare and
+confirm the switch, then Play to see two independent robot subtrees.
 Each root owns SpriteRenderer, LuaScript and Animator; its Badge child retains local placement.
 Select `Prefabs/Robot.prefab` in Assets and click **Instantiate Prefab** to add another robot.
 Move the new root with Inspector to separate overlapping instances. **Undo** removes the whole

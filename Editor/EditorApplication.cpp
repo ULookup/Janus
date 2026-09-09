@@ -443,6 +443,7 @@ void EditorApplication::OnUpdate(
     }
 
     ImGui_ImplOpenGL3_NewFrame();
+    RefreshSceneDocumentViews();
     ImGui_ImplSDL3_NewFrame();
     if (m_GameInputActive)
         ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NavEnableKeyboard;
@@ -582,6 +583,20 @@ void EditorApplication::OnUpdate(
         {
             if (ImGui::BeginMenu(EditorLabel(m_Preferences.language, "File").c_str()))
             {
+                const char* documents[]{"New Scene...", "Open Scene...", "Save Scene As..."};
+                for (int i = 0; i < 3; ++i)
+                    if (ImGui::MenuItem(
+                            EditorLabel(m_Preferences.language, documents[i]).c_str(), nullptr,
+                            false, !m_ProjectSession->IsClosePending() && (i != 2 || !readOnly)))
+                    {
+                        m_SceneDocumentAction = i + 1;
+                        m_OpenSceneDialog = true;
+                        m_SceneDocumentError.clear();
+                        m_SceneDocumentPath.fill(0);
+                        m_SceneOverwrite = false;
+                        m_SceneStopRuntime = false;
+                        m_TransformDrag.Cancel();
+                    }
                 if (ImGui::MenuItem(EditorLabel(m_Preferences.language, "Save Scene").c_str(),
                                     "Ctrl+S", false, canSave))
                     save();
@@ -817,7 +832,8 @@ void EditorApplication::OnUpdate(
                                                            ? " *  |  Unsaved changes"
                                                            : "  |  Saved"));
         if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("%s", m_ProjectSession->GetCurrentScenePath().string().c_str());
+            ImGui::SetTooltip(
+                "%s", FileSystem::PathToUtf8(m_ProjectSession->GetCurrentScenePath()).c_str());
         if (!m_PreferencesError.empty())
         {
             ImGui::SameLine();
@@ -1277,6 +1293,12 @@ void EditorApplication::OnUpdate(
             if (gameTabVisible)
             {
                 m_WasGameView = true;
+                const auto gameCamera =
+                    m_SceneRenderer->ResolvePrimaryCamera(ResolveGameViewScene(*m_ProjectSession));
+                if (!gameCamera)
+                    ImGui::TextWrapped("%s",
+                                       EditorText(m_Preferences.language,
+                                                  "Add a primary Camera to preview this scene."));
                 const ImVec2 available =
                     ImGui::GetContentRegionAvail();
                 const EditorPanelRect fitted = FitAspectRatio(
@@ -1284,8 +1306,7 @@ void EditorApplication::OnUpdate(
                     static_cast<f32>(m_ProjectSession->GetProjectSettings().width) /
                         static_cast<f32>(m_ProjectSession->GetProjectSettings().height));
 
-                if (HasUsableContentSize(
-                        ImVec2{fitted.width, fitted.height}))
+                if (gameCamera && HasUsableContentSize(ImVec2{fitted.width, fitted.height}))
                 {
                     const ImVec2 origin =
                         ImGui::GetCursorPos();
@@ -1361,7 +1382,17 @@ void EditorApplication::OnUpdate(
 
     if (!renderSceneView || m_CloseRequested)
         m_TransformDrag.Cancel();
+    DrawSceneDocumentDialog();
+    const bool changedDocument = m_ViewSceneRevision != m_ProjectSession->GetSceneRevision();
+    RefreshSceneDocumentViews();
+    if (changedDocument)
+    {
+        pendingScenePick.reset();
+        renderGameView = false;
+    }
     DrawCloseConfirmation(application);
+    if (m_SceneDocumentAction != 0 || m_ProjectSession->IsClosePending())
+        m_SuppressGameUntilReleased = true;
     if (m_CloseRequested || (m_CloseController && m_CloseController->IsPending()))
         m_SuppressGameUntilReleased = true;
     if (m_SuppressGameUntilReleased)
@@ -1646,7 +1677,7 @@ void EditorApplication::DrawCloseConfirmation(Application& application)
         const bool transaction = commands.HasTransaction() && !recovery;
         const bool settingsDirty = m_ProjectSettingsPanel->HasUnsavedChanges(*m_ProjectSession);
         ImGui::TextWrapped(EditorText(m_Preferences.language, "Scene: %s"),
-                           m_ProjectSession->GetCurrentScenePath().generic_string().c_str());
+                           FileSystem::PathToUtf8(m_ProjectSession->GetCurrentScenePath()).c_str());
         ImGui::TextUnformatted(EditorText(m_Preferences.language, m_ProjectSession->IsDirty()
                                                                       ? "Scene has unsaved changes."
                                                                       : "Scene is saved."));
@@ -1769,6 +1800,8 @@ void EditorApplication::OnShutdown(Application& application) noexcept
     m_McpPermissionPolicy.reset();
     // Release the guard only after the protocol worker has stopped, before destroying its session.
     m_CloseController.reset();
+    m_SceneLeave.reset();
+    m_PreparedScene.reset();
 
     if (m_ProjectSession != nullptr && m_ProjectSession->HasRuntime())
     {

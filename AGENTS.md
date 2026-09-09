@@ -24,6 +24,26 @@ D2/E/F and release gates remained pending at that check.
 Editor stdio verification. D2 is uncommitted; E/F and release gates remain pending.
 See docs/verification/2026-09-08-editor-diagnostics.md; earlier notes retain historical baselines.
 
+2026-09-09 E1 update: `codex/editor-scene-documents` preserves D1 and the uncommitted D2 work,
+and completes E1 locally with 498/498 Debug tests and both production Editor stdio eras.
+Remote main is still `1b496c1`; D2/E1 are uncommitted. E2/F and release gates remain pending.
+See docs/verification/2026-09-09-editor-scene-documents.md.
+
+## Editor E1 scene document constraints
+
+- PreparedScene owns an opaque candidate tagged with project identity, revision and authoring
+  generation. Validate source/path/assets before replacement; stale candidates fail without swapping.
+  Human save/discard authorization stays inside EditorCloseController; ordinary New/Open reject dirty.
+- New reserves a project-relative .scene path without writing. First Save is atomic create-only;
+  SaveAs overwrites only on explicit request and changes the active path only after success. Neither
+  operation changes project.defaultScene. Unsaved discard rebuilds an empty Scene without reading disk.
+- Clear commands before releasing their borrowed Scene. Replacement advances revision/generation
+  and clears selection/drafts/move preview; SaveAs preserves UUIDs/history and selection.
+- Refresh MCP Scene bindings before every owner-thread request, including requests within one Pump.
+  Prepare registries before swapping them; never destroy the active handler's registry. Queued old
+  epochs and lifecycle transaction parameters are rejected without aborting an Agent transaction.
+- Filesystem diagnostic paths must use UTF-8 so error responses remain serializable over stdio.
+
 ## Editor D2 diagnostic and input constraints
 
 - Console counts, filters and sequence-keyed details read the shared bounded LogStore; no second

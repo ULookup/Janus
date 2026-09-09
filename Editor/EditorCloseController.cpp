@@ -97,4 +97,29 @@ Result<void> EditorCloseController::Confirm(bool saveScene, bool stopRuntime,
     m_Accepted = true;
     return Result<void>::Success();
 }
+
+Result<void> EditorCloseController::ConfirmSceneChange(PreparedScene& candidate, bool saveScene,
+                                                       bool stopRuntime)
+{
+    if (!IsPending())
+        return Failed({ErrorCode::InvalidState, "No scene change confirmation is active."});
+    // Preflight before stopping or saving the old document. No public ignoreDirty escape hatch.
+    auto valid = m_Session.ValidatePreparedScene(candidate);
+    if (!valid)
+        return Failed(valid.GetError());
+    auto confirmed = Confirm(saveScene, stopRuntime, nullptr);
+    if (!confirmed)
+        return confirmed;
+    // Saving the old document can modify the candidate's file when opening the same path.
+    valid = m_Session.ValidatePreparedScene(candidate);
+    if (!valid)
+    {
+        m_Accepted = false;
+        return Failed(valid.GetError());
+    }
+    m_Session.ReplacePreparedScene(candidate);
+    m_Accepted = false;
+    Cancel();
+    return Result<void>::Success();
+}
 } // namespace Janus::Editor

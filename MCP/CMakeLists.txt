@@ -21,6 +21,7 @@ target_sources(
         Schema/ReflectionSchemaAdapter.cpp
         Tools/TransactionTools.cpp
         Tools/SceneTools.cpp
+        Tools/SceneDocumentTools.cpp
         Transport/StdioTransport.cpp
 
     PUBLIC
@@ -39,6 +40,7 @@ target_sources(
         Schema/ReflectionSchemaAdapter.h
         Tools/TransactionTools.h
         Tools/SceneTools.h
+        Tools/SceneDocumentTools.h
         Transport/StdioTransport.h
 )
 

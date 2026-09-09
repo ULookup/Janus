@@ -7,6 +7,22 @@ namespace Janus::Editor
 namespace
 {
 constexpr std::pair<std::string_view, const char*> Catalog[] = {
+    {"New Scene...", "新建场景…"},
+    {"Open Scene...", "打开场景…"},
+    {"Save Scene As...", "场景另存为…"},
+    {"Scene document", "场景文档"},
+    {"Current scene", "当前场景"},
+    {"Prepared scene", "待切换场景"},
+    {"Prepare scene", "检查场景"},
+    {"Use a project-relative .scene path in an existing directory.",
+     "请输入项目内已有目录中的 .scene 相对路径。"},
+    {"Overwrite existing target", "覆盖已有目标文件"},
+    {"Stop runtime before changing scene", "切换场景前停止运行"},
+    {"Save and change scene", "保存并切换场景"},
+    {"Discard changes and change scene", "放弃改动并切换场景"},
+    {"Finish or roll back the Agent transaction, then prepare again.",
+     "请先结束或回滚 Agent 事务，再重新检查场景。"},
+    {"Add a primary Camera to preview this scene.", "添加主相机以预览此场景。"},
     {"Search messages or categories...", "搜索消息或分类…"},
     {"Runtime", "运行实例"},
     {"Frame", "帧"},

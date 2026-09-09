@@ -1,3 +1,6 @@
+#include "EditorActions.h"
+#include "EditorCloseController.h"
+#include "EditorContext.h"
 #include "ProjectSession.h"
 
 #include "Application/ApplicationConfig.h"
@@ -19,6 +22,44 @@
 #include <string>
 #include <thread>
 #include <utility>
+
+TEST_CASE("Scene documents preserve old state on failed prepare and guard dirty replacement",
+          "[editor][e1]")
+{
+    using namespace Janus;
+    Test::FakeRenderDevice device;
+    auto renderer = Detail::Renderer2DTestAccess::Create(device);
+    ProjectRuntimeConfig config;
+    config.root = std::filesystem::path(JANUS_TEST_SOURCE_DIR).parent_path() / "SandboxProject";
+    auto opened = Editor::ProjectSession::Open(config, *renderer);
+    REQUIRE(opened);
+    auto& session = *opened.Value();
+    const auto path = session.GetCurrentScenePath();
+    auto* original = &session.GetEditorScene();
+    REQUIRE_FALSE(session.PrepareOpenScene("../escape.scene"));
+    REQUIRE_FALSE(session.PrepareOpenScene("Scenes/missing.scene"));
+    CHECK(&session.GetEditorScene() == original);
+    CHECK(session.GetCurrentScenePath() == path);
+    auto candidate = session.PrepareNewScene("Scenes/E1-unsaved.scene");
+    REQUIRE(candidate);
+    session.MarkDirty();
+    CHECK_FALSE(session.CommitPreparedScene(*candidate.Value()));
+    CHECK_FALSE(session.OpenScene(path));
+    CHECK(&session.GetEditorScene() == original);
+    candidate = session.PrepareNewScene("Scenes/E1-unsaved.scene");
+    REQUIRE(candidate);
+    Editor::EditorCloseController leave(session);
+    leave.Request();
+    REQUIRE(leave.ConfirmSceneChange(*candidate.Value(), false, false));
+    CHECK_FALSE(session.IsClosePending());
+    CHECK(session.IsDirty());
+    CHECK_FALSE(session.HasSavedSceneFile());
+    CHECK(session.GetEditorScene().GetEntities().empty());
+    CHECK(session.GetSceneRevision() == 1);
+    REQUIRE(session.DiscardUnsavedAndReload());
+    CHECK(session.GetEditorScene().GetEntities().empty());
+    CHECK(session.IsDirty());
+}
 
 namespace
 {
@@ -76,6 +117,164 @@ private:
 };
 
 } // namespace
+
+TEST_CASE("Unsaved scene recovery does not depend on its reserved disk path", "[editor][e1]")
+{
+    using namespace Janus;
+    ProjectTempDirectory temp;
+    Test::FakeRenderDevice device;
+    auto renderer = Detail::Renderer2DTestAccess::Create(device);
+    auto opened = Editor::ProjectSession::Open({temp.Path()}, *renderer);
+    REQUIRE(opened);
+    auto& session = *opened.Value();
+    REQUIRE(session.NewScene("Scenes/Reserved.scene"));
+    Editor::EditorContext context{&session};
+    Editor::EditorActions actions(context);
+    REQUIRE(actions.CreateEntity("Discard me"));
+    REQUIRE(std::filesystem::create_directory(temp.Path() / "Scenes/Reserved.scene"));
+    CHECK_FALSE(session.SaveCurrentScene());
+    REQUIRE(session.DiscardUnsavedAndReload());
+    CHECK(session.GetEditorScene().GetEntities().empty());
+    CHECK(session.GetCommandBus().GetHistorySize() == 0);
+    CHECK(session.IsDirty());
+    CHECK_FALSE(session.HasSavedSceneFile());
+    CHECK(session.GetCurrentScenePath() == "Scenes/Reserved.scene");
+    CHECK(std::filesystem::is_directory(temp.Path() / "Scenes/Reserved.scene"));
+    REQUIRE(session.SaveSceneAs("Scenes/Recovered.scene"));
+}
+
+TEST_CASE("Scene first save and SaveAs preserve paths history and files on failure", "[editor][e1]")
+{
+    using namespace Janus;
+    ProjectTempDirectory directory;
+    Test::FakeRenderDevice device;
+    auto renderer = Detail::Renderer2DTestAccess::Create(device);
+    ProjectRuntimeConfig config;
+    config.root = directory.Path();
+    auto opened = Editor::ProjectSession::Open(config, *renderer);
+    REQUIRE(opened);
+    auto& session = *opened.Value();
+    const auto initial = session.GetCurrentScenePath();
+    REQUIRE(session.NewScene("Scenes/New.scene"));
+    CHECK_FALSE(FileSystem::Exists(directory.Path() / "Scenes/New.scene"));
+    REQUIRE(FileSystem::WriteText(directory.Path() / "Scenes/New.scene", "occupied"));
+    CHECK_FALSE(session.SaveCurrentScene());
+    CHECK(session.IsDirty());
+    CHECK_FALSE(session.HasSavedSceneFile());
+    CHECK(FileSystem::ReadText(directory.Path() / "Scenes/New.scene").Value() == "occupied");
+    Editor::EditorContext context;
+    context.project = &session;
+    Editor::EditorActions actions(context);
+    auto entity = actions.CreateEntity("Keep identity");
+    REQUIRE(entity);
+    const auto history = session.GetCommandBus().GetHistorySize();
+    CHECK_FALSE(session.SaveSceneAs("../Outside.scene"));
+    CHECK_FALSE(session.SaveSceneAs("Scenes/no-parent/File.scene"));
+    CHECK_FALSE(session.SaveSceneAs(initial));
+    CHECK(session.GetCurrentScenePath() == "Scenes/New.scene");
+    REQUIRE(session.SaveSceneAs("Scenes/Saved.scene"));
+    CHECK(session.HasSavedSceneFile());
+    CHECK_FALSE(session.IsDirty());
+    CHECK(session.GetCommandBus().GetHistorySize() == history);
+    CHECK(session.GetEditorScene().FindEntity(entity.Value()).IsValid());
+    CHECK(session.GetProjectSettings().defaultScene == initial);
+    REQUIRE(actions.Undo());
+    CHECK(session.IsDirty());
+    REQUIRE(session.SaveCurrentScene());
+    REQUIRE(session.OpenScene(initial));
+    CHECK(session.GetCommandBus().GetHistorySize() == 0);
+    REQUIRE(session.OpenScene("Scenes/Saved.scene"));
+    CHECK(session.GetEditorScene().GetEntities().empty());
+    REQUIRE(session.SaveSceneAs("Scenes/New.scene", true));
+    CHECK(FileSystem::ReadText(directory.Path() / "Scenes/New.scene").Value() != "occupied");
+}
+
+TEST_CASE("Scene candidates reject stale context and changed disk without aborting transactions",
+          "[editor][e1]")
+{
+    using namespace Janus;
+    ProjectTempDirectory directory;
+    Test::FakeRenderDevice device;
+    auto renderer = Detail::Renderer2DTestAccess::Create(device);
+    ProjectRuntimeConfig config;
+    config.root = directory.Path();
+    auto opened = Editor::ProjectSession::Open(config, *renderer);
+    REQUIRE(opened);
+    auto& session = *opened.Value();
+    const auto path = session.GetCurrentScenePath();
+    auto candidate = session.PrepareOpenScene(path);
+    REQUIRE(candidate);
+    auto source = FileSystem::ReadText(directory.Path() / path);
+    REQUIRE(source);
+    REQUIRE(FileSystem::WriteText(directory.Path() / path, "malformed"));
+    CHECK_FALSE(session.CommitPreparedScene(*candidate.Value()));
+    CHECK(session.GetSceneRevision() == 0);
+    auto invalidAssets = source.Value();
+    // Keep the Scene codec valid, but replace one registered identity with an unknown asset.
+    bool replaced = false;
+    for (const auto& asset : session.GetAssetRegistry().GetAssets())
+    {
+        const auto id = asset.handle.ToString();
+        const auto offset = invalidAssets.find(id);
+        if (offset != std::string::npos)
+        {
+            invalidAssets.replace(offset, id.size(), UUID::Random().ToString());
+            replaced = true;
+            break;
+        }
+    }
+    REQUIRE(replaced);
+    REQUIRE(FileSystem::WriteText(directory.Path() / path, invalidAssets));
+    CHECK_FALSE(session.PrepareOpenScene(path));
+    REQUIRE(FileSystem::WriteText(directory.Path() / path, source.Value()));
+    const auto owner = UUID::Random();
+    auto transaction = session.BeginAuthoringTransaction(owner);
+    REQUIRE(transaction);
+    CHECK_FALSE(session.NewScene("Scenes/Blocked.scene"));
+    CHECK_FALSE(session.SaveSceneAs("Scenes/Blocked.scene"));
+    CHECK(session.GetCommandBus().GetTransactionId() == transaction.Value());
+    REQUIRE(session.FinishAuthoringTransaction(transaction.Value(), owner, false));
+    REQUIRE(session.PlayRuntime(true));
+    CHECK_FALSE(session.CommitPreparedScene(*candidate.Value()));
+    REQUIRE(session.StopRuntime());
+    CHECK_FALSE(session.CommitPreparedScene(*candidate.Value()));
+    candidate = session.PrepareOpenScene(path);
+    REQUIRE(candidate);
+    REQUIRE(session.CommitPreparedScene(*candidate.Value()));
+    CHECK_FALSE(session.CommitPreparedScene(*candidate.Value()));
+}
+
+TEST_CASE("Human scene replacement requires explicit stop and preserves cancellation",
+          "[editor][e1]")
+{
+    using namespace Janus;
+    ProjectTempDirectory directory;
+    Test::FakeRenderDevice device;
+    auto renderer = Detail::Renderer2DTestAccess::Create(device);
+    ProjectRuntimeConfig config;
+    config.root = directory.Path();
+    auto opened = Editor::ProjectSession::Open(config, *renderer);
+    REQUIRE(opened);
+    auto& session = *opened.Value();
+    const auto original = session.GetCurrentScenePath();
+    REQUIRE(session.PlayRuntime(true));
+    auto candidate = session.PrepareNewScene("Scenes/AfterStop.scene");
+    REQUIRE(candidate);
+    Editor::EditorCloseController leave(session);
+    leave.Request();
+    CHECK_FALSE(leave.ConfirmSceneChange(*candidate.Value(), false, false));
+    CHECK(session.HasRuntime());
+    CHECK(session.GetCurrentScenePath() == original);
+    leave.Cancel();
+    CHECK_FALSE(session.IsClosePending());
+    leave.Request();
+    REQUIRE(leave.ConfirmSceneChange(*candidate.Value(), false, true));
+    CHECK_FALSE(session.HasRuntime());
+    CHECK(session.GetCurrentScenePath() == "Scenes/AfterStop.scene");
+    CHECK(session.IsDirty());
+    CHECK_FALSE(leave.IsAccepted());
+    CHECK_FALSE(leave.IsPending());
+}
 
 namespace
 {
