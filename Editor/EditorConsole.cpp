@@ -1,6 +1,7 @@
 #include "EditorConsole.h"
 
 #include <algorithm>
+#include <cctype>
 #include <utility>
 
 namespace Janus::Editor
@@ -40,21 +41,56 @@ void EditorConsole::Clear() noexcept
 
 const std::vector<EditorConsoleEntry>& EditorConsole::GetEntries() const
 {
-    LogQuery query;
-    query.limit = std::min<usize>(m_Capacity, 200);
-    if (m_LevelFilter)
-        query.level = *m_LevelFilter == EditorConsoleLevel::Error     ? LogLevel::Error
-                      : *m_LevelFilter == EditorConsoleLevel::Warning ? LogLevel::Warning
-                                                                      : LogLevel::Info;
-    const auto page = m_Store->Read(query);
-    m_Entries.clear();
-    if (page)
-        for (const auto& entry : page.Value().entries)
-            m_Entries.push_back({entry.level == LogLevel::Error     ? EditorConsoleLevel::Error
-                                 : entry.level == LogLevel::Warning ? EditorConsoleLevel::Warning
-                                                                    : EditorConsoleLevel::Info,
-                                 entry.message});
+    m_Entries = Read().entries;
     return m_Entries;
+}
+
+void EditorConsole::SetSearch(std::string_view search)
+{
+    m_Search.assign(search.substr(0, 256));
+    for (char& c : m_Search)
+        if (static_cast<unsigned char>(c) < 128)
+            c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+}
+
+EditorConsoleSnapshot EditorConsole::Read() const
+{
+    EditorConsoleSnapshot view;
+    LogQuery query;
+    query.after = 0;
+    query.limit = 200;
+    // Read the bounded store afresh. The view is not a second retained log history.
+    usize scanned = 0;
+    while (scanned < m_Capacity)
+    {
+        auto page = m_Store->Read(query);
+        if (!page)
+            break;
+        view.droppedCount = page.Value().droppedCount;
+        for (auto& entry : page.Value().entries)
+        {
+            if (scanned++ == m_Capacity)
+                break;
+            ++view.counts[static_cast<usize>(entry.level)];
+            if ((m_LevelFilter && entry.level != *m_LevelFilter) ||
+                (m_RuntimeFilter && entry.context.runtimeId != *m_RuntimeFilter))
+                continue;
+            if (!m_Search.empty())
+            {
+                auto haystack = entry.category + "\n" + entry.message;
+                for (char& c : haystack)
+                    if (static_cast<unsigned char>(c) < 128)
+                        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                if (haystack.find(m_Search) == std::string::npos)
+                    continue;
+            }
+            view.entries.push_back(std::move(entry));
+        }
+        if (page.Value().entries.empty() || page.Value().nextCursor <= *query.after)
+            break;
+        query.after = page.Value().nextCursor;
+    }
+    return view;
 }
 
 usize EditorConsole::GetCapacity() const noexcept

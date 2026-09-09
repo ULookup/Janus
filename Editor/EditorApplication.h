@@ -96,6 +96,7 @@ private:
 
     bool m_SelectSceneViewTab = false;
     bool m_SelectGameViewTab = false;
+    bool m_SelectConsoleTab = false;
     bool m_ShowProjectSettings = false;
     bool m_ShowAbout = false;
     bool m_ShowGrid = true;

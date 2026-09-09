@@ -63,7 +63,7 @@ std::unique_ptr<Janus::Editor::ProjectSession> OpenProject(
 } // namespace
 
 TEST_CASE("Paused runtime steps once with neutral input and remains authoring read only",
-          "[runtime-session][v0.9]")
+          "[runtime-session][v0.9][d2]")
 {
     Janus::Test::FakeRenderDevice device;
     auto renderer = Janus::Detail::Renderer2DTestAccess::Create(device);
@@ -111,7 +111,7 @@ TEST_CASE("Paused runtime steps once with neutral input and remains authoring re
 }
 
 TEST_CASE("Runtime faults retain the isolated scene and forbid further simulation or authoring",
-          "[runtime-session][v0.9]")
+          "[runtime-session][v0.9][d2]")
 {
     Janus::Test::FakeRenderDevice device;
     auto renderer = Janus::Detail::Renderer2DTestAccess::Create(device);
@@ -136,7 +136,23 @@ TEST_CASE("Runtime faults retain the isolated scene and forbid further simulatio
     REQUIRE_FALSE(project->SaveCurrentScene());
     REQUIRE(project->UpdateRuntime(Janus::TimeStep::FromSeconds(0.1)));
     REQUIRE(project->GetRuntimeStatus().frameIndex == 0);
+    Janus::LogQuery errors;
+    errors.level = Janus::LogLevel::Error;
+    errors.runtimeId = status.runtimeId;
+    const auto logs = project->GetLogStore()->Read(errors);
+    REQUIRE(logs);
+    REQUIRE_FALSE(logs.Value().entries.empty());
+    bool foundFault = false;
+    for (const auto& entry : logs.Value().entries)
+        if (entry.message == status.lastError->message)
+        {
+            foundFault = true;
+            CHECK(entry.context.frameIndex == status.failedFrameIndex);
+        }
+    CHECK(foundFault);
     REQUIRE(project->StopRuntime());
+    REQUIRE_FALSE(project->HasRuntime());
+    CHECK_FALSE(project->IsAuthoringReadOnly());
     REQUIRE(project->GetRuntimeStatus().lastError.has_value());
 }
 

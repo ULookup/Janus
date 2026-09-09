@@ -16,7 +16,25 @@ Debug CTest passed 482/482; native preference/reopen/input checks are recorded i
 docs/verification/2026-09-08-editor-preferences.md. C/D1 are submitted as PR #97
 (target main, carrying B) and PR #98 (target C). Merge #97 first, then retarget #98 to main.
 Implementation commits are `3bf2273` / `036f7e4`; earlier uncommitted descriptions are historical.
-D2/E/F and release gates remain pending.
+D2/E/F and release gates remained pending at that check.
+
+2026-09-08 D2 update: #97 is now merged into main `1b496c1`, including B/C; its Windows CI passed.
+#98 merged into C after #97 and D1 is not in main. `codex/editor-diagnostics` builds on D1
+(`c745a5c`) and completes D2 locally with 487/487 Debug tests and modern/legacy production
+Editor stdio verification. D2 is uncommitted; E/F and release gates remain pending.
+See docs/verification/2026-09-08-editor-diagnostics.md; earlier notes retain historical baselines.
+
+## Editor D2 diagnostic and input constraints
+
+- Console counts, filters and sequence-keyed details read the shared bounded LogStore; no second
+  retained log history. Fault location matches the original runtime error, not later denied controls.
+- Activity resolves UUIDs against the current authoring Scene; missing targets stay disabled.
+  Faulted Stop uses ProjectSession and only successful cleanup restores editing.
+- Game owns phase rules and guards invalid actions before feedback. Lua exposes only generic
+  set_button_interactable(bool); retain visible disabledColor rather than disabling Button rendering.
+- Immediately after the Game Image, use item hover and text/Inspector ownership to gate input.
+  Do not reject ImGui's background MoveId via IsAnyItemActive: it cancels held mouse gestures
+  even in a NoMove window. Real ImGui frame tests cover press/hold/release and tool capture.
 
 ## v0.8 capability baseline
 

@@ -6,6 +6,7 @@
 #include "EditorCloseController.h"
 #include "EditorConsole.h"
 #include "EditorContext.h"
+#include "EditorGameInput.h"
 #include "EditorIcons.h"
 #include "EditorViewSource.h"
 #include "EditorWorkspaceLayout.h"
@@ -918,8 +919,10 @@ void EditorApplication::OnUpdate(
                     RecordError(*error);
                 ImGui::EndTabItem();
             }
-            if (IconTab(Icon::Console, EditorLabel(m_Preferences.language, "Console").c_str()))
+            if (IconTab(Icon::Console, EditorLabel(m_Preferences.language, "Console").c_str(),
+                        m_SelectConsoleTab ? ImGuiTabItemFlags_SetSelected : 0))
             {
+                m_SelectConsoleTab = false;
                 m_ConsolePanel->DrawContents();
                 ImGui::EndTabItem();
             }
@@ -987,9 +990,38 @@ void EditorApplication::OnUpdate(
                         row.sequence, CommandActorName(row.actor).data(),
                         CommandOutcomeName(row.outcome).data(), row.commandId,
                         row.description.c_str());
+                    ImGui::PushID(std::to_string(row.sequence).c_str());
+                    int effectIndex = 0;
                     for (const auto& effect : row.effects)
-                        ImGui::TextDisabled("  %s %s", effect.operation.c_str(),
-                                            effect.entity.ToString().c_str());
+                    {
+                        ImGui::PushID(effectIndex++);
+                        const auto entity =
+                            m_ProjectSession->GetEditorScene().FindEntity(effect.entity);
+                        ImGui::BeginDisabled(!entity.IsValid());
+                        const auto target = effect.operation + " " + effect.entity.ToString();
+                        if (ImGui::Selectable(target.c_str(), false))
+                        {
+                            const auto settled = m_InspectorPanel->CommitPendingEdit();
+                            if (!settled)
+                                RecordError(settled.GetError());
+                            else
+                            {
+                                m_TransformDrag.Cancel();
+                                m_EditorContext->selection.Select(effect.entity);
+                                m_SelectSceneViewTab = true;
+                                FrameScene(true);
+                            }
+                        }
+                        ImGui::EndDisabled();
+                        if (!entity.IsValid() &&
+                            ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+                            ImGui::SetTooltip(
+                                "%s",
+                                EditorText(m_Preferences.language,
+                                           "Entity no longer exists in the authoring scene."));
+                        ImGui::PopID();
+                    }
+                    ImGui::PopID();
                     if (row.truncated)
                         ImGui::TextDisabled("  Details truncated (%zu effects total)",
                                             row.effectCount);
@@ -1058,6 +1090,45 @@ void EditorApplication::OnUpdate(
             "##ViewportWorkspace",
             nullptr,
             WorkspaceContainerFlags);
+
+        const auto fault = m_ProjectSession->GetRuntimeStatus();
+        if (fault.state == RuntimeState::Faulted)
+        {
+            ImGui::TextColored(
+                {1, .4f, .4f, 1}, "%s",
+                EditorText(m_Preferences.language, "Runtime faulted. Stop to return to editing."));
+            if (fault.lastError)
+            {
+                ImGui::BeginChild("FaultSummary", {0, ImGui::GetTextLineHeightWithSpacing() * 2});
+                ImGui::TextWrapped("%s", fault.lastError->message.c_str());
+                ImGui::EndChild();
+            }
+            if (ImGui::Button(EditorLabel(m_Preferences.language, "Locate error").c_str()))
+            {
+                m_ConsolePanel->FocusRuntimeError(fault.runtimeId, fault.lastError
+                                                                       ? fault.lastError->message
+                                                                       : std::string_view{});
+                m_SelectConsoleTab = true;
+                if (m_WorkspacePreferences.mode == EditorLayoutMode::Focus)
+                    m_WorkspacePreferences =
+                        GetDefaultWorkspacePreferences(EditorLayoutMode::Debug);
+            }
+            ImGui::SameLine();
+            if (ImGui::Button(EditorLabel(m_Preferences.language, "Stop runtime").c_str()))
+            {
+                const auto stopped = m_ProjectSession->StopRuntime();
+                m_ProjectSession->GetCommandBus().RecordOperation(CommandActor::Human,
+                                                                  "runtime.stop", stopped);
+                if (!stopped)
+                    RecordError(stopped.GetError());
+                else
+                {
+                    m_SelectSceneViewTab = !m_ReturnToGameView;
+                    m_SelectGameViewTab = m_ReturnToGameView;
+                }
+            }
+            ImGui::Separator();
+        }
 
         if (ImGui::BeginTabBar("ViewportTabs"))
         {
@@ -1264,9 +1335,8 @@ void EditorApplication::OnUpdate(
                         const auto item = ImGui::GetItemRectMin();
                         const auto windowOrigin = ImGui::GetMainViewport()->Pos;
                         const auto& settings = m_ProjectSession->GetProjectSettings();
-                        acceptGameInput = ImGui::IsItemHovered() && !ImGui::GetIO().WantTextInput &&
-                                          !ImGui::IsAnyItemActive() &&
-                                          !(m_InspectorPanel && m_InspectorPanel->OwnsKeyboardInput());
+                        acceptGameInput = AcceptGameViewInput(
+                            m_InspectorPanel && m_InspectorPanel->OwnsKeyboardInput());
                         gameInput = application.GetInput().ForViewport(
                             {item.x - windowOrigin.x, item.y - windowOrigin.y},
                             {fitted.width, fitted.height},

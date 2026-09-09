@@ -115,6 +115,11 @@ target_link_libraries(
 
 janus_set_warnings(JanusTests)
 
+if(TARGET JanusImGui)
+    target_sources(JanusTests PRIVATE Editor/EditorGameInputTests.cpp)
+    target_link_libraries(JanusTests PRIVATE JanusImGui)
+endif()
+
 include(Catch)
 catch_discover_tests(JanusTests PROPERTIES ENVIRONMENT "SDL_AUDIO_DRIVER=dummy")
 

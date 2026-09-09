@@ -63,6 +63,48 @@ struct CombatFixture
 };
 } // namespace
 
+TEST_CASE("Combat buttons expose legal actions from startup through results and restart",
+          "[combat][d2]")
+{
+    CombatFixture fixture;
+    const auto enabled = [&](const char* name)
+    {
+        auto& scene = fixture.project->GetRuntimeSession()->GetScene();
+        for (const auto entity : scene.GetEntities())
+            if (scene.GetComponent<Janus::EntityIdentityComponent>(entity)->name == name)
+                return scene.GetComponent<Janus::ButtonComponent>(entity)->interactable;
+        CHECK(false);
+        return false;
+    };
+    CHECK(enabled("Start"));
+    CHECK_FALSE(enabled("Restart"));
+    CHECK_FALSE(enabled("Strike"));
+    CHECK_FALSE(enabled("Wait"));
+    CHECK_FALSE(enabled("Play"));
+    fixture.Click(180, 245);
+    CHECK_FALSE(enabled("Start"));
+    CHECK(enabled("Restart"));
+    CHECK(enabled("Strike"));
+    CHECK(enabled("Wait"));
+    CHECK_FALSE(enabled("Play"));
+    for (int i = 0; i < 3; ++i)
+    {
+        fixture.Click(180, 390);
+        CHECK(enabled("Play"));
+        fixture.Click(940, 530);
+        CHECK_FALSE(enabled("Play"));
+    }
+    CHECK_FALSE(enabled("Strike"));
+    CHECK_FALSE(enabled("Wait"));
+    CHECK(enabled("Restart"));
+    fixture.Click(180, 245);
+    CHECK(std::get<std::string>(fixture.Snapshot().fields.at("phase")) == "victory");
+    fixture.Click(940, 245);
+    CHECK(enabled("Start"));
+    CHECK_FALSE(enabled("Restart"));
+    CHECK_FALSE(fixture.project->IsDirty());
+}
+
 TEST_CASE("Combat pointer input completes victory defeat and restart without authoring mutation",
           "[combat][snapshot][v0.10]")
 {

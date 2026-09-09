@@ -7,6 +7,22 @@ namespace Janus::Editor
 namespace
 {
 constexpr std::pair<std::string_view, const char*> Catalog[] = {
+    {"Search messages or categories...", "搜索消息或分类…"},
+    {"Runtime", "运行实例"},
+    {"Frame", "帧"},
+    {"Error code", "错误代码"},
+    {"Show all runtimes", "显示所有运行实例"},
+    {"Retained: %zu info / %zu warnings / %zu errors | Showing %zu | Dropped %llu",
+     "保留：%zu 信息 / %zu 警告 / %zu 错误 | 显示 %zu | 已移除 %llu"},
+    {"No matching messages.", "没有匹配的消息。"},
+    {"Copy message", "复制消息"},
+    {"Close details", "关闭详情"},
+    {"Log details", "日志详情"},
+    {"Message truncated by log capacity limits.", "消息因日志容量限制被截断。"},
+    {"Entity no longer exists in the authoring scene.", "该对象已不在编辑场景中。"},
+    {"Runtime faulted. Stop to return to editing.", "运行发生故障。停止后可继续编辑。"},
+    {"Locate error", "定位错误"},
+    {"Stop runtime", "停止运行"},
     {"File", "文件"},
     {"Edit", "编辑"},
     {"View", "视图"},
